@@ -7,6 +7,8 @@ export interface Particle {
   ageMs: number;
   size: number;
   color: string;
+  /** Gravity multiplier (default 1; steam uses a small negative value so it rises). */
+  g?: number;
 }
 
 export type ParticleInit = Omit<Particle, 'ageMs'>;
@@ -39,7 +41,7 @@ export class ParticleSystem {
     for (const p of this.items) {
       p.ageMs += dtMs;
       if (p.ageMs >= p.lifeMs) continue;
-      p.vy += this.gravity * dt;
+      p.vy += this.gravity * (p.g ?? 1) * dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       this.items[w++] = p;
