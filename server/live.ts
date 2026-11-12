@@ -32,6 +32,8 @@ const gameUrl = `${base}/live.html`; // no ?query: the token is built into the p
 console.log('\nพร้อมแล้ว ใช้ลิงก์เหล่านี้ (เก็บเป็นความลับ: มีรหัสลับอยู่ในลิงก์)\n');
 console.log('1) ใส่ใน TikTok LIVE Studio แบบ Link  ขนาด 1080x1920  Fill:');
 console.log('   ' + gameUrl + '\n');
+console.log('0) แผงควบคุม: กดส่งของขวัญ/อีเวนต์/เสกผี เข้าเกมใน LIVE Studio ได้เอง (เปิดในเบราว์เซอร์ธรรมดา):');
+console.log(`   ${base}/panel\n`);
 console.log('2) หน้าตรวจสอบว่าอีเวนต์เข้ามาไหม (เปิดในเบราว์เซอร์ธรรมดา):');
 console.log(`   ${base}/monitor?token=${token}\n`);
 console.log('3) ถ้า TikFinity ส่งแบบ Webhook / URL ให้ตั้งปลายทางเป็น:');

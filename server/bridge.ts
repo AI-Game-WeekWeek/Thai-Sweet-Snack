@@ -47,6 +47,32 @@ export interface MonitorStats {
   dropped: number;
 }
 
+/** Commands the control panel may send (test / show actions, not viewer events). */
+export const COMMANDS = ['ghost', 'shaman', 'squeeze', 'finish'] as const;
+
+const PANEL_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>แผงควบคุมร้านขนมไทย</title>
+<style>body{font:15px/1.4 system-ui,sans-serif;background:#1c1511;color:#f4e6d3;margin:0;padding:14px;max-width:680px}h1{font-size:20px;margin:0 0 8px}h2{font-size:15px;margin:14px 0 6px;color:#ffc878}
+.row{display:flex;flex-wrap:wrap;gap:8px}button{font:inherit;background:#34271d;color:#fff3dc;border:1px solid #6a4a30;border-radius:10px;padding:10px 14px;cursor:pointer;min-width:84px}button:active{background:#5a3d28}
+button.g{border-color:#e8b64c}button.f{border-color:#b8a0ff}input{font:inherit;padding:8px;border-radius:8px;border:1px solid #6a4a30;background:#2a1f18;color:#fff;width:200px}#msg{position:fixed;right:12px;top:12px;background:#0008;padding:6px 12px;border-radius:12px;opacity:0;transition:opacity .2s}</style>
+<h1>แผงควบคุม (ส่งเข้าเกมที่เปิดอยู่ทุกหน้า รวมถึงใน LIVE Studio)</h1>
+<p>ชื่อผู้ชมสำหรับของขวัญ (เว้นว่างได้): <input id=nm maxlength=16 placeholder="เช่น พี่ต้น"></p>
+<h2>ของขวัญ → ลูกค้าสั่งขนม</h2><div class=row id=g></div>
+<h2>อีเวนต์ผู้ชม</h2><div class=row id=e></div>
+<h2>ผีและหมอผี</h2><div class=row id=s></div>
+<div id=msg></div>
+<script>const TOKEN=__TOKEN__;let n=0;const nm=()=>document.getElementById('nm').value.trim();
+const say=m=>{const e=document.getElementById('msg');e.textContent=m;e.style.opacity=1;clearTimeout(say.t);say.t=setTimeout(()=>e.style.opacity=0,1200)};
+async function post(path,body,label){try{const r=await fetch(path,{method:'POST',headers:{authorization:'Bearer '+TOKEN,'content-type':'application/json'},body:JSON.stringify(body)});say(r.ok?label:'ไม่สำเร็จ ('+r.status+')')}catch(e){say('ต่อสะพานไม่ได้')}}
+const ev=(type,extra,label)=>post('/event',{id:'panel'+Date.now()+'-'+(++n),type,count:1,tsMs:Date.now(),...extra},label);
+const mk=(box,label,fn,cls)=>{const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.onclick=fn;document.getElementById(box).append(b)};
+[[1,'ข้าวต้มมัด'],[5,'บัวลอย'],[10,'ทองหยอด'],[20,'ขนมชั้น'],[50,'ฝอยทอง'],[99,'ทองหยิบ'],[199,'ลูกชุบ'],[500,'ขนมเบื้อง']].forEach(([c,t])=>mk('g',c+' · '+t,()=>ev('gift',{giftCoins:c,...(nm()?{displayName:nm()}:{})},'ส่งของขวัญ '+c),'g'));
+mk('e','กุหลาบ',()=>ev('rose',{giftCoins:1,...(nm()?{displayName:nm()}:{})},'กุหลาบ'));
+mk('e','ไลก์ ×1',()=>ev('like',{count:1},'ไลก์ 1'));mk('e','ไลก์ ×30',()=>ev('like',{count:30},'ไลก์ 30'));mk('e','ไลก์ ×400',()=>ev('like',{count:400},'ไลก์ 400'));
+mk('e','ติดตาม (แมวกวัก)',()=>ev('follow',{},'ติดตาม'),'f');mk('e','แชร์ (+โควตาหมอผี)',()=>ev('share',{},'แชร์'),'f');mk('e','หัวใจส้ม (VIP)',()=>ev('orangeHeart',{},'หัวใจส้ม'),'f');
+['นางรำ','ผีพราย','กระสือ','แม่นาค','ผีหิว'].forEach((t,i)=>mk('s','เสก'+t,()=>post('/cmd',{cmd:'ghost',arg:i},'เสก'+t)));
+mk('s','เสกผีสุ่ม',()=>post('/cmd',{cmd:'ghost'},'เสกผีสุ่ม'));mk('s','เรียกหมอผี',()=>post('/cmd',{cmd:'shaman'},'เรียกหมอผี'),'f');mk('s','ผีบีบทันที',()=>post('/cmd',{cmd:'squeeze'},'ผีบีบ'));mk('s','ทำขนมให้เสร็จ',()=>post('/cmd',{cmd:'finish'},'ขนมเสร็จ'));
+</script>`;
+
 const MIME: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.webp': 'image/webp', '.png': 'image/png', '.mp3': 'audio/mpeg', '.woff2': 'font/woff2', '.woff': 'font/woff', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8' };
 
 const MONITOR_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ตรวจสอบอีเวนต์</title>
@@ -141,6 +167,11 @@ export function createBridge(opts: BridgeOptions): Bridge {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
       return void res.end(MONITOR_HTML);
     }
+    if (path === '/panel') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      return void res.end(PANEL_HTML.replace('__TOKEN__', () => JSON.stringify(opts.token)));
+    }
+    if (path === '/cmd') return handleCmd(req, res);
     if (path === '/tikfinity') return handleTikFinity(req, res);
     if (path !== '/event') return serveStatic(req, res, path);
     if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' });
@@ -187,6 +218,32 @@ export function createBridge(opts: BridgeOptions): Bridge {
       broadcast(JSON.stringify(valid));
     }
     send(res, 202, { accepted: valid.length, ignored, rejected: items.length - valid.length - ignored });
+  }
+
+  /** The streamer's own control panel sends test commands (call a ghost, shaman, ...) that are relayed to the game pages. */
+  async function handleCmd(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' });
+    if (!bearerOk(req)) return send(res, 401, { error: 'unauthorized' });
+    if (!allowed(req.socket.remoteAddress ?? 'unknown')) return send(res, 429, { error: 'rate limited' });
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of req as AsyncIterable<Buffer>) {
+      size += chunk.length;
+      if (size > 1024) return send(res, 413, { error: 'body too large' });
+      chunks.push(chunk);
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    } catch {
+      return send(res, 400, { error: 'invalid JSON' });
+    }
+    const o = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
+    if (typeof o.cmd !== 'string' || !(COMMANDS as readonly string[]).includes(o.cmd)) return send(res, 400, { error: 'unknown command' });
+    const arg = typeof o.arg === 'number' && Number.isInteger(o.arg) && o.arg >= 0 && o.arg <= 9 ? o.arg : undefined;
+    const sent = broadcast(JSON.stringify({ cmd: o.cmd, ...(arg !== undefined ? { arg } : {}) }));
+    stats.received['cmd:' + o.cmd] = (stats.received['cmd:' + o.cmd] ?? 0) + 1;
+    send(res, 202, { sent });
   }
 
   /** TikFinity (or similar) posts its messages here; the token may be in the URL because such tools often cannot set headers. */

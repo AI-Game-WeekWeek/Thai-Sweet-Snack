@@ -135,6 +135,21 @@ const bridgeUrl = params.get('bridge') ?? (bridgeToken && /^https?:$/.test(locat
 if (cafeRenderer) cafeRenderer.showConnection = bridgeUrl !== null || params.get('status') === '1';
 const renderer = cafeRenderer ?? (voteMode ? new VoteRenderer(cfg.vote.maxBoost) : new Renderer());
 
+// Commands from the bridge's control panel (/panel): call a ghost kind, the shaman, squeeze now, finish the dessert.
+function isCommand(raw: unknown): raw is { cmd: string; arg?: number } {
+  return typeof raw === 'object' && raw !== null && typeof (raw as { cmd?: unknown }).cmd === 'string';
+}
+function runCommand(c: { cmd: string; arg?: number }): void {
+  try {
+    if (c.cmd === 'ghost') game.callGhostNow(typeof c.arg === 'number' ? c.arg : undefined);
+    else if (c.cmd === 'shaman') game.callShaman(true);
+    else if (c.cmd === 'squeeze') game.squeezeNow();
+    else if (c.cmd === 'finish') game.finishCookingNow();
+  } catch {
+    /* a command must never break the game */
+  }
+}
+
 // ?bridge=ws://127.0.0.1:8787&token=... connects to the local bridge (see docs/tiktok-integration.md).
 // Without it the game runs on its own (or with ?mock=1); a dead bridge only changes the connection label.
 const bridgeParam = bridgeUrl;
@@ -143,7 +158,7 @@ if (bridgeParam && /^wss?:\/\//i.test(bridgeParam)) {
     const url = new URL(bridgeParam);
     const token = bridgeToken;
     if (token) url.searchParams.set('token', token);
-    const bridge = new WebSocketSource({ url: url.toString(), sink: (raw) => game.ingestEvent(raw), onState: (s) => events.setConnection(s) });
+    const bridge = new WebSocketSource({ url: url.toString(), sink: (raw) => (isCommand(raw) ? runCommand(raw) : game.ingestEvent(raw)), onState: (s) => events.setConnection(s) });
     bridge.start();
     addEventListener('pagehide', () => bridge.stop());
   } catch (err) {
