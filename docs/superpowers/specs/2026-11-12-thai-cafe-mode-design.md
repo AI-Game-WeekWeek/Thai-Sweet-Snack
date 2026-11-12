@@ -12,7 +12,8 @@ faster. The finished dessert is served to the customer, who pays and leaves. The
 and still works with zero viewers or without TikTok (anonymous customers keep the queue full).
 
 Round 1 = this core. Round 2 (separate spec, built only after Round 1 plays well): surprise events for follow
-("lucky cat"), orange heart ("tip rain"), fan club ("VIP customer") and the phone pre-order call.
+("lucky cat"), orange heart / fan club (the **same button**, one event: the viewer becomes a **VIP customer** with a golden
+frame at the front of the queue, and a short "tip rain" of coins and lanterns falls), and the phone pre-order call.
 
 Why it stays small: still one dessert cooking at a time, still two viewer inputs the audience needs to learn
 (**send a gift to order, tap hearts to speed up**), and no walking staff, no décor, no quests.
@@ -116,4 +117,5 @@ never saved; works with no viewers and without TikTok; vote and classic mode tes
 ## 11. Known limits
 
 Pictures, names and gift values depend on the event provider (none verified); art is procedural and simple; sound and visuals are
-checked by tests and screenshots, not on a live stream; the surprise events and the phone call are Round 2.
+checked by tests and screenshots, not on a live stream; the surprise events and the phone call are Round 2. Orange heart and fan club are
+treated as one event (`orangeHeart` in our event format); whether a given provider sends it is not verified.
