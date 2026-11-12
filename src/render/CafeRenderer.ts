@@ -61,7 +61,7 @@ export class CafeRenderer {
       });
       this.safely('logo', () => drawArt(ctx, CAFE_PICS.logo, 105, 1205, 180, 170, 0, 1, 1, 4));
       this.safely('phone', () => this.drawPhone(ctx, view.cafe));
-      this.safely('cat', () => this.drawCat(ctx, 950, 1342, view.cafe?.luckyCatSec ?? 0));
+      this.safely('cat', () => this.drawCat(ctx, 975, 1428, view.cafe?.luckyCatSec ?? 0));
       this.safely('lucky', () => this.drawLuckyPill(ctx, view.cafe));
       this.safely('status', () => this.drawStatus(ctx, view));
       this.safely('queue', () => this.drawQueue(ctx, view.cafe));
@@ -295,13 +295,13 @@ export class CafeRenderer {
     if (sec === undefined || !Number.isFinite(sec) || sec <= 0) return;
     ctx.fillStyle = 'rgba(60,35,18,0.88)';
     ctx.beginPath();
-    ctx.roundRect(730, 1196, 300, 54, 27);
+    ctx.roundRect(770, 1312, 280, 46, 23);
     ctx.fill();
     ctx.lineWidth = 4;
     ctx.strokeStyle = '#e8b64c';
     ctx.stroke();
     const pct = Number.isFinite(cafe?.luckyCatBonusPct) ? Math.round(cafe?.luckyCatBonusPct as number) : 0;
-    this.text(ctx, `แมวกวัก +${pct}% · ${Math.ceil(Math.min(999, sec))} วิ`, 880, 1224, 28, '#ffe08a');
+    this.text(ctx, `แมวกวัก +${pct}% · ${Math.ceil(Math.min(999, sec))} วิ`, 910, 1336, 25, '#ffe08a');
   }
 
   /** The phone on the counter: decoration normally, shaking with ring arcs and a warning when a call comes in. */
@@ -369,8 +369,8 @@ export class CafeRenderer {
     const lucky = Number.isFinite(luckySec) && luckySec > 0;
     const frame = Math.floor(this.timeMs / (lucky ? 260 : 700)) % 2 === 0 ? CAFE_PICS.catUp : CAFE_PICS.catDown;
     if (artImage(frame)) {
-      if (lucky) drawArt(ctx, CAFE_PICS.glow, x, y + 10, 260 + 20 * Math.sin(this.timeMs / 200), 260);
-      drawArt(ctx, frame, x, y + 10, 170, 170, 0, 1, 1, 4);
+      if (lucky) drawArt(ctx, CAFE_PICS.glow, x, y, 190 + 14 * Math.sin(this.timeMs / 200), 190);
+      drawArt(ctx, frame, x, y, 130, 130, 0, 1, 1, 3.5);
       return;
     }
     const wave = Math.sin(this.timeMs / (lucky ? 130 : 260)) * 0.35;
