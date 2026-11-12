@@ -133,3 +133,19 @@ treated as one event (`orangeHeart` in our event format); whether a given provid
   port, does not re-check redirects, needs punycode hosts, and keeps up to 24 picture URLs after their customers leave;
   neighbouring long names can overlap in the waiting row; the 720x1280 backing canvas looks soft in a 1080x1920 OBS source;
   small per-frame allocations in `cafeView`; `AvatarCache` could be cut entirely if pictures are never used.
+
+## 13. Round 2: surprise events (approved scope, details decided here)
+
+Each is one event the audience can trigger, each is visible at a glance, each is bounded and config-driven.
+
+| Viewer does | What happens (defaults in `cafe.surprise`) |
+|---|---|
+| **Follow** | **Lucky cat (แมวกวัก)** for 20 s per follow (stacks up to 60 s): payouts +100 %, waiting customers lose patience at half speed. The cat glows and a pill "แมวกวัก ×2" with a timer shows at the top. Works in every state. Follows carry no name (privacy: nothing is shown about the follower). |
+| **Orange heart / fan club** (same button) | **VIP customer + tip rain.** An anonymous VIP with a golden crown goes to the **front of the waiting line** and orders a premium dessert (best unlocked tier of 50+ coins); pays +50 %. Every waiting customer throws a tip: a coin shower and 3 coins per waiting customer (max 36). At most one VIP waiting; 30 s cooldown (extra hearts still feed the heart meter). Works in every state. |
+| *(nobody: random, about every 100 s, first after 45 s)* | **Phone call.** The phone on the counter rings for 3 s, then a **phone-order customer** joins right behind the current customer with a **35 s deadline** (their patience) and orders a random unlocked dessert; served in time = payout +200 %, too slow = they hang up (customer lost, nothing else happens). Only one phone customer at a time; no call while the queue is full. |
+
+Queue priority (first-come first-served within a rank): VIP, phone order, viewer (gift), anonymous.
+Sounds: new synthesized `ring` and `coin`. Everything is round-tagged and cleaned up; a surprise can never block the loop,
+double-pay a customer, or touch the save (nothing about followers or orange-heart senders is stored or shown).
+Provider dependency: follow and orange-heart events exist only if the event source sends them (not verified); without them
+only the phone call happens, and the café works as before.
