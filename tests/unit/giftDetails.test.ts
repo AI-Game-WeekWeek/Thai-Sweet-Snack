@@ -65,12 +65,13 @@ describe('gift details (viewer name and picture)', () => {
     expect(m.drain({ ...round, acceptsGifts: false }, NOW).gifts).toEqual([]);
   });
 
-  it('a flood of gifts is bounded per drain but all of them are counted', () => {
+  it('a flood of gifts is bounded per drain; the rest wait for the next drain (see the deferral test)', () => {
     const m = new TikTokEventManager({ ...defaultConfig, events: { ...defaultConfig.events, queueMax: 1000 } });
     for (let i = 0; i < 100; i++) m.ingest(gift());
     const fx = m.drain(round, NOW);
     expect(fx.gifts).toHaveLength(defaultConfig.cafe.maxGiftsPerDrain);
-    expect(m.totals.gifts).toBe(100);
+    expect(m.queueLength).toBe(100 - defaultConfig.cafe.maxGiftsPerDrain); // deferred, not dropped
+    expect(m.totals.gifts).toBe(defaultConfig.cafe.maxGiftsPerDrain); // counted when handled
   });
 
   it('a gift with an unknown value counts as 1 coin; invalid values are rejected at parse', () => {
@@ -112,5 +113,33 @@ describe('gift details (viewer name and picture)', () => {
       expect(e.displayName).toBeTruthy();
     }
     expect(out.some((e) => (e as { type: string }).type === 'comment')).toBe(false);
+  });
+
+  it('gifts beyond the per-drain cap are deferred to the next drain, never dropped or double counted', () => {
+    const m = new TikTokEventManager({ ...defaultConfig, events: { ...defaultConfig.events, queueMax: 1000 } });
+    for (let i = 0; i < 100; i++) m.ingest(gift({ giftCoins: i + 1 }));
+    const seen: number[] = [];
+    for (let d = 0; d < 10; d++) seen.push(...m.drain(round, NOW).gifts.map((g) => g.coins));
+    expect(seen).toHaveLength(100);
+    expect(new Set(seen).size).toBe(100);
+    expect(m.totals.gifts).toBe(100);
+    expect(m.queueLength).toBe(0);
+  });
+
+  it('roses survive queue overflow just like gifts (they are orders in café mode)', () => {
+    const m = new TikTokEventManager({ ...defaultConfig, events: { ...defaultConfig.events, queueMax: 10 } });
+    m.ingest({ id: 'r1', type: 'rose', count: 1, tsMs: NOW });
+    for (let i = 0; i < 50; i++) m.ingest({ id: `f${i}`, type: 'follow', count: 1, tsMs: NOW });
+    expect(m.drain(round, NOW).gifts).toHaveLength(1);
+  });
+
+  it('events without a count (as in the documented examples) are accepted and count as 1', () => {
+    for (const type of ['gift', 'rose', 'follow', 'share', 'orangeHeart', 'like']) {
+      const e = parseLiveEvent({ id: `nc${++n}`, type, tsMs: NOW }, 1000) as LiveEvent;
+      expect(e, type).not.toBeNull();
+      expect(e.count).toBe(1);
+    }
+    expect(parseLiveEvent({ id: 'bad', type: 'like', count: 'x', tsMs: NOW }, 1000)).toBeNull();
+    expect(parseLiveEvent({ id: 'bad2', type: 'like', count: 0, tsMs: NOW }, 1000)).toBeNull();
   });
 });

@@ -47,7 +47,7 @@ export class CafeQueue {
     return this.list;
   }
 
-  /** A viewer customer goes right behind the one being served; anonymous customers join the back. */
+  /** Viewers queue right behind the customer being served (in order of arrival); anonymous customers join the back. */
   enqueue(n: NewCustomer): 'ok' | 'full' {
     if (this.list.length >= this.opts.maxWaiting) return 'full';
     const name = n.name ? cleanName(n.name, this.opts.maxNameLength) : '';
@@ -62,8 +62,12 @@ export class CafeQueue {
       patienceMaxMs: this.opts.patienceMs,
       state: 'WAITING',
     };
-    if (n.viewer) this.list.unshift(customer);
-    else this.list.push(customer);
+    if (n.viewer) {
+      // First-come first-served among viewers (a combo of gifts cannot jump the line), but ahead of anonymous customers.
+      let at = 0;
+      while (at < this.list.length && this.list[at]?.viewer) at++;
+      this.list.splice(at, 0, customer);
+    } else this.list.push(customer);
     return 'ok';
   }
 

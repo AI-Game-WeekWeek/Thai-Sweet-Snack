@@ -427,7 +427,7 @@ export class Game {
     }
   }
 
-  /** A gift puts that viewer in the queue ordering what the gift value maps to; a full queue still pays the café. */
+  /** A gift puts that viewer in the queue ordering what the gift value maps to; a full queue still pays the café a flat thank-you. */
   private enqueueGifts(gifts: readonly { coins: number; displayName?: string; avatarUrl?: string }[]): void {
     const cafe = this.cafe;
     if (!cafe) return;
@@ -436,7 +436,7 @@ export class Game {
       const dessertId = dessertForGift(g.coins, this.config.cafe.giftTiers, this.desserts.unlockedIds);
       if (!dessertId) continue;
       const r = cafe.queue.enqueue({ viewer: true, name: anon ? null : (g.displayName ?? null), avatarUrl: anon ? null : (g.avatarUrl ?? null), dessertId });
-      if (r === 'full') this.rewards?.addCoins(Math.min(g.coins, 500));
+      if (r === 'full') this.rewards?.addCoins(this.config.cafe.overflowGiftCoins);
     }
   }
 

@@ -456,13 +456,13 @@ export class CafeRenderer {
     const coins = Number.isFinite(cafe.coins) ? Math.max(0, Math.floor(cafe.coins)) : 0;
     ctx.fillStyle = '#e8b64c';
     ctx.beginPath();
-    ctx.arc(900, 50, 26, 0, Math.PI * 2);
+    ctx.arc(1030, 50, 26, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = '#a9761f';
     ctx.lineWidth = 4;
     ctx.stroke();
-    ctx.textAlign = 'left';
-    this.text(ctx, String(coins), 940, 52, 38, '#fff', '#7a4f12');
+    ctx.textAlign = 'right';
+    this.text(ctx, coins >= 1e6 ? `${Math.floor(coins / 1e6)}M` : String(coins), 990, 52, 38, '#fff', '#7a4f12');
     ctx.textAlign = 'center';
     const total = Number.isFinite(cafe.waitingTotal) ? Math.max(0, Math.min(999, Math.floor(cafe.waitingTotal))) : 0;
     ctx.textAlign = 'left';

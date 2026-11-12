@@ -70,8 +70,14 @@ export class TikTokEventManager {
     const fx: EventEffects = { progressAdd: 0, completeStep: false, roseEffect: false, bigGiftEffect: false, shareBonus: 0, votes: [], likes: 0, follows: 0, hearts: 0, gifts: [], counters: this.counts };
     const batch = this.queue;
     this.queue = [];
+    const deferred: LiveEvent[] = [];
     for (const e of batch) {
       try {
+        // Over the per-drain gift cap: keep the gift for the next drain instead of losing it.
+        if ((e.type === 'gift' || e.type === 'rose') && round.acceptsGifts && fx.gifts.length >= cfg.maxGiftsPerDrain) {
+          deferred.push(e);
+          continue;
+        }
         if (e.type === 'comment') {
           if (round.voting && e.tsMs >= round.startedAtMs && e.vote !== undefined) {
             fx.votes.push({ vote: e.vote, ...(e.userId !== undefined ? { userKey: e.userId } : {}) });
@@ -128,6 +134,7 @@ export class TikTokEventManager {
         console.error('[TikTokEventManager] dropped one event', err);
       }
     }
+    this.queue = deferred;
     fx.counters = { ...this.counts };
     return fx;
   }
@@ -158,7 +165,7 @@ export class TikTokEventManager {
     }
     this.queue = rest;
     while (this.queue.length > max) {
-      const i = this.queue.findIndex((e) => e.type !== 'gift');
+      const i = this.queue.findIndex((e) => e.type !== 'gift' && e.type !== 'rose');
       this.queue.splice(i === -1 ? 0 : i, 1);
     }
   }

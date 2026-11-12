@@ -105,7 +105,7 @@ checked by tests and screenshots, not on a live stream.
   viewers see the clock late.
 - **No repeats with zero voters:** the first (default-winner) candidate is never the dessert just cooked.
 - **Hearts:** likes, follows, orange hearts and small gifts feed the meter while cooking; likes during the vote window are ignored.
-- **Privacy:** nicknames (`user`) are dropped from every event, not only comments.
+- **Privacy:** nicknames (`user`) are dropped from every event, not only comments. (Later, café mode keeps a cleaned `displayName` and `avatarUrl` on gift and rose events only; see the café spec.)
 - **Bridge:** well-formed non-vote comments get 202 `{ignored}` instead of 400 so providers never see errors for chatter.
 - Known, deferred minors: votes arriving in the single frame where the window closes are dropped; Thai/full-width digits are not
   accepted as votes; the unlock message is not shown in vote mode; the candidate count (3) is partly hard-coded; a backward wall-clock

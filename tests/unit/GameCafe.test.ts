@@ -26,6 +26,7 @@ function mk(over: Partial<GameConfig['cafe']> = {}, unlocked: string[] = ALL, cf
   const game = new Game(cfg, desserts, undefined, events, rewards, undefined, undefined, { queue, meter, rng });
   return { game, queue, meter, rewards, events, cfg };
 }
+const cfgCoins = () => cafeConfig.cafe.overflowGiftCoins;
 const gift = (g: Game, coins: number | undefined, extra: Record<string, unknown> = {}) =>
   g.ingestEvent({ id: `g${++n}`, type: 'gift', count: 1, ...(coins !== undefined ? { giftCoins: coins } : {}), displayName: 'มะลิ', tsMs: g.nowMs, ...extra });
 const like = (g: Game, count: number) => g.ingestEvent({ id: `l${++n}`, type: 'like', count, tsMs: g.nowMs });
@@ -121,17 +122,41 @@ describe('Game in café mode', () => {
     gift(game, 40);
     game.update(16);
     expect(queue.waiting()).toHaveLength(3);
-    expect(rewards.profile.coins).toBe(coins + 40);
+    expect(rewards.profile.coins).toBe(coins + cfgCoins()); // a small flat thank-you, not the gift's face value
   });
 
-  it('500 gifts in one tick keep the queue within its cap and lose nothing silently', () => {
-    const { game, queue, rewards } = mk();
+  it('500 gifts at once keep the queue within its cap; every gift becomes a customer or a small café payment', () => {
+    const { game, queue, rewards } = mk({ npcSpawnEveryMs: 1e9 });
     game.start();
+    const coins0 = rewards.profile.coins;
     for (let i = 0; i < 500; i++) gift(game, 5);
-    game.update(16);
+    for (let i = 0; i < 40; i++) game.update(16); // the per-tick cap spreads them over a few ticks
     expect(queue.waiting().length).toBeLessThanOrEqual(12);
-    expect(rewards.profile.coins).toBeGreaterThanOrEqual(0);
+    const overflowPaid = (rewards.profile.coins - coins0) / cfgCoins();
+    // 500 gifts: at most 12 fit in the queue, all the rest paid the flat amount
+    expect(overflowPaid).toBeGreaterThanOrEqual(500 - 12 - 1);
+    expect(overflowPaid).toBeLessThanOrEqual(500);
     runUntil(game, () => game.snapshot().roundsCompleted >= 2);
+  });
+
+  it('overflow gifts can never inflate the economy: coins from a flood stay far below the face value', () => {
+    const { game, rewards } = mk();
+    game.start();
+    const coins0 = rewards.profile.coins;
+    for (let i = 0; i < 300; i++) gift(game, 500);
+    for (let i = 0; i < 30; i++) game.update(16);
+    expect(rewards.profile.coins - coins0).toBeLessThanOrEqual(300 * cfgCoins());
+  });
+
+  it('viewers who gift in turn are served in that order', () => {
+    const { game } = mk({ npcSpawnEveryMs: 1e9 });
+    game.start();
+    runUntil(game, () => cooking(game));
+    gift(game, 5, { displayName: 'ก่อน' });
+    game.update(16);
+    gift(game, 5, { displayName: 'หลัง' });
+    game.update(16);
+    expect(game.snapshot().cafe!.waiting.filter((c) => c.viewer).map((c) => c.name)).toEqual(['ก่อน', 'หลัง']);
   });
 
   it('waiting customers lose patience and leave unhappy; the one being served stays; the game carries on', () => {
@@ -189,10 +214,12 @@ describe('Game in café mode', () => {
   });
 
   it('a round ended by the cooking watchdog does not leave a customer stuck at the counter', () => {
-    const { game, queue } = mk({}, ALL, { cooking: { baseProgressPerSec: 0.0001 }, maxMs: { ...cafeConfig.maxMs, cooking: 3000 } });
+    const { game, queue, rewards } = mk({}, ALL, { cooking: { baseProgressPerSec: 0.0001 }, maxMs: { ...cafeConfig.maxMs, cooking: 3000 } });
     game.start();
     runUntil(game, () => game.snapshot().roundsCompleted >= 3);
-    expect(queue.waiting().length).toBeGreaterThanOrEqual(0);
+    runUntil(game, () => game.snapshot().state === 'NEXT_DESSERT');
+    expect(queue.current).toBeNull(); // nobody left standing at the counter
+    expect(rewards.profile.rounds).toBeGreaterThanOrEqual(3); // each forced round still paid its customer once
   });
 
   it('invalid gifts (negative or NaN value) never create customers or throw', () => {

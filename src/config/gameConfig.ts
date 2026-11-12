@@ -45,6 +45,8 @@ export interface GameConfig {
     npcSpawnEveryMs: number;
     npcMinWaiting: number;
     maxGiftsPerDrain: number;
+    /** Coins the café earns from a gift that finds the queue full (a flat thank-you, not the gift's face value). */
+    overflowGiftCoins: number;
     maxNameLength: number;
     /** Hide every viewer's name and picture. */
     anonymousNames: boolean;
@@ -105,6 +107,7 @@ export const defaultConfig: GameConfig = {
     npcSpawnEveryMs: 7000,
     npcMinWaiting: 4,
     maxGiftsPerDrain: 20,
+    overflowGiftCoins: 2,
     maxNameLength: 16,
     anonymousNames: false,
     avatar: { hosts: [], max: 24, timeoutMs: 5000 },

@@ -15,13 +15,13 @@ describe('CafeQueue', () => {
     expect(q.startNext()?.dessertId).toBe('b');
   });
 
-  it('a viewer customer goes right behind the one being served, ahead of waiting anonymous ones', () => {
+  it('viewer customers go right behind the one being served, ahead of waiting anonymous ones', () => {
     const q = mk();
     q.enqueue(npc('a')); q.enqueue(npc('b')); q.enqueue(npc('c'));
     q.startNext(); // serving a
     q.enqueue(viewer('x', 'v1'));
     q.enqueue(viewer('y', 'v2'));
-    expect(q.waiting().map((c) => c.dessertId)).toEqual(['v2', 'v1', 'b', 'c']);
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['v1', 'v2', 'b', 'c']); // viewers keep their order of arrival
   });
 
   it('startNext does nothing while someone is being served or when the queue is empty', () => {
@@ -88,7 +88,7 @@ describe('CafeQueue', () => {
     q.enqueue({ viewer: true, name: '   ', dessertId: 'c' });
     q.enqueue({ viewer: true, name: '‮​', dessertId: 'd' });
     const names = q.waiting().map((c) => c.name);
-    expect(names).toEqual([null, null, 'ก'.repeat(16), 'Somchai']);
+    expect(names).toEqual(['Somchai', 'ก'.repeat(16), null, null]);
   });
 
   it('ids are unique and increasing; avatar seeds are stable per customer', () => {
@@ -109,5 +109,23 @@ describe('CafeQueue', () => {
     q.reset();
     expect(q.current).toBeNull();
     expect(q.waiting()).toHaveLength(0);
+  });
+
+  it('viewers are served first-come first-served among themselves, still ahead of anonymous customers', () => {
+    const q = mk();
+    q.enqueue(npc('a')); q.enqueue(npc('b'));
+    q.startNext(); // serving a
+    q.enqueue(viewer('A', 'v1'));
+    q.enqueue(viewer('B', 'v2'));
+    q.enqueue(viewer('C', 'v3'));
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['v1', 'v2', 'v3', 'b']);
+  });
+
+  it('a combo of many gifts from one viewer cannot push earlier viewers back', () => {
+    const q = mk(20);
+    q.enqueue(npc('a')); q.startNext();
+    q.enqueue(viewer('first', 'f'));
+    for (let i = 0; i < 5; i++) q.enqueue(viewer('combo', `c${i}`));
+    expect(q.waiting()[0]?.dessertId).toBe('f');
   });
 });

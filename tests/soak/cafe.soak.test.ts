@@ -61,6 +61,9 @@ describe('café soak', () => {
     let prevLost = 0;
     let prevCoins = rewards.profile.coins;
     let cookedChecks = 0;
+    let unlockedBefore = rewards.profile.unlocked.length;
+    let served = 0;
+    let wasServing = false;
 
     for (let frame = 0; game.snapshot().roundsCompleted < ROUNDS; frame++) {
       expect(frame).toBeLessThan(900_000);
@@ -102,14 +105,20 @@ describe('café soak', () => {
       }
       // coins only drop when something is bought
       const coins = rewards.profile.coins;
-      if (coins < prevCoins) expect(rewards.profile.unlocked.length).toBeGreaterThan(prev.reward.score >= 0 ? DEFAULT_IDS.length : 0);
+      if (coins < prevCoins) expect(rewards.profile.unlocked.length).toBeGreaterThan(unlockedBefore); // coins only drop when something is bought
+      unlockedBefore = rewards.profile.unlocked.length;
       prevCoins = coins;
+      // count customers actually paid: the counter empties exactly once per round, at REWARDING
+      const hasServing = cafe.serving !== null;
+      if (wasServing && !hasServing && s.state === 'REWARDING') served++;
+      wasServing = hasServing;
       prevLost = cafe.lost;
       prev = s;
     }
 
     expect(cookedChecks).toBeGreaterThanOrEqual(ROUNDS);
-    expect(rewards.profile.rounds).toBe(ROUNDS); // every customer paid exactly once
+    expect(rewards.profile.rounds).toBe(ROUNDS);
+    expect(served).toBe(ROUNDS); // one paid customer leaves the counter per round, never two
     expect(JSON.stringify(rewards.profile)).not.toContain(SECRET_NAME); // viewer data is never saved
     expect(JSON.stringify(rewards.profile)).not.toContain('cdn.example.com');
   });
@@ -123,6 +132,7 @@ describe('café soak', () => {
       expect(frame).toBeLessThan(900_000);
       game.update(16);
     }
-    expect(game.snapshot().cafe!.waitingTotal).toBeGreaterThanOrEqual(0);
+    expect(game.snapshot().roundsCompleted).toBeGreaterThanOrEqual(30);
+    expect(game.snapshot().cafe!.waitingTotal).toBeGreaterThanOrEqual(C.npcMinWaiting - 1); // anonymous customers kept the queue stocked
   });
 });

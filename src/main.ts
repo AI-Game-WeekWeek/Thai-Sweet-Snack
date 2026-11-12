@@ -40,7 +40,8 @@ if (cafeMode) {
   // Portrait 9:16 (vertical livestream): fill the window height, keep the ratio.
   canvas.width = 720;
   canvas.height = 1280;
-  canvas.style.cssText = 'height:100vh;max-height:100vh;max-width:100%;aspect-ratio:9/16;display:block;margin:0 auto;touch-action:manipulation';
+  // Largest 9:16 box that fits the window: never stretched, never scrolling.
+  canvas.style.cssText = 'width:min(100vw, calc(100vh * 9 / 16));height:auto;aspect-ratio:9/16;display:block;margin:0 auto;touch-action:manipulation';
   document.body.style.margin = '0';
   document.body.style.background = '#2a1d14';
 } else {
