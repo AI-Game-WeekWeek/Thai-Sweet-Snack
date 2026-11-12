@@ -11,7 +11,7 @@ import type { ProgressionManager } from './reward/ProgressionManager';
 import type { RewardManager } from './reward/RewardManager';
 import type { SaveSystem } from './save/SaveSystem';
 import { dessertForGift } from './cafe/giftMenu';
-import type { CafeQueue, Customer } from './cafe/CafeQueue';
+import type { CafeQueue, Customer, CustomerKind } from './cafe/CafeQueue';
 import type { HeartMeter } from './cooking/HeartMeter';
 import type { VoteManager } from './vote/VoteManager';
 import type { RewardResult } from './reward/types';
@@ -72,6 +72,7 @@ export interface VoteView {
 
 export interface CustomerView {
   id: number;
+  kind: CustomerKind;
   name: string | null;
   viewer: boolean;
   seed: number;
@@ -93,6 +94,10 @@ export interface CafeView {
   lost: number;
   giftMenu: { coins: number; nameTh: string; color: string }[];
   coins: number;
+  /** Seconds of lucky-cat time left (0 = off). */
+  luckyCatSec: number;
+  /** The phone on the counter is ringing. */
+  phoneRinging: boolean;
 }
 
 export interface GameCafeMode {
@@ -162,6 +167,11 @@ export class Game {
   private lostCustomers = 0;
   private npcTimer = 0;
   private giftMenuView: CafeView['giftMenu'] = [];
+  // Surprise events (café). Driven by game time (dt), not wall clock; they outlive a single round.
+  private luckyCatMs = 0;
+  private vipCooldownMs = 0;
+  private phoneTimerMs = 0;
+  private phoneRingMs = 0;
   private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
 
   constructor(
@@ -192,6 +202,7 @@ export class Game {
       onCleanupRound: (roundId) => this.cleanupRound(roundId),
     });
     if (cafe) {
+      this.phoneTimerMs = config.cafe.surprise.phone.firstMs;
       this.giftMenuView = [...config.cafe.giftTiers]
         .sort((a, b) => a.minCoins - b.minCoins)
         .map((t) => {
@@ -411,11 +422,16 @@ export class Game {
   private tickCafe(dt: number): void {
     const cafe = this.cafe;
     if (!cafe) return;
-    const left = cafe.queue.tick(dt);
+    const sur = this.config.cafe.surprise;
+    this.luckyCatMs = Math.max(0, this.luckyCatMs - dt);
+    this.vipCooldownMs = Math.max(0, this.vipCooldownMs - dt);
+    // Lucky cat: waiting customers are more patient (the one being served never loses patience anyway).
+    const left = cafe.queue.tick(dt, this.luckyCatMs > 0 ? sur.luckyCat.patienceSlowdown : 1);
     if (left.length > 0) {
       this.lostCustomers += left.length;
       for (let i = 0; i < left.length * 5; i++) this.fx?.particles?.spawn({ x: WORLD_W / 2 + (i % 5) * 30 - 60, y: 400, vx: (i % 5) * 20 - 40, vy: -80, lifeMs: 700, size: 6, color: 'rgba(120,120,120,0.7)', g: -0.2 });
     }
+    this.tickPhone(dt);
     const c = this.config.cafe;
     if (cafe.queue.waiting().length >= c.npcMinWaiting) this.npcTimer = 0;
     else {
@@ -424,6 +440,82 @@ export class Game {
         this.npcTimer = 0;
         this.spawnNpc();
       }
+    }
+  }
+
+  /** Follow -> lucky cat; orange heart / fan club -> VIP customer + tip rain. Counts only: nothing about who sent them. */
+  private applySurprises(sur: { follows: number; orangeHearts: number }, roundId: number): void {
+    const cafe = this.cafe;
+    if (!cafe) return;
+    const cfg = this.config.cafe.surprise;
+    if (sur.follows > 0) {
+      this.luckyCatMs = Math.min(cfg.luckyCat.maxMs, this.luckyCatMs + sur.follows * cfg.luckyCat.durationMs);
+      this.sparkle(910, 432, 14);
+      this.fx?.audio.play('pop', this.soundRound(roundId));
+    }
+    if (sur.orangeHearts > 0 && this.vipCooldownMs <= 0) {
+      this.vipCooldownMs = cfg.vip.cooldownMs;
+      const q = cafe.queue;
+      if (!q.waiting().some((c) => c.kind === 'vip')) {
+        const dessertId = dessertForGift(cfg.vip.minGiftCoins, this.config.cafe.giftTiers, this.desserts.unlockedIds);
+        if (dessertId) q.enqueue({ viewer: false, kind: 'vip', dessertId });
+      }
+      const tip = Math.min(cfg.tip.max, q.waiting().length * cfg.tip.perCustomer);
+      if (tip >= 1 && this.rewards?.addCoins(tip)) {
+        this.toastText = `ฝนทิป! +${tip} เหรียญ`;
+        this.coinShower();
+        this.fx?.audio.play('coin', this.soundRound(roundId));
+      }
+    }
+  }
+
+  /** The phone rings for a few seconds, then a phone-order customer with a deadline joins the line. */
+  private tickPhone(dt: number): void {
+    const cafe = this.cafe;
+    if (!cafe) return;
+    const ph = this.config.cafe.surprise.phone;
+    if (this.phoneRingMs > 0) {
+      this.phoneRingMs -= dt;
+      if (this.phoneRingMs <= 0) {
+        this.phoneRingMs = 0;
+        const ids = this.desserts.unlockedIds;
+        const id = ids[Math.floor((cafe.rng ?? Math.random)() * ids.length)];
+        if (id && cafe.queue.waiting().length < this.config.cafe.maxWaiting) cafe.queue.enqueue({ viewer: false, kind: 'phone', dessertId: id, patienceMs: ph.deadlineMs });
+      }
+      return;
+    }
+    this.phoneTimerMs -= dt;
+    if (this.phoneTimerMs > 0) return;
+    const jitter = 1 + ph.jitter * ((cafe.rng ?? Math.random)() * 2 - 1);
+    this.phoneTimerMs = Math.max(1000, ph.everyMs * jitter);
+    const busy = cafe.queue.current?.kind === 'phone' || cafe.queue.waiting().some((c) => c.kind === 'phone');
+    if (!busy && cafe.queue.waiting().length < this.config.cafe.maxWaiting) {
+      this.phoneRingMs = ph.ringMs;
+      this.fx?.audio.play('ring', this.soundRound(this.manager.snapshot().roundId));
+    }
+  }
+
+  /**
+   * Surprise sounds can fire in any state. Once a round has been cleaned up (NEXT_DESSERT) its id is dead, so a sound
+   * tagged with it could never be stopped by a cleanup: tag it with the round that is about to start instead.
+   */
+  private soundRound(roundId: number): number {
+    return this.manager.snapshot().state === 'NEXT_DESSERT' ? roundId + 1 : roundId;
+  }
+
+  private coinShower(): void {
+    const particles = this.fx?.particles;
+    if (!particles) return;
+    // Particles live in the station window's coordinates; negative y reaches the top of the portrait screen.
+    for (let i = 0; i < 40; i++) {
+      particles.spawn({ x: Math.random() * WORLD_W, y: -880 + Math.random() * 380, vx: (Math.random() - 0.5) * 60, vy: 140 + Math.random() * 120, lifeMs: 2600, size: 9, color: i % 3 === 0 ? '#fff3b0' : '#f6c244' });
+    }
+  }
+
+  private sparkle(x: number, y: number, count: number): void {
+    for (let i = 0; i < count; i++) {
+      const a = (Math.PI * 2 * i) / count;
+      this.fx?.particles?.spawn({ x, y, vx: Math.cos(a) * 120, vy: Math.sin(a) * 120 - 40, lifeMs: 800, size: 5, color: '#ffe08a', g: 0.2 });
     }
   }
 
@@ -446,6 +538,7 @@ export class Game {
       const d = this.desserts.get(c.dessertId);
       return {
         id: c.id,
+        kind: c.kind,
         name: c.name,
         viewer: c.viewer,
         seed: c.seed,
@@ -465,6 +558,8 @@ export class Game {
       lost: this.lostCustomers,
       giftMenu: this.giftMenuView,
       coins: this.rewards?.profile.coins ?? 0,
+      luckyCatSec: this.luckyCatMs / 1000,
+      phoneRinging: this.phoneRingMs > 0,
     };
   }
 
@@ -491,10 +586,14 @@ export class Game {
     let who = '';
     if (this.cafe) {
       const paid = this.cafe.queue.pay();
+      const sur = this.config.cafe.surprise;
       if (paid) {
         this.bonusPct += paid.happiness * this.config.cafe.payBonusMaxPct;
-        who = paid.customer.name ? `${paid.customer.name} ` : '';
+        if (paid.customer.kind === 'vip') this.bonusPct += sur.vip.payBonusPct;
+        if (paid.customer.kind === 'phone') this.bonusPct += sur.phone.payBonusPct;
+        who = paid.customer.kind === 'vip' ? 'VIP ' : paid.customer.kind === 'phone' ? 'โทรสั่งส่งทัน! ' : paid.customer.name ? `${paid.customer.name} ` : '';
       }
+      if (this.luckyCatMs > 0) this.bonusPct += sur.luckyCat.payBonusPct;
     }
     if (!this.rewards || !this.current) return;
     const r = this.rewards.award(this.current, { roundId, bonusPct: this.bonusPct, cookMs: this.clockMs - this.roundStart });
@@ -605,6 +704,7 @@ export class Game {
         this.vote.meter.add(fx.likes * this.config.vote.heartPerLike + fx.follows * this.config.vote.heartPerFollow + fx.hearts * this.config.vote.heartPerHeart);
       } else if (this.cafe) {
         this.enqueueGifts(fx.gifts);
+        this.applySurprises(fx.surprises, m.roundId);
         this.cafe.meter.add(fx.likes * this.config.vote.heartPerLike + fx.follows * this.config.vote.heartPerFollow + fx.hearts * this.config.vote.heartPerHeart);
       } else if (fx.progressAdd > 0) this.cooking.addProgress(fx.progressAdd, m.roundId);
       if (fx.completeStep && !this.cafe) this.cooking.completeCurrentStep(m.roundId);
