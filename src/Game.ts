@@ -204,6 +204,8 @@ export class Game {
   private phoneTalkMs = 0;
   private squeeze = 0;
   private squeezed = false;
+  private ghostVisits = 0;
+  private visitCounted = false;
   private squeezeFlashMs = 0;
   private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
 
@@ -228,7 +230,9 @@ export class Game {
         const meter = this.vote?.meter ?? this.cafe?.meter;
         if (meter) {
           meter.update(dtMs);
-          this.cooking.setRateMultiplier(meter.multiplier);
+          // the squeezing ghost also slows the cooking down, so being squeezed makes it harder to escape
+          const slow = this.ghostCooking() ? 1 - Math.min(0.9, Math.max(0, this.config.cafe.surprise.phone.squeezeSlow || 0)) * this.squeeze : 1;
+          this.cooking.setRateMultiplier(meter.multiplier * slow);
         }
         this.cooking.update(dtMs);
       },
@@ -472,11 +476,20 @@ export class Game {
       if (this.cafe?.queue.current?.kind !== 'phone') {
         this.squeeze = 0;
         this.squeezed = false;
+        this.visitCounted = false;
       }
       return;
     }
     const ph = this.config.cafe.surprise.phone;
-    const fill = Number.isFinite(ph.squeezeMs) && ph.squeezeMs > 0 ? ph.squeezeMs : 16_000;
+    if (!this.visitCounted) {
+      this.visitCounted = true;
+      this.ghostVisits += 1;
+    }
+    // every visit the ghost is hungrier: it squeezes sooner (down to a floor)
+    const base = Number.isFinite(ph.squeezeMs) && ph.squeezeMs > 0 ? ph.squeezeMs : 11_000;
+    const harder = Number.isFinite(ph.harderPerVisit) ? Math.max(0, ph.harderPerVisit) : 0;
+    const floor = Number.isFinite(ph.minSqueezeMs) && ph.minSqueezeMs > 0 ? ph.minSqueezeMs : 5000;
+    const fill = Math.max(floor, base / (1 + harder * (this.ghostVisits - 1)));
     this.squeeze = Math.min(1, this.squeeze + dt / fill);
     if (this.squeeze >= 1 && !this.squeezed) {
       this.squeezed = true;

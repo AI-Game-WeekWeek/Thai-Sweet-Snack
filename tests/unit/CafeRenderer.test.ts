@@ -149,7 +149,7 @@ describe('CafeRenderer', () => {
     const vip = cust(7, { kind: 'vip', serving: true, patience: 1, dessertNameTh: 'ฝอยทอง' });
     const t = draw(view({ cafe: cafe({ serving: vip, waiting: [cust(8, { kind: 'phone', patience: 0.4 })] }) })).texts.join(' | ');
     expect(t).toContain('VIP');
-    expect(t).toContain('ผีน้อย');
+    expect(t).toContain('ผี');
   });
 
   it('hostile surprise values never throw and keep the canvas state balanced', () => {

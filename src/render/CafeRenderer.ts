@@ -771,87 +771,114 @@ export class CafeRenderer {
     ctx.textAlign = 'center';
   }
 
-  /** A friendly Thai ghost (the phone caller): กระสือ (a glowing floating head with a wisp tail) or แม่นาค (white sheet, long black hair). */
+  /** A Thai ghost (the phone caller): กระสือ (a cold glowing floating head with a long wisp tail) or แม่นาค (tattered white sheet, long black hair over a pale face). Eerie but not gory. */
   private drawGhost(ctx: CanvasRenderingContext2D, c: CustomerView, x: number, baseY: number, r: number): void {
-    const t = this.timeMs / 600;
-    const float = Math.sin(t + c.id) * 8;
+    const t = this.timeMs / 700;
+    const float = Math.sin(t + c.id) * 10;
     const y = baseY - 14 + float;
     const krasue = outfitIndex(c.seed) % 2 === 0;
+    // an uneasy flicker: now and then the ghost fades for a blink
+    const flick = 0.78 + 0.22 * Math.sin(this.timeMs / 130 + c.id) * Math.sin(this.timeMs / 530);
+    const sway = Math.sin(t * 0.8 + c.id) * 0.05;
     ctx.save();
     try {
-      // glow
-      const g = ctx.createRadialGradient(x, y, r * 0.3, x, y, r * 2.2);
-      g.addColorStop(0, krasue ? 'rgba(200,255,150,0.65)' : 'rgba(190,220,255,0.55)');
+      // cold glow
+      const g = ctx.createRadialGradient(x, y, r * 0.3, x, y, r * 2.6);
+      g.addColorStop(0, krasue ? 'rgba(150,255,170,0.55)' : 'rgba(150,190,255,0.45)');
       g.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(x, y, r * 2.2, 0, Math.PI * 2);
+      ctx.arc(x, y, r * 2.6, 0, Math.PI * 2);
       ctx.fill();
-      ctx.globalAlpha = 0.9;
+      ctx.translate(x, y);
+      ctx.rotate(sway);
+      ctx.translate(-x, -y);
+      ctx.globalAlpha = Math.max(0.3, flick) * 0.92;
       if (krasue) {
-        // wispy tail
-        for (let i = 0; i < 4; i++) {
-          ctx.strokeStyle = `rgba(210,255,170,${0.55 - i * 0.1})`;
-          ctx.lineWidth = r * (0.5 - i * 0.09);
+        // long trailing wisps
+        for (let i = 0; i < 5; i++) {
+          ctx.strokeStyle = `rgba(170,255,190,${0.6 - i * 0.1})`;
+          ctx.lineWidth = r * (0.42 - i * 0.07);
           ctx.lineCap = 'round';
           ctx.beginPath();
-          ctx.moveTo(x, y + r * 0.7);
-          ctx.quadraticCurveTo(x + Math.sin(t * 1.3 + i) * r * 0.9, y + r * (1.6 + i * 0.3), x + Math.sin(t + i * 1.7) * r * 0.6, y + r * (2.3 + i * 0.35));
+          ctx.moveTo(x + (i - 2) * r * 0.2, y + r * 0.7);
+          ctx.bezierCurveTo(x + Math.sin(t * 1.3 + i) * r * 1.1, y + r * (1.7 + i * 0.2), x - Math.sin(t + i * 1.7) * r * 1.0, y + r * (2.6 + i * 0.25), x + Math.sin(t * 0.9 + i * 2.3) * r * 0.7, y + r * (3.5 + i * 0.3));
           ctx.stroke();
         }
       } else {
-        // white sheet with a wavy hem, and long black hair behind the face
-        ctx.fillStyle = '#fbfbff';
+        // tattered white sheet with a ragged hem, and long black hair behind and over the face
+        ctx.fillStyle = '#e9eef6';
         ctx.beginPath();
-        ctx.moveTo(x - r * 1.05, y + r * 0.6);
-        ctx.quadraticCurveTo(x - r * 1.25, y + r * 2.3, x - r * 0.9, y + r * 2.5);
-        for (let i = 0; i < 5; i++) {
-          const px = x - r * 0.9 + (i + 0.5) * (r * 1.8 / 5);
-          ctx.quadraticCurveTo(px - r * 0.1, y + r * (2.5 + (i % 2 ? 0.25 : -0.05) + Math.sin(t * 2 + i) * 0.08), px + r * 0.2, y + r * 2.5);
+        ctx.moveTo(x - r * 1.0, y + r * 0.6);
+        ctx.quadraticCurveTo(x - r * 1.3, y + r * 2.4, x - r * 1.0, y + r * 3.0);
+        for (let i = 0; i < 7; i++) {
+          const px = x - r * 1.0 + (i + 0.5) * (r * 2.0 / 7);
+          const d = (i % 3) * 0.28 + Math.sin(t * 2 + i) * 0.1;
+          ctx.lineTo(px, y + r * (3.0 + d));
+          ctx.lineTo(px + r * 0.14, y + r * (2.6 + d * 0.5));
         }
-        ctx.quadraticCurveTo(x + r * 1.25, y + r * 2.3, x + r * 1.05, y + r * 0.6);
+        ctx.quadraticCurveTo(x + r * 1.3, y + r * 2.4, x + r * 1.0, y + r * 0.6);
         ctx.closePath();
         ctx.fill();
-        ctx.strokeStyle = '#7a86a8';
+        ctx.strokeStyle = '#6a7794';
         ctx.lineWidth = 3;
         ctx.stroke();
-        ctx.fillStyle = '#1c1722';
+        ctx.fillStyle = '#15111c';
         ctx.beginPath();
-        ctx.ellipse(x, y + r * 0.5, r * 1.12, r * 1.5, 0, 0, Math.PI * 2);
+        ctx.ellipse(x, y + r * 0.7, r * 1.15, r * 1.9, 0, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.globalAlpha = 1;
-      // head
-      ctx.fillStyle = krasue ? '#f4ffd6' : '#fff7ee';
+      ctx.globalAlpha = Math.max(0.35, flick);
+      // pale, cold face
+      ctx.fillStyle = krasue ? '#d9f2dc' : '#e4e8ee';
       ctx.beginPath();
       ctx.arc(x, y, r * 0.95, 0, Math.PI * 2);
       ctx.fill();
       ctx.lineWidth = 4;
-      ctx.strokeStyle = krasue ? '#9ac04a' : '#7a86a8';
+      ctx.strokeStyle = krasue ? '#5f9a6a' : '#55607c';
       ctx.stroke();
-      // face: big sad-cute eyes, blush, small "oo" mouth
-      ctx.fillStyle = '#2b2230';
+      if (!krasue) {
+        // hair falling over both sides of the face and a few strands across it
+        ctx.fillStyle = '#15111c';
+        for (const sx of [-1, 1]) {
+          ctx.beginPath();
+          ctx.moveTo(x + sx * r * 0.2, y - r * 0.98);
+          ctx.quadraticCurveTo(x + sx * r * 1.1, y - r * 0.4, x + sx * r * 0.85, y + r * 0.7);
+          ctx.quadraticCurveTo(x + sx * r * 0.55, y - r * 0.1, x + sx * r * 0.2, y - r * 0.98);
+          ctx.fill();
+        }
+        ctx.strokeStyle = 'rgba(21,17,28,0.8)';
+        ctx.lineWidth = 2.5;
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.moveTo(x - r * 0.3 + i * r * 0.3, y - r * 0.95);
+          ctx.quadraticCurveTo(x - r * 0.1 + i * r * 0.25, y - r * 0.2, x - r * 0.2 + i * r * 0.35, y + r * 0.1);
+          ctx.stroke();
+        }
+      }
+      // hollow eyes with a dim red glint, a long dark mouth
+      ctx.fillStyle = '#0d0912';
       for (const sx of [-1, 1]) {
         ctx.beginPath();
-        ctx.ellipse(x + sx * r * 0.34, y - r * 0.1, r * 0.13, r * 0.2, 0, 0, Math.PI * 2);
+        ctx.ellipse(x + sx * r * 0.34, y - r * 0.08, r * 0.15, r * 0.26, sx * 0.12, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.fillStyle = 'rgba(255,140,160,0.55)';
+      ctx.fillStyle = 'rgba(255,70,70,0.85)';
       for (const sx of [-1, 1]) {
         ctx.beginPath();
-        ctx.arc(x + sx * r * 0.58, y + r * 0.22, r * 0.14, 0, Math.PI * 2);
+        ctx.arc(x + sx * r * 0.34, y - r * 0.02, r * 0.045, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.fillStyle = '#2b2230';
+      ctx.fillStyle = '#0d0912';
       ctx.beginPath();
-      ctx.ellipse(x, y + r * 0.42, r * 0.12, r * 0.16, 0, 0, Math.PI * 2);
+      ctx.ellipse(x, y + r * 0.5, r * 0.17, r * 0.3 + Math.abs(Math.sin(t * 1.5)) * r * 0.08, 0, 0, Math.PI * 2);
       ctx.fill();
     } finally {
       ctx.restore();
     }
-    this.text(ctx, 'ผีน้อย', x, y + r * (krasue ? 2.6 : 2.85), Math.round(r * 0.5), '#e6f2ff', INK);
+    this.text(ctx, 'ผี', x, y + r * (krasue ? 3.2 : 3.4), Math.round(r * 0.5), '#d6e4ff', INK);
     if (!c.serving) {
-      this.drawPatience(ctx, x, y + r * 3.1, r * 2, c.patience);
+      this.drawPatience(ctx, x, y + r * 3.8, r * 2, c.patience);
       this.text(ctx, clip(c.dessertNameTh, 11), x, y - r - 22, Math.round(r * 0.36), '#fff3dc', INK);
     }
   }

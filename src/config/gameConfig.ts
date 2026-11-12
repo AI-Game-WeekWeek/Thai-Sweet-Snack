@@ -62,7 +62,7 @@ export interface GameConfig {
       vip: { cooldownMs: number; payBonusPct: number; /** The VIP orders the best unlocked tier worth at least this many coins. */ minGiftCoins: number };
       tip: { perCustomer: number; max: number };
       /** The phone caller is a hungry Thai ghost: squeezeMs = time until it squeezes (if nobody taps), reliefPerLike = how much each tap loosens it, fineCoins = coins lost when squeezed. */
-      phone: { firstMs: number; everyMs: number; jitter: number; ringMs: number; deadlineMs: number; payBonusPct: number; squeezeMs: number; reliefPerLike: number; fineCoins: number };
+      phone: { firstMs: number; everyMs: number; jitter: number; ringMs: number; deadlineMs: number; payBonusPct: number; squeezeMs: number; reliefPerLike: number; fineCoins: number; harderPerVisit: number; minSqueezeMs: number; squeezeSlow: number };
     };
   };
   vote: {
@@ -136,7 +136,7 @@ export const defaultConfig: GameConfig = {
       luckyCat: { durationMs: 20_000, maxMs: 60_000, payBonusPct: 50, patienceSlowdown: 0.5 },
       vip: { cooldownMs: 60_000, payBonusPct: 50, minGiftCoins: 50 },
       tip: { perCustomer: 1, max: 12 },
-      phone: { firstMs: 45_000, everyMs: 100_000, jitter: 0.3, ringMs: 3000, deadlineMs: 35_000, payBonusPct: 200, squeezeMs: 16_000, reliefPerLike: 0.012, fineCoins: 10 },
+      phone: { firstMs: 45_000, everyMs: 100_000, jitter: 0.3, ringMs: 3000, deadlineMs: 35_000, payBonusPct: 200, squeezeMs: 11_000, reliefPerLike: 0.009, fineCoins: 10, harderPerVisit: 0.12, minSqueezeMs: 5000, squeezeSlow: 0.45 },
     },
   },
   vote: { candidates: 3, windowMs: 15_000, maxVoters: 5000, anonVotesPerSec: 50, heartPerLike: 0.012, heartPerFollow: 0.15, heartPerHeart: 0.08, graceMs: 3000, heartDecayPerSec: 0.1, maxBoost: 4, cookRatePerSec: 6 },

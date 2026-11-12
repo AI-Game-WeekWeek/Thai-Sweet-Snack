@@ -222,7 +222,7 @@ describe('café surprise events', () => {
     });
 
     it('serving it before the deadline pays +200%; a phone order that waits too long hangs up and is counted as lost', () => {
-      const a = mk({ phone: { ...fast.phone, deadlineMs: 120_000 }, vip: {} }, { npcSpawnEveryMs: 1e9 });
+      const a = mk({ phone: { ...fast.phone, deadlineMs: 120_000, squeezeMs: 1e9 }, vip: {} }, { npcSpawnEveryMs: 1e9 });
       a.game.start();
       runUntil(a.game, () => a.game.snapshot().cafe!.waiting.some((c) => c.kind === 'phone'));
       runUntil(a.game, () => a.game.snapshot().cafe!.serving?.kind === 'phone');
@@ -262,6 +262,26 @@ describe('café surprise events', () => {
       }
       expect(max).toBeLessThan(1);
       expect(b.game.renderView().cafe?.squeezedNow ?? false).toBe(false);
+    });
+
+    it('each ghost visit squeezes sooner than the last (down to a floor), and being squeezed slows the cooking', () => {
+      const ph = { ...fast.phone, everyMs: 3000, deadlineMs: 600_000, squeezeMs: 8000, harderPerVisit: 0.5, minSqueezeMs: 3000, reliefPerLike: 0, fineCoins: 0, squeezeSlow: 0.5 };
+      const { game } = mk({ phone: ph, vip: {} }, { npcSpawnEveryMs: 1e9 }, { cooking: { baseProgressPerSec: 0.3 } });
+      game.start();
+      const timeToSqueeze = (): number => {
+        runUntil(game, () => game.snapshot().cafe!.serving?.kind === 'phone', 2_000_000);
+        const t0 = game.nowMs;
+        runUntil(game, () => (game.renderView().cafe?.squeezedNow ?? false) === true, 400_000);
+        const dt = game.nowMs - t0;
+        runUntil(game, () => game.snapshot().cafe!.serving?.kind !== 'phone', 2_000_000);
+        return dt;
+      };
+      const first = timeToSqueeze();
+      const second = timeToSqueeze();
+      const third = timeToSqueeze();
+      expect(second).toBeLessThan(first - 500);
+      expect(third).toBeLessThan(second - 200);
+      expect(third).toBeGreaterThanOrEqual(2800); // never below the floor
     });
 
     it('only one phone customer at a time, and calls repeat after the interval', () => {
