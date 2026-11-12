@@ -14,6 +14,11 @@ export class DessertManager {
     this.setUnlocked(unlockedIds);
   }
 
+  /** Ids of the desserts currently in the rotation. */
+  get unlockedIds(): string[] {
+    return this.pool.map((d) => d.id);
+  }
+
   get(id: string): DessertDef | undefined {
     return this.defs.find((d) => d.id === id);
   }

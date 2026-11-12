@@ -36,6 +36,24 @@ export interface GameConfig {
   reward: { speedParMs: number; speedBonusMaxPct: number; xpBase: number; xpGrowth: number };
   save: { key: string; backupKey: string };
   progression: { autoUnlock: boolean };
+  cafe: {
+    maxWaiting: number;
+    /** Customers drawn at once (front one included). */
+    visible: number;
+    patienceMs: number;
+    /** Anonymous customers arrive this often while fewer than npcMinWaiting are waiting. */
+    npcSpawnEveryMs: number;
+    npcMinWaiting: number;
+    maxGiftsPerDrain: number;
+    maxNameLength: number;
+    /** Hide every viewer's name and picture. */
+    anonymousNames: boolean;
+    /** Remote profile pictures are OFF while `hosts` is empty. */
+    avatar: { hosts: string[]; max: number; timeoutMs: number };
+    /** Extra payout (percent) for a customer who did not have to wait at all. */
+    payBonusMaxPct: number;
+    giftTiers: { minCoins: number; dessertId: string }[];
+  };
   vote: {
     candidates: number;
     windowMs: number;
@@ -80,6 +98,28 @@ export const defaultConfig: GameConfig = {
   reward: { speedParMs: 25000, speedBonusMaxPct: 30, xpBase: 100, xpGrowth: 1.25 },
   save: { key: 'thai-dessert-asmr:save', backupKey: 'thai-dessert-asmr:save.corrupt' },
   progression: { autoUnlock: true },
+  cafe: {
+    maxWaiting: 12,
+    visible: 5,
+    patienceMs: 70_000,
+    npcSpawnEveryMs: 7000,
+    npcMinWaiting: 4,
+    maxGiftsPerDrain: 20,
+    maxNameLength: 16,
+    anonymousNames: false,
+    avatar: { hosts: [], max: 24, timeoutMs: 5000 },
+    payBonusMaxPct: 50,
+    giftTiers: [
+      { minCoins: 1, dessertId: 'khanom-krok' },
+      { minCoins: 5, dessertId: 'bua-loy' },
+      { minCoins: 10, dessertId: 'thong-yod' },
+      { minCoins: 20, dessertId: 'khanom-chan' },
+      { minCoins: 50, dessertId: 'foi-thong' },
+      { minCoins: 99, dessertId: 'thong-yip' },
+      { minCoins: 199, dessertId: 'luk-chup' },
+      { minCoins: 500, dessertId: 'khanom-buang' },
+    ],
+  },
   vote: { candidates: 3, windowMs: 15_000, maxVoters: 5000, anonVotesPerSec: 50, heartPerLike: 0.012, heartPerFollow: 0.15, heartPerHeart: 0.08, graceMs: 3000, heartDecayPerSec: 0.1, maxBoost: 4, cookRatePerSec: 6 },
 };
 
@@ -96,4 +136,12 @@ export const voteConfig: GameConfig = {
   durationsMs: { ...liveConfig.durationsMs, preparing: liveConfig.vote.windowMs, presenting: 1500, rewarding: 2500 },
   maxMs: { ...liveConfig.maxMs, preparing: liveConfig.vote.windowMs + 5000 },
   cooking: { baseProgressPerSec: liveConfig.vote.cookRatePerSec },
+};
+
+/** Thai café mode: one round = one customer; short serve/pay beats; quicker base cooking (hearts speed it up further). */
+export const cafeConfig: GameConfig = {
+  ...liveConfig,
+  durationsMs: { ...liveConfig.durationsMs, preparing: 1500, presenting: 1200, rewarding: 1800 },
+  maxMs: { ...liveConfig.maxMs, preparing: 4000 },
+  cooking: { baseProgressPerSec: 8 },
 };

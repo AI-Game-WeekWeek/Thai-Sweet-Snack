@@ -1,3 +1,4 @@
+import { cleanName } from './cleanName';
 import { LIVE_EVENT_TYPES, type LiveEvent } from './types';
 
 /** Shared by the game and the bridge so both reject exactly the same garbage. Returns null when invalid. */
@@ -12,14 +13,22 @@ export function parseLiveEvent(raw: unknown, maxLikeCount: number): LiveEvent | 
   if (o.count > maxCount) return null;
   if (typeof o.tsMs !== 'number' || !Number.isFinite(o.tsMs)) return null;
   if (o.giftCoins !== undefined && (typeof o.giftCoins !== 'number' || !Number.isFinite(o.giftCoins) || o.giftCoins < 0)) return null;
+  const giftLike = o.type === 'gift' || o.type === 'rose';
+  const displayName = giftLike && typeof o.displayName === 'string' ? cleanName(o.displayName, 32) : '';
+  const avatarUrl = giftLike && typeof o.avatarUrl === 'string' && SAFE_URL.test(o.avatarUrl) && o.avatarUrl.length <= 512 ? o.avatarUrl : '';
   return {
     id: o.id,
     type: o.type as LiveEvent['type'],
     count: Math.floor(o.count),
     tsMs: o.tsMs,
     ...(typeof o.giftCoins === 'number' ? { giftCoins: o.giftCoins } : {}),
+    ...(displayName !== '' ? { displayName } : {}),
+    ...(avatarUrl !== '' ? { avatarUrl } : {}),
   };
 }
+
+/** https only, no whitespace; the game additionally checks its host allowlist before loading anything. */
+const SAFE_URL = /^https:\/\/\S+$/i;
 
 const VOTE = /^\s*#?([1-3])\s*$/;
 

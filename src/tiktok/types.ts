@@ -17,6 +17,9 @@ export interface LiveEvent {
   vote?: number;
   /** Opaque viewer key used only for one-vote-per-viewer; never displayed. */
   userId?: string;
+  /** Gifts and roses only: shown on the customer's head while they are on screen, never saved. */
+  displayName?: string;
+  avatarUrl?: string;
 }
 
 export interface Counters {
@@ -25,6 +28,13 @@ export interface Counters {
   hearts: number;
   gifts: number;
   shares: number;
+}
+
+export interface GiftInfo {
+  coins: number;
+  kind: 'gift' | 'rose';
+  displayName?: string;
+  avatarUrl?: string;
 }
 
 export interface EventEffects {
@@ -41,5 +51,7 @@ export interface EventEffects {
   follows: number;
   /** Orange hearts and small gifts applied while cooking. */
   hearts: number;
+  /** Every gift/rose seen (café mode only), bounded per drain. */
+  gifts: GiftInfo[];
   counters: Counters;
 }

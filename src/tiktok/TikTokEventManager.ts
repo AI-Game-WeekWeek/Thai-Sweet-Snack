@@ -9,6 +9,8 @@ export interface RoundInfo {
   cooking: boolean;
   /** True during the menu vote window: comments count as votes. */
   voting?: boolean;
+  /** Café mode: gifts and roses are reported in `gifts` in every state (they are not tied to a round). */
+  acceptsGifts?: boolean;
 }
 
 type Ingest = 'queued' | 'duplicate' | 'invalid';
@@ -64,8 +66,8 @@ export class TikTokEventManager {
 
   /** Empties the queue into one coalesced result. Safe to call every tick. */
   drain(round: RoundInfo, nowMs: number): EventEffects {
-    const cfg = this.config.events;
-    const fx: EventEffects = { progressAdd: 0, completeStep: false, roseEffect: false, bigGiftEffect: false, shareBonus: 0, votes: [], likes: 0, follows: 0, hearts: 0, counters: this.counts };
+    const cfg = { ...this.config.events, maxGiftsPerDrain: this.config.cafe.maxGiftsPerDrain };
+    const fx: EventEffects = { progressAdd: 0, completeStep: false, roseEffect: false, bigGiftEffect: false, shareBonus: 0, votes: [], likes: 0, follows: 0, hearts: 0, gifts: [], counters: this.counts };
     const batch = this.queue;
     this.queue = [];
     for (const e of batch) {
@@ -77,6 +79,14 @@ export class TikTokEventManager {
           continue;
         }
         this.count(e);
+        if ((e.type === 'gift' || e.type === 'rose') && round.acceptsGifts && fx.gifts.length < cfg.maxGiftsPerDrain) {
+          fx.gifts.push({
+            coins: e.giftCoins ?? 1,
+            kind: e.type,
+            ...(e.displayName !== undefined ? { displayName: e.displayName } : {}),
+            ...(e.avatarUrl !== undefined ? { avatarUrl: e.avatarUrl } : {}),
+          });
+        }
         if (e.type === 'share') {
           fx.shareBonus += cfg.shareBonusPct;
           continue;

@@ -77,6 +77,13 @@ export class RewardManager {
     return result;
   }
 
+  /** Extra coins that are not tied to a finished round (e.g. a gift when the queue is full). */
+  addCoins(coins: number): boolean {
+    if (!Number.isFinite(coins) || coins > 1_000_000 || Math.floor(coins) < 1) return false;
+    this.data = { ...this.data, coins: this.data.coins + Math.floor(coins) };
+    return true;
+  }
+
   spend(coins: number): boolean {
     if (!Number.isFinite(coins) || coins < 0 || coins > this.data.coins) return false;
     this.data = { ...this.data, coins: this.data.coins - coins };

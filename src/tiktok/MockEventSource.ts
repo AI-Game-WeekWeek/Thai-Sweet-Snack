@@ -11,6 +11,8 @@ interface Delayed {
 }
 
 let instances = 0;
+const GIFT_COINS = [1, 1, 1, 5, 5, 10, 20, 50, 99, 199, 500] as const;
+const NAMES = ['น้ำฝน', 'พี่โอ๊ต', 'มะลิ', 'เจ้านาย', 'ฟ้าใส', 'บีม', 'ใบเตย', 'นุ่น', 'ต้นกล้า', 'แป้ง'] as const;
 
 /** Generates viewer events without TikTok: steady streams, bursts, duplicates, delayed and out-of-order batches. */
 export class MockEventSource {
@@ -23,7 +25,7 @@ export class MockEventSource {
   constructor(
     private readonly rng: () => number,
     private readonly sink: (raw: unknown) => void,
-    private readonly opts: { comments?: boolean } = {},
+    private readonly opts: { comments?: boolean; cafe?: boolean } = {},
   ) {}
 
   steady(ratePerSec: number, durationMs: number): void {
@@ -74,6 +76,13 @@ export class MockEventSource {
   private pickType(): LiveEventType {
     if (this.opts.comments && this.rng() < 0.3) return 'comment';
     const r = this.rng();
+    if (this.opts.cafe) {
+      if (r < 0.7) return 'like';
+      if (r < 0.82) return 'gift';
+      if (r < 0.92) return 'follow';
+      if (r < 0.97) return 'orangeHeart';
+      return 'share';
+    }
     if (r < 0.8) return 'like';
     if (r < 0.92) return 'follow';
     if (r < 0.95) return 'orangeHeart';
@@ -89,7 +98,12 @@ export class MockEventSource {
       e.text = String(1 + Math.floor(this.rng() * 3));
       e.userId = `u${Math.floor(this.rng() * 300)}`;
     }
-    if (type === 'gift') e.giftCoins = this.rng() < 0.4 ? 500 : 5;
+    if (type === 'gift') {
+      if (this.opts.cafe) {
+        e.giftCoins = GIFT_COINS[Math.floor(this.rng() * GIFT_COINS.length)] as number;
+        e.displayName = NAMES[Math.floor(this.rng() * NAMES.length)] as string;
+      } else e.giftCoins = this.rng() < 0.4 ? 500 : 5;
+    }
     return e;
   }
 }
