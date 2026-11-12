@@ -32,26 +32,39 @@ export class Renderer {
       ctx.translate((width - WORLD_W * scale) / 2, (height - WORLD_H * scale) / 2);
       ctx.scale(scale, scale);
 
-      // table
-      ctx.fillStyle = '#c98f5a';
-      ctx.fillRect(0, 470, WORLD_W, 130);
-
-      const presenting = view.presentT !== null;
-      if (presenting) this.drawTray(ctx, view);
-      else this.drawBowl(ctx, view);
-
-      particles.forEach((p) => {
-        const alpha = Math.max(0, 1 - p.ageMs / p.lifeMs);
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = p.color;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-      });
-      ctx.globalAlpha = 1;
+      this.drawScene(ctx, view, particles);
     } finally {
       ctx.restore();
     }
+  }
+
+  /**
+   * The cooking station (table, bowl or tray, step effects, particles) in the 1000x600 world. The caller sets the
+   * transform, so other layouts (portrait café) can place it anywhere. Draws no background.
+   */
+  drawScene(ctx: CanvasRenderingContext2D, view: RenderView, particles: ParticleSystem): void {
+    // table
+    ctx.fillStyle = '#c98f5a';
+    ctx.fillRect(0, 470, WORLD_W, 130);
+
+    const presenting = view.presentT !== null;
+    if (presenting) this.drawTray(ctx, view);
+    else this.drawBowl(ctx, view);
+
+    particles.forEach((p) => {
+      const alpha = Math.max(0, 1 - p.ageMs / p.lifeMs);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  /** Advances the animation clock used by the step effects (call once per frame). */
+  tick(dtMs: number): void {
+    this.timeMs += Number.isFinite(dtMs) ? dtMs : 0;
   }
 
   private batterColor(view: RenderView): string {
