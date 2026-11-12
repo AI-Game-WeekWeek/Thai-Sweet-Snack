@@ -8,7 +8,7 @@ const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
   stepNameTh: 'ผสมแป้ง', progress: 40,
   counters: { likes: 12, follows: 3, hearts: 1, gifts: 2, shares: 4 }, connection: 'connected', bonusPct: 0,
   ingredients: [{ id: 'a', nameTh: 'แป้ง', color: '#fff' }, { id: 'b', nameTh: 'กะทิ', color: '#eee' }],
-  reward: { score: 250, coins: 30, xp: 10, level: 2, last: null }, toast: null, ...over,
+  reward: { score: 250, coins: 30, xp: 10, level: 2, last: null }, toast: null, heart: 0, ...over,
 });
 const q = (root: HTMLElement, name: string) => root.querySelector(`[data-hud="${name}"]`) as HTMLElement;
 const nodeCount = (root: HTMLElement) => root.querySelectorAll('*').length;

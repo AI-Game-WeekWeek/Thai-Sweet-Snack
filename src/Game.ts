@@ -10,6 +10,8 @@ import type { GameState } from './core/StateMachine';
 import type { ProgressionManager } from './reward/ProgressionManager';
 import type { RewardManager } from './reward/RewardManager';
 import type { SaveSystem } from './save/SaveSystem';
+import type { HeartMeter } from './cooking/HeartMeter';
+import type { VoteManager } from './vote/VoteManager';
 import type { RewardResult } from './reward/types';
 import type { TikTokEventManager } from './tiktok/TikTokEventManager';
 import type { ConnectionState, Counters } from './tiktok/types';
@@ -49,6 +51,26 @@ export interface GameSnapshot {
   reward: { score: number; coins: number; xp: number; level: number; last: RewardResult | null };
   /** Short message for the HUD (reward summary, unlock news); null when there is none. */
   toast: string | null;
+  /** Menu-vote mode only. */
+  vote?: VoteView;
+  /** Heart meter 0..1 (vote mode; 0 otherwise). */
+  heart: number;
+}
+
+export interface VoteView {
+  open: boolean;
+  candidates: { id: string; nameTh: string; palette: readonly string[] }[];
+  tally: number[];
+  remainingMs: number;
+  /** Index of the winning candidate once voting has closed. */
+  winner: number | null;
+}
+
+export interface GameVoteMode {
+  manager: VoteManager;
+  meter: HeartMeter;
+  /** Tie-break randomness (default Math.random). */
+  rng?: () => number;
 }
 
 /** What the Renderer needs, in world units (WORLD_W x WORLD_H). */
@@ -62,6 +84,11 @@ export interface RenderView {
   presentT: number | null;
   wobble: number;
   piecesCount: number;
+  vote?: VoteView;
+  heart: number;
+  dessertNameTh: string | null;
+  stepNameTh: string | null;
+  toast: string | null;
 }
 
 export interface GamePersistence {
@@ -91,6 +118,10 @@ export class Game {
   private roundStart = 0;
   private bonusPct = 0;
   private toastText: string | null = null;
+  private candidates: DessertDef[] = [];
+  private voteStart = 0;
+  private winnerIdx: number | null = null;
+  private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
 
   constructor(
     private readonly config: GameConfig,
@@ -99,6 +130,7 @@ export class Game {
     private readonly events?: TikTokEventManager,
     private readonly rewards?: RewardManager,
     private readonly persistence?: GamePersistence,
+    private readonly vote?: GameVoteMode,
   ) {
     this.cooking = new CookingSystem(config, this.progress, {
       onStepStart: (step, index, roundId) => this.startStepFx(step.anim, step.sound, step.maxMs, index, roundId),
@@ -107,7 +139,12 @@ export class Game {
     this.manager = new GameManager(config, {
       onEnter: (state, roundId) => this.onEnter(state, roundId),
       onTick: (state, dtMs) => {
-        if (state === 'COOKING') this.cooking.update(dtMs);
+        if (state !== 'COOKING') return;
+        if (this.vote) {
+          this.vote.meter.update(dtMs);
+          this.cooking.setRateMultiplier(this.vote.meter.multiplier);
+        }
+        this.cooking.update(dtMs);
       },
       onCleanupRound: (roundId) => this.cleanupRound(roundId),
     });
@@ -176,7 +213,22 @@ export class Game {
         last: this.rewards?.last ?? null,
       },
       toast: this.toastText,
+      ...(this.vote ? { vote: this.currentVoteView() } : {}),
+      heart: this.vote?.meter.value ?? 0,
     };
+  }
+
+  private currentVoteView(): VoteView {
+    const v = this.voteView;
+    const vote = this.vote;
+    if (!vote) return v;
+    const m = this.manager.snapshot();
+    const tally = vote.manager.tally();
+    for (let i = 0; i < v.tally.length; i++) v.tally[i] = tally[i] ?? 0;
+    v.open = vote.manager.isOpen;
+    v.remainingMs = m.state === 'PREPARING' ? Math.max(0, this.config.durationsMs.preparing - m.stateElapsedMs) : 0;
+    v.winner = this.winnerIdx;
+    return v;
   }
 
   renderView(): RenderView {
@@ -189,6 +241,11 @@ export class Game {
       presentT: this.presentT,
       wobble: this.wobble,
       piecesCount: 8,
+      ...(this.vote ? { vote: this.currentVoteView() } : {}),
+      heart: this.vote?.meter.value ?? 0,
+      dessertNameTh: this.current?.nameTh ?? null,
+      stepNameTh: this.cooking.snapshot().active ? (this.current?.steps[this.cooking.snapshot().stepIndex]?.nameTh ?? null) : null,
+      toast: this.toastText,
     };
   }
 
@@ -220,9 +277,15 @@ export class Game {
   private onEnter(state: GameState, roundId: number): void {
     if (state === 'PREPARING') {
       this.current = null; // if next() throws, never replay the previous round's dessert
-      this.current = this.desserts.next();
+      if (this.vote) this.openVote(roundId);
+      else this.current = this.desserts.next();
       this.progress.startRound(roundId);
       this.bonusPct = 0;
+    } else if (state === 'COOKING' && this.vote) {
+      this.resolveVote();
+      this.toastText = null;
+      this.roundStart = this.clockMs;
+      if (this.current) this.cooking.start(this.current, roundId);
     } else if (state === 'COOKING' && this.current) {
       this.toastText = null; // reward/unlock news stays visible through REWARDING, NEXT_DESSERT and PREPARING
       this.roundStart = this.clockMs;
@@ -234,6 +297,29 @@ export class Game {
     if (state === 'PRESENTING') this.startPresentation(roundId);
     if (state === 'REWARDING') this.awardRound(roundId);
     if (state === 'NEXT_DESSERT') this.settleRound();
+  }
+
+  /** Vote window = the PREPARING phase: pick the menu and open the box. */
+  private openVote(roundId: number): void {
+    const vote = this.vote;
+    if (!vote) return;
+    this.candidates = this.desserts.pickCandidates(this.config.vote.candidates);
+    if (this.candidates.length === 0) this.candidates = [this.desserts.next()];
+    this.winnerIdx = null;
+    this.voteStart = this.clockMs;
+    vote.manager.open(this.candidates.length, roundId);
+    this.voteView.candidates = this.candidates.map((d) => ({ id: d.id, nameTh: d.nameTh, palette: d.palette }));
+    this.voteView.tally = new Array<number>(this.candidates.length).fill(0);
+  }
+
+  /** Entering COOKING: close the box; the winner (ties random, no votes = first) is what gets cooked. */
+  private resolveVote(): void {
+    const vote = this.vote;
+    if (!vote) return;
+    vote.manager.close();
+    const idx = this.candidates.length === 0 ? -1 : vote.manager.winner(vote.rng ?? Math.random);
+    this.winnerIdx = idx >= 0 ? idx : null;
+    this.current = idx >= 0 ? (this.candidates[idx] ?? null) : null;
   }
 
   /** After the reward: auto-unlock (coins only) and save. Never allowed to disturb the loop. */
@@ -343,6 +429,9 @@ export class Game {
     this.fx?.animations.cancelRound(roundId);
     this.fx?.audio.stopRound(roundId);
     this.fx?.particles?.clear();
+    this.vote?.manager.cancel();
+    this.vote?.meter.reset();
+    this.cooking.setRateMultiplier(1);
   }
 
   /** One coalesced drain per update; a failing event source can never stop the loop. */
@@ -351,8 +440,13 @@ export class Game {
     if (!events) return;
     try {
       const m = this.manager.snapshot();
-      const fx = events.drain({ roundId: m.roundId, startedAtMs: this.roundStart, cooking: m.state === 'COOKING' }, this.clockMs);
-      if (fx.progressAdd > 0) this.cooking.addProgress(fx.progressAdd, m.roundId);
+      const voting = this.vote !== undefined && m.state === 'PREPARING';
+      const fx = events.drain({ roundId: m.roundId, startedAtMs: voting ? this.voteStart : this.roundStart, cooking: m.state === 'COOKING', voting }, this.clockMs);
+      if (this.vote) {
+        for (const v of fx.votes) this.vote.manager.cast(v.vote, v.userKey, m.roundId, this.clockMs);
+        // Hearts feed the meter (which speeds cooking up) instead of adding progress directly.
+        this.vote.meter.add(fx.likes * this.config.vote.heartPerLike + fx.follows * this.config.vote.heartPerFollow);
+      } else if (fx.progressAdd > 0) this.cooking.addProgress(fx.progressAdd, m.roundId);
       if (fx.completeStep) this.cooking.completeCurrentStep(m.roundId);
       if (fx.roseEffect) this.burst(18, 160);
       if (fx.bigGiftEffect) {
