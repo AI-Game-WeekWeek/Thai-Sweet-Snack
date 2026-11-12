@@ -67,6 +67,64 @@ export class Renderer {
     this.timeMs += Number.isFinite(dtMs) ? dtMs : 0;
   }
 
+  /** Individually wrapped banana-leaf parcels (ข้าวต้มมัด): separate pieces, each with its own string. */
+  private drawParcels(ctx: CanvasRenderingContext2D, view: RenderView, cx: number, cy: number): void {
+    const n = Number.isFinite(view.piecesCount) ? Math.min(5, Math.max(0, Math.floor(view.piecesCount))) : 0;
+    const t = view.presentT ?? 0;
+    for (let i = 0; i < n; i++) {
+      const s = spring((t * 1.6 - (i / Math.max(1, n)) * 0.6) / 0.4);
+      if (s <= 0) continue;
+      const x = cx + (i - (n - 1) / 2) * 150;
+      const tilt = [-0.18, 0.1, -0.06, 0.16, -0.12][i % 5] as number;
+      ctx.save();
+      try {
+        ctx.translate(x, cy);
+        ctx.rotate(tilt);
+        ctx.scale(s, Math.max(0.2, 2 - s));
+        // leaf wrapper
+        ctx.fillStyle = '#5f9a45';
+        ctx.strokeStyle = '#2f5f25';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.roundRect(-62, -28, 124, 56, 16);
+        ctx.fill();
+        ctx.stroke();
+        // leaf folds
+        ctx.strokeStyle = '#7ab85a';
+        ctx.lineWidth = 3;
+        for (const fx of [-34, 0, 34]) {
+          ctx.beginPath();
+          ctx.moveTo(fx - 10, -22);
+          ctx.lineTo(fx + 10, 22);
+          ctx.stroke();
+        }
+        // a peek of sticky rice at one end
+        ctx.fillStyle = '#fffaf0';
+        ctx.strokeStyle = '#2f5f25';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.ellipse(62, 0, 9, 17, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        // its own string, tied in a small knot
+        ctx.strokeStyle = '#8a5a2b';
+        ctx.lineWidth = 6;
+        for (const sx of [-26, 26]) {
+          ctx.beginPath();
+          ctx.moveTo(sx, -30);
+          ctx.lineTo(sx, 30);
+          ctx.stroke();
+        }
+        ctx.fillStyle = '#8a5a2b';
+        ctx.beginPath();
+        ctx.arc(26, -30, 7, 0, Math.PI * 2);
+        ctx.fill();
+      } finally {
+        ctx.restore();
+      }
+    }
+  }
+
   private batterColor(view: RenderView): string {
     const pal = view.palette;
     if (pal.length < 2) return pal[0] ?? '#f5f0e1';
@@ -171,6 +229,10 @@ export class Renderer {
     ctx.roundRect(cx - 245, cy - 56, 490, 112, 18);
     ctx.fill();
 
+    if (view.pieceStyle === 'parcel') {
+      this.drawParcels(ctx, view, cx, cy);
+      return;
+    }
     const pal = view.palette;
     const n = view.piecesCount;
     const cols = 4;

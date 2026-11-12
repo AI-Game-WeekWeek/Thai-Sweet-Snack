@@ -35,6 +35,15 @@ describe('dessert data', () => {
     }
   });
 
+  it('ข้าวต้มมัด is served as individual leaf-wrapped parcels, each wrapped and tied on its own', () => {
+    const d = ALL_DESSERTS.find((x) => x.id === 'khao-tom-mat')!;
+    expect(d.presentation.layout).toBe('parcels');
+    const steps = d.steps.map((st) => st.nameTh).join(' | ');
+    expect(steps).toContain('ห่อใบตองทีละห่อ');
+    expect(steps).toContain('มัดเชือกแต่ละห่อ');
+    expect(d.steps.length).toBeGreaterThanOrEqual(5);
+  });
+
   it('has at least one default-unlocked dessert', () => {
     expect(ALL_DESSERTS.some((d) => 'default' in d.unlock)).toBe(true);
   });

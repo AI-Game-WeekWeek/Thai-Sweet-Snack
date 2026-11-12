@@ -157,4 +157,18 @@ describe('CafeRenderer', () => {
       expect(f.depth()).toBe(0);
     }
   });
+
+  it('draws wrapped parcels for ข้าวต้มมัด without errors and with a balanced canvas state', () => {
+    for (const t of [0, 0.3, 1]) {
+      const f = fakeCtx();
+      const v = view({ state: 'PRESENTING', presentT: t, pieceStyle: 'parcel', piecesCount: 3, dessertNameTh: 'ข้าวต้มมัด' });
+      expect(() => new CafeRenderer(4, avatars()).draw(f.ctx, 720, 1280, v, new ParticleSystem(10, 0), 16)).not.toThrow();
+      expect(f.depth()).toBe(0);
+    }
+    for (const n of [0, 1, 50, NaN]) {
+      const f = fakeCtx();
+      expect(() => new CafeRenderer(4, avatars()).draw(f.ctx, 720, 1280, view({ state: 'PRESENTING', presentT: 1, pieceStyle: 'parcel', piecesCount: n }), new ParticleSystem(10, 0), 16)).not.toThrow();
+      expect(f.depth()).toBe(0);
+    }
+  });
 });

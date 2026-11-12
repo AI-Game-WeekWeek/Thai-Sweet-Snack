@@ -16,11 +16,13 @@ export const khaoTomMat: DessertDef = {
   steps: [
     { id: 'mix', nameTh: 'ผสมข้าวเหนียวกับกะทิ', anim: 'knead', sound: 'stir', weight: 2, maxMs: 12000 },
     { id: 'fill', nameTh: 'ใส่ไส้กล้วยกับถั่วดำ', anim: 'shape', sound: 'pop', weight: 2, maxMs: 12000 },
-    { id: 'wrap', nameTh: 'ห่อด้วยใบตอง', anim: 'shape', sound: 'arrange', weight: 3, maxMs: 16000 },
+    { id: 'wrap', nameTh: 'ห่อใบตองทีละห่อ', anim: 'shape', sound: 'arrange', weight: 2, maxMs: 14000 },
+    { id: 'tie', nameTh: 'มัดเชือกแต่ละห่อ', anim: 'shape', sound: 'pop', weight: 2, maxMs: 12000 },
     { id: 'steam', nameTh: 'นึ่งให้สุก', anim: 'steam', sound: 'steam', weight: 3, maxMs: 16000 },
-    { id: 'arrange', nameTh: 'จัดใส่ถาด', anim: 'arrange', sound: 'arrange', weight: 1, maxMs: 10000 },
+    { id: 'arrange', nameTh: 'จัดใส่ถาดเป็นห่อ ๆ', anim: 'arrange', sound: 'arrange', weight: 1, maxMs: 10000 },
   ],
-  presentation: { container: 'tray', layout: 'pile' },
+  // Individual servings: each parcel is wrapped and tied on its own, not piled together.
+  presentation: { container: 'tray', layout: 'parcels' },
   palette: ['#fffaf0', '#f1c232', '#6aa84f'],
   reward: { baseScore: 100, baseCoins: 10, xp: 7 },
 };

@@ -22,7 +22,7 @@ export interface DessertDef {
   unlock: { default: true } | { cost: number };
   ingredients: { id: string; nameTh: string; color: string }[];
   steps: StepDef[];
-  presentation: { container: 'tray' | 'box'; layout: 'grid' | 'stack' | 'pile' };
+  presentation: { container: 'tray' | 'box'; layout: 'grid' | 'stack' | 'pile' | 'parcels' };
   palette: string[];
   reward: { baseScore: number; baseCoins: number; xp: number };
 }

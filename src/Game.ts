@@ -125,6 +125,8 @@ export interface RenderView {
   presentT: number | null;
   wobble: number;
   piecesCount: number;
+  /** How the finished pieces look on the tray: round pieces, or individually wrapped parcels (ข้าวต้มมัด). */
+  pieceStyle?: 'round' | 'parcel';
   vote?: VoteView;
   cafe?: CafeView;
   heart: number;
@@ -304,7 +306,8 @@ export class Game {
       stepT: this.stepT,
       presentT: this.presentT,
       wobble: this.wobble,
-      piecesCount: 8,
+      piecesCount: this.current?.presentation.layout === 'parcels' ? 3 : 8,
+      pieceStyle: this.current?.presentation.layout === 'parcels' ? 'parcel' : 'round',
       ...(this.vote ? { vote: this.currentVoteView() } : {}),
       heart: this.vote?.meter.value ?? this.cafe?.meter.value ?? 0,
       ...(this.cafe ? { cafe: this.cafeView() } : {}),

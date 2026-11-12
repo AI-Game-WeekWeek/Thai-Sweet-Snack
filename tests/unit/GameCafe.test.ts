@@ -294,4 +294,20 @@ describe('Game in café mode', () => {
     game.start();
     expect(() => runUntil(game, () => game.snapshot().roundsCompleted >= 2)).not.toThrow();
   });
+
+  it('ข้าวต้มมัด is presented as 3 separate wrapped parcels; every other dessert keeps the round pieces', () => {
+    const { game } = mk({ npcSpawnEveryMs: 1e9 });
+    game.start();
+    runUntil(game, () => game.snapshot().state === 'PRESENTING');
+    expect(game.snapshot().dessertNameTh).toBe('ข้าวต้มมัด');
+    expect(game.renderView()).toMatchObject({ pieceStyle: 'parcel', piecesCount: 3 });
+
+    const other = mk({ npcSpawnEveryMs: 1e9 });
+    other.game.start();
+    gift(other.game, 5, { displayName: 'จ่าย' }); // บัวลอย
+    other.game.update(16);
+    runUntil(other.game, () => other.game.snapshot().roundId === 2 && other.game.snapshot().state === 'PRESENTING');
+    expect(other.game.snapshot().dessertNameTh).toBe(nameOf('bua-loy'));
+    expect(other.game.renderView()).toMatchObject({ pieceStyle: 'round', piecesCount: 8 });
+  });
 });

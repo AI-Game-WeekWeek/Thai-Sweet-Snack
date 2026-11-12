@@ -489,7 +489,7 @@ export class CafeRenderer {
     if (!c.serving) this.drawPatience(ctx, x, y + r * 2.1 + (c.kind === 'vip' || (c.viewer && c.name) ? Math.round(r * 0.5) : 0) + 14, r * 2, c.patience);
     if (!c.serving) {
       ctx.textAlign = 'center';
-      this.text(ctx, clip(c.dessertNameTh, 8), x, y - r - 22 - (c.kind === 'vip' ? r * 0.6 : 0), Math.round(r * 0.42), '#fff3dc', INK);
+      this.text(ctx, clip(c.dessertNameTh, 11), x, y - r - 22 - (c.kind === 'vip' ? r * 0.6 : 0), Math.round(r * 0.36), '#fff3dc', INK);
     }
   }
 
