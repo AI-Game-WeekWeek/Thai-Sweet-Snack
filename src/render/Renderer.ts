@@ -22,33 +22,36 @@ export class Renderer {
     this.timeMs += Number.isFinite(dtMs) ? dtMs : 0;
     const scale = Math.min(width / WORLD_W, height / WORLD_H);
     ctx.save();
-    ctx.clearRect(0, 0, width, height);
-    const bg = ctx.createLinearGradient(0, 0, 0, height);
-    bg.addColorStop(0, '#fff4e0');
-    bg.addColorStop(1, '#f7d9b5');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, width, height);
-    ctx.translate((width - WORLD_W * scale) / 2, (height - WORLD_H * scale) / 2);
-    ctx.scale(scale, scale);
+    try {
+      ctx.clearRect(0, 0, width, height);
+      const bg = ctx.createLinearGradient(0, 0, 0, height);
+      bg.addColorStop(0, '#fff4e0');
+      bg.addColorStop(1, '#f7d9b5');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, width, height);
+      ctx.translate((width - WORLD_W * scale) / 2, (height - WORLD_H * scale) / 2);
+      ctx.scale(scale, scale);
 
-    // table
-    ctx.fillStyle = '#c98f5a';
-    ctx.fillRect(0, 470, WORLD_W, 130);
+      // table
+      ctx.fillStyle = '#c98f5a';
+      ctx.fillRect(0, 470, WORLD_W, 130);
 
-    const presenting = view.presentT !== null;
-    if (presenting) this.drawTray(ctx, view);
-    else this.drawBowl(ctx, view);
+      const presenting = view.presentT !== null;
+      if (presenting) this.drawTray(ctx, view);
+      else this.drawBowl(ctx, view);
 
-    particles.forEach((p) => {
-      const alpha = Math.max(0, 1 - p.ageMs / p.lifeMs);
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.globalAlpha = 1;
-    ctx.restore();
+      particles.forEach((p) => {
+        const alpha = Math.max(0, 1 - p.ageMs / p.lifeMs);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+    } finally {
+      ctx.restore();
+    }
   }
 
   private batterColor(view: RenderView): string {

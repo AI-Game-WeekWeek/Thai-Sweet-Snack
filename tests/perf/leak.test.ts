@@ -1,7 +1,9 @@
 import v8 from 'node:v8';
 import vm from 'node:vm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { liveConfig } from '../../src/config/gameConfig';
+import { liveConfig, voteConfig } from '../../src/config/gameConfig';
+import { HeartMeter } from '../../src/cooking/HeartMeter';
+import { VoteManager } from '../../src/vote/VoteManager';
 import { AnimationManager } from '../../src/anim/AnimationManager';
 import { ParticleSystem } from '../../src/anim/ParticleSystem';
 import { Game, type AudioLike } from '../../src/Game';
@@ -97,5 +99,48 @@ describe('long-run memory and CPU', () => {
     expect(growthMb).toBeLessThan(8); // 500 rounds should not retain anything meaningful
     expect(busyMs / frames).toBeLessThan(1); // a 60 fps frame has ~16 ms; the simulation must stay far below that
     expect(rewards.profile.rounds).toBe(ROUNDS);
+  });
+
+  it('menu-vote mode: 400 rounds with vote spam keep the heap flat and frames cheap', () => {
+    const cfg = voteConfig;
+    const animations = new AnimationManager(cfg);
+    const particles = new ParticleSystem(cfg.particles.cap, cfg.particles.gravity);
+    const audio = new CountingAudio();
+    const events = new TikTokEventManager(cfg);
+    const save = new SaveSystem(cfg, new Mem(), DEFAULT_IDS, ALL_IDS);
+    const rewards = new RewardManager(cfg, save.load());
+    const vote = { manager: new VoteManager({ maxVoters: cfg.vote.maxVoters, anonVotesPerSec: cfg.vote.anonVotesPerSec }), meter: new HeartMeter({ decayPerSec: cfg.vote.heartDecayPerSec, maxBoost: cfg.vote.maxBoost }) };
+    const game = new Game(cfg, new DessertManager(ALL_DESSERTS, rewards.profile.unlocked, mulberry32(3)), { animations, audio, particles }, events, rewards, { progression: new ProgressionManager(ALL_DESSERTS, rewards), save }, vote);
+    const rand = mulberry32(23);
+    const mock = new MockEventSource(mulberry32(4), (e) => game.ingestEvent(e), { comments: true });
+    mock.steady(150, 1e12);
+    game.start();
+
+    const heap: number[] = [];
+    let frames = 0;
+    let busyMs = 0;
+    let nextSample = 100;
+    const TARGET = 400;
+    while (game.snapshot().roundsCompleted < TARGET) {
+      const t0 = performance.now();
+      mock.tick(16, game.nowMs);
+      if (rand() < 0.01) mock.burst('comment', 500, game.nowMs);
+      if (rand() < 0.002) mock.burst('like', 1500, game.nowMs);
+      game.update(16);
+      busyMs += performance.now() - t0;
+      frames++;
+      expect(events.queueLength).toBeLessThanOrEqual(cfg.events.queueMax);
+      if (game.snapshot().roundsCompleted >= nextSample) {
+        gc();
+        heap.push(process.memoryUsage().heapUsed);
+        nextSample += 100;
+      }
+    }
+    const growthMb = (heap[heap.length - 1]! - heap[0]!) / 1024 / 1024;
+    console.log(`[leak/vote] heap MB per 100 rounds: ${heap.map((h) => (h / 1048576).toFixed(1)).join(', ')} | growth ${growthMb.toFixed(2)} MB | avg frame ${(busyMs / frames).toFixed(4)} ms over ${frames} frames`);
+    expect(growthMb).toBeLessThan(8);
+    expect(busyMs / frames).toBeLessThan(1);
+    expect(audio.live.size).toBeLessThanOrEqual(2);
+    expect(animations.activeCount).toBeLessThanOrEqual(cfg.anim.maxActive);
   });
 });
