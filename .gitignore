@@ -147,3 +147,18 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# --- Project additions (Thai Dessert ASMR) ---
+# Vite / test output
+.vite/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+
+# Claude Code local settings
+.claude/settings.local.json
