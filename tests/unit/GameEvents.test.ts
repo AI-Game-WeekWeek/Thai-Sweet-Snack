@@ -136,4 +136,18 @@ describe('Game with live events', () => {
     game.start();
     runUntil(game, () => game.snapshot().roundId === 2);
   });
+
+  it('a far-future provider timestamp is applied, a far-past one cannot leak into a young round', () => {
+    const { game } = mk();
+    cook(game);
+    const before = game.snapshot().progress;
+    game.ingestEvent(ev('follow', { tsMs: game.nowMs + 86_400_000 }));
+    game.update(16);
+    expect(game.snapshot().progress - before).toBeGreaterThan(E.followProgress - 0.1);
+
+    const mid = game.snapshot().progress;
+    game.ingestEvent(ev('follow', { tsMs: -5_000_000 })); // provider clock far behind
+    game.update(16);
+    expect(game.snapshot().progress - mid).toBeLessThan(0.3); // looks old: ignored while the round is still young
+  });
 });

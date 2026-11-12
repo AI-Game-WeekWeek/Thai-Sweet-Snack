@@ -30,6 +30,8 @@ export interface GameConfig {
     queueMax: number;
     maxLikeCountPerEvent: number;
     shareBonusPct: number;
+    /** Provider timestamps are advisory: an event is never treated as older than this, so clock skew costs at most this much of a round. */
+    maxSourceLagMs: number;
   };
   reward: { speedParMs: number; speedBonusMaxPct: number; xpBase: number; xpGrowth: number };
   save: { key: string; backupKey: string };
@@ -56,6 +58,7 @@ export const defaultConfig: GameConfig = {
     queueMax: 500,
     maxLikeCountPerEvent: 1000,
     shareBonusPct: 10,
+    maxSourceLagMs: 3000,
   },
   reward: { speedParMs: 25000, speedBonusMaxPct: 30, xpBase: 100, xpGrowth: 1.25 },
   save: { key: 'thai-dessert-asmr:save', backupKey: 'thai-dessert-asmr:save.corrupt' },

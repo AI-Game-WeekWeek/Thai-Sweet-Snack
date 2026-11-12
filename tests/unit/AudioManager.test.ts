@@ -147,4 +147,25 @@ describe('AudioManager', () => {
     expect(a.play('pour', 1)).toBe(false);
     expect(a.activeVoices).toBe(0);
   });
+
+  it('running reports whether the context is actually producing sound', () => {
+    const { a, ctx } = mk();
+    expect(a.running).toBe(false);
+    ctx.state = 'suspended';
+    a.unlock();
+    expect(a.running).toBe(false);
+    ctx.state = 'running';
+    expect(a.running).toBe(true);
+  });
+
+  it('unlock keeps retrying resume() while the context is suspended', () => {
+    const { a, ctx } = mk();
+    let resumes = 0;
+    ctx.state = 'suspended';
+    ctx.resumeImpl = () => { resumes++; return Promise.resolve(); };
+    a.unlock();
+    a.unlock();
+    a.unlock();
+    expect(resumes).toBe(3);
+  });
 });

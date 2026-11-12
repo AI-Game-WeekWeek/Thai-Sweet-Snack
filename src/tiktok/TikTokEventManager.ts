@@ -38,9 +38,17 @@ export class TikTokEventManager {
     this.state = s;
   }
 
-  ingest(raw: unknown): Ingest {
+  /**
+   * `receivedAtMs` (game clock) makes the provider's timestamp advisory: it is never later than the receive time,
+   * and never earlier than `maxSourceLagMs` before it. Provider clock skew can then not leak old events into a new
+   * dessert (ahead) nor swallow a whole round (behind, or timestamps in seconds).
+   */
+  ingest(raw: unknown, receivedAtMs?: number): Ingest {
     const e = this.validate(raw);
     if (!e) return 'invalid';
+    if (receivedAtMs !== undefined && Number.isFinite(receivedAtMs)) {
+      e.tsMs = Math.max(Math.min(e.tsMs, receivedAtMs), receivedAtMs - this.config.events.maxSourceLagMs);
+    }
     if (this.seen.has(e.id)) return 'duplicate';
     this.seen.set(e.id, true);
     if (this.seen.size > this.config.events.dedupeCapacity) {

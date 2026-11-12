@@ -73,10 +73,15 @@ if (bridgeParam && /^wss?:\/\//i.test(bridgeParam)) {
   }
 }
 
-// Browsers block audio until a user gesture.
-const unlockAudio = (): void => audio.unlock();
-addEventListener('pointerdown', unlockAudio, { once: true });
-addEventListener('keydown', unlockAudio, { once: true });
+// Create the audio context right away (OBS browser sources allow it; nobody clicks there). Where the browser
+// blocks it until a gesture, keep retrying on every gesture until the context is really running.
+audio.unlock();
+const gestures = ['pointerup', 'click', 'keydown', 'touchend'] as const;
+const retryUnlock = (): void => {
+  audio.unlock();
+  if (audio.running) for (const g of gestures) removeEventListener(g, retryUnlock);
+};
+for (const g of gestures) addEventListener(g, retryUnlock);
 canvas.addEventListener('pointerdown', (e) => {
   const r = canvas.getBoundingClientRect();
   game.poke(((e.clientX - r.left) / r.width) * WORLD_W, ((e.clientY - r.top) / r.height) * WORLD_H);

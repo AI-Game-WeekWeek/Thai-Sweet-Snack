@@ -162,4 +162,45 @@ describe('TikTokEventManager', () => {
     m.drain(ROUND, 3100);
     expect(m.totals.likes).toBe(7);
   });
+
+  describe('clock skew between the provider and the game', () => {
+    const NOW = 1_000_000;
+    const round = (startedAgoMs: number) => ({ roundId: 1, startedAtMs: NOW - startedAgoMs, cooking: true });
+    const lag = E.maxSourceLagMs;
+
+    it('a future-dated event counts as "now" and is applied', () => {
+      const m = mk();
+      expect(m.ingest(ev({ type: 'follow', tsMs: NOW + 3_600_000 }), NOW)).toBe('queued');
+      expect(m.drain(round(1000), NOW).progressAdd).toBeCloseTo(E.followProgress, 6);
+    });
+
+    it('a provider clock far behind (or timestamps in seconds) only costs the first maxSourceLagMs of a round', () => {
+      for (const ts of [NOW - 3_600_000, 1_700]) {
+        const early = mk();
+        early.ingest(ev({ type: 'follow', tsMs: ts }), NOW);
+        expect(early.drain(round(lag - 500), NOW).progressAdd).toBe(0);
+        const later = mk();
+        later.ingest(ev({ type: 'follow', tsMs: ts }), NOW);
+        expect(later.drain(round(lag + 500), NOW).progressAdd).toBeCloseTo(E.followProgress, 6);
+      }
+    });
+
+    it('a genuinely late event from the previous round is still dropped', () => {
+      const m = mk();
+      m.ingest(ev({ type: 'follow', tsMs: NOW - 5000 }), NOW);
+      expect(m.drain(round(1000), NOW).progressAdd).toBe(0);
+    });
+
+    it('an event stamped inside the current round is applied', () => {
+      const m = mk();
+      m.ingest(ev({ type: 'follow', tsMs: NOW - 200 }), NOW);
+      expect(m.drain(round(1000), NOW).progressAdd).toBeCloseTo(E.followProgress, 6);
+    });
+
+    it('without a receive time the provider timestamp is used as is', () => {
+      const m = mk();
+      m.ingest(ev({ type: 'follow', tsMs: 500 }));
+      expect(m.drain(ROUND, 3000).progressAdd).toBe(0);
+    });
+  });
 });

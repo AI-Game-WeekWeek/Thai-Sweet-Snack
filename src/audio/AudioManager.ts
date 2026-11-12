@@ -49,6 +49,11 @@ export class AudioManager {
     return this.voices.size;
   }
 
+  /** True when the context exists and is actually producing sound (not suspended by the browser). */
+  get running(): boolean {
+    return this.ctx?.state === 'running';
+  }
+
   /** Call from a user gesture (browsers block audio before one). Safe to call repeatedly. */
   unlock(): void {
     try {

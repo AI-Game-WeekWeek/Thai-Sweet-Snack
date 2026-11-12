@@ -18,7 +18,7 @@ small local bridge. Any source you are entitled to use only has to POST events i
 { "id": "unique-string", "type": "like|follow|orangeHeart|rose|gift|share", "count": 1, "tsMs": 1731400000000, "giftCoins": 500, "user": "optional" }
 ```
 
-- `id`: unique per event (duplicates are dropped). `tsMs`: source time in ms since epoch; events older than the current dessert are ignored.
+- `id`: unique per event (duplicates are dropped). `tsMs`: source time in ms, advisory only: the game stamps the receive time, never trusts a future time, and treats nothing as older than `events.maxSourceLagMs` (3 s), so provider clock skew costs at most the first 3 s of a dessert. Events that are genuinely late (from an earlier dessert) are ignored.
 - `count`: batch size (likes 1–1000), otherwise 1. `giftCoins`: value of a gift; at or above `events.largeGiftCoins` (default 100) it completes the current step.
 - Event types your provider cannot supply simply never arrive; the game does not depend on any of them.
 

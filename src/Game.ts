@@ -145,7 +145,7 @@ export class Game {
 
   ingestEvent(raw: unknown): 'queued' | 'duplicate' | 'invalid' {
     try {
-      return this.events ? this.events.ingest(raw) : 'invalid';
+      return this.events ? this.events.ingest(raw, this.clockMs) : 'invalid';
     } catch (err) {
       console.error('[Game] ingest failed', err);
       return 'invalid';
