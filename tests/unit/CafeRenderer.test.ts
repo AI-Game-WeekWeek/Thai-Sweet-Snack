@@ -193,3 +193,28 @@ describe('customers walk', () => {
     expect(r.actorCount).toBe(0);
   });
 });
+
+describe('excitement zoom', () => {
+  it('zooms in slowly while hearts fill, kicks on a tap, and relaxes back; hostile values are safe', () => {
+    const r = new CafeRenderer(4, avatars());
+    const scales: number[] = [];
+    const run = (v: Partial<RenderView>, frames: number) => {
+      for (let i = 0; i < frames; i++) {
+        const f = fakeCtx();
+        r.draw(f.ctx, 720, 1280, view(v), new ParticleSystem(10, 0), 16);
+        scales.push((r as unknown as { zoom: number }).zoom);
+      }
+    };
+    run({ heart: 0, state: 'COOKING' }, 30);
+    const calm = scales[scales.length - 1] as number;
+    run({ heart: 1, state: 'COOKING' }, 120);
+    const hot = scales[scales.length - 1] as number;
+    expect(hot).toBeGreaterThan(calm + 0.05);
+    expect(hot).toBeLessThanOrEqual(1.25);
+    expect(scales[31]! - scales[30]!).toBeLessThan(0.03); // gradual, not a jump
+    run({ heart: 0, state: 'PRESENTING' }, 200);
+    expect(scales[scales.length - 1] as number).toBeLessThan(hot - 0.05);
+    expect(() => run({ heart: NaN, wobble: Infinity, state: 'COOKING' }, 3)).not.toThrow();
+    expect((r as unknown as { zoom: number }).zoom).toBeGreaterThanOrEqual(1);
+  });
+});

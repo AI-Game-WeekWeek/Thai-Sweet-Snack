@@ -36,6 +36,7 @@ const isColor = (c: string): boolean => /^#[0-9a-f]{3,8}$/i.test(c);
 export class CafeRenderer {
   private readonly scene = new Renderer();
   private timeMs = 0;
+  private lastDt = 16;
 
   constructor(
     private readonly maxBoost: number,
@@ -45,6 +46,7 @@ export class CafeRenderer {
   draw(ctx: CanvasRenderingContext2D, width: number, height: number, view: RenderView, particles: ParticleSystem, dtMs: number): void {
     const dt = Number.isFinite(dtMs) ? dtMs : 0;
     this.timeMs += dt;
+    this.lastDt = Math.min(100, Math.max(0, dt));
     this.scene.tick(dt);
     const scale = Math.min(width / CAFE_W, height / CAFE_H);
     ctx.save();
@@ -63,12 +65,32 @@ export class CafeRenderer {
         ctx.save();
         try {
           ctx.translate(STATION_X, STATION_Y);
+          // excitement: the more hearts are tapped, the more the camera slowly zooms in (plus a small kick on every tap)
+          const z = this.zoomFor(view);
+          if (z > 1.001) {
+            ctx.beginPath();
+            ctx.rect(0, 0, 1000, 600);
+            ctx.clip();
+            ctx.translate(500, 330);
+            ctx.scale(z, z);
+            ctx.translate(-500, -330);
+          }
           this.scene.drawScene(ctx, view, particles, !artImage(this.backgroundKey()));
         } finally {
           ctx.restore();
         }
       });
       this.safely('logo', () => drawArt(ctx, CAFE_PICS.logo, 105, 1205, 180, 170, 0, 1, 1, 4));
+      this.safely('excite', () => {
+        // a warm pulsing glow at the edges of the cooking window while the hearts are flying
+        if (view.state !== 'COOKING' || this.level < 0.25) return;
+        const a = (0.10 + 0.22 * this.level) * (0.75 + 0.25 * Math.sin(this.timeMs / (260 - 120 * this.level)));
+        const g = ctx.createRadialGradient(STATION_X + 500, STATION_Y + 330, 260, STATION_X + 500, STATION_Y + 330, 620);
+        g.addColorStop(0, 'rgba(255,120,80,0)');
+        g.addColorStop(1, `rgba(255,90,70,${a.toFixed(3)})`);
+        ctx.fillStyle = g;
+        ctx.fillRect(STATION_X, STATION_Y, 1000, 600);
+      });
       this.safely('phone', () => this.drawPhone(ctx, view.cafe));
       this.safely('cat', () => this.drawCat(ctx, 975, 1428, view.cafe?.luckyCatSec ?? 0));
       this.safely('lucky', () => this.drawLuckyPill(ctx, view.cafe));
@@ -136,6 +158,27 @@ export class CafeRenderer {
     this.mutedKey = key;
     this.mutedCanvas = out;
     return out;
+  }
+
+  private zoom = 1;
+  private level = 0;
+  private lastWobble = 0;
+  private kick = 0;
+
+  /** Smoothed zoom for the cooking window, 1..~1.2. Pure function of the view and elapsed time. */
+  private zoomFor(view: RenderView): number {
+    const heart = Number.isFinite(view.heart) ? Math.max(0, view.heart) : 0;
+    const level = Math.min(1, heart);
+    this.level = level;
+    const w = Number.isFinite(view.wobble) ? view.wobble : 0;
+    if (w > this.lastWobble + 0.05) this.kick = 1; // a tap just happened
+    this.lastWobble = w;
+    this.kick = Math.max(0, this.kick - this.lastDt / 260);
+    const cooking = view.state === 'COOKING';
+    const target = (cooking ? 1 + 0.14 * level : 1) + 0.035 * this.kick;
+    const k = 1 - Math.exp(-this.lastDt / 420); // slow, gradual approach
+    this.zoom += (target - this.zoom) * k;
+    return Number.isFinite(this.zoom) ? Math.min(1.25, Math.max(1, this.zoom)) : 1;
   }
 
   private backgroundKey(): string {
