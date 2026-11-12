@@ -673,25 +673,16 @@ function parcelItem(ctx: CanvasRenderingContext2D): void {
   oval(ctx, 26, -30, 7, 7, '#8a5a2b');
 }
 
-/** Watercolor pictures on the tray; false when the first picture is not loaded. */
+/** One big watercolor picture of the finished dessert on the tray; false when it is not loaded. */
 function drawServedPics(ctx: CanvasRenderingContext2D, art: ArtId, t: number, nRaw: number, cx: number, cy: number): boolean {
   const names = SERVED_PICS[art];
-  if (!names || names.length === 0 || artImage(names[0] as string) === null) return false;
-  const n = Number.isFinite(nRaw) ? Math.min(8, Math.max(0, Math.floor(nRaw))) : 0;
-  const size = n <= 3 ? 150 : n <= 5 ? 118 : 96;
-  const perRow = n <= 4 ? n : Math.ceil(n / 2);
-  for (let i = 0; i < n; i++) {
-    const s = spring((t * 1.6 - (i / Math.max(1, n)) * 0.6) / 0.4);
-    if (s <= 0) continue;
-    const row = Math.floor(i / Math.max(1, perRow));
-    const inRow = i % Math.max(1, perRow);
-    const rowCount = Math.min(perRow, n - row * perRow);
-    const gap = size * 1.05;
-    const x = cx + (inRow - (rowCount - 1) / 2) * gap;
-    const y = cy - 6 + (n > 4 ? (row - 0.5) * size * 0.62 : 0);
-    const name = names[i % names.length] as string;
-    drawArt(ctx, artImage(name) ? name : (names[0] as string), x, y, size, size, ([-0.08, 0.06, -0.04, 0.09][i % 4] as number), s, Math.max(0.2, 2 - s), 4);
-  }
+  const name = names?.[0];
+  if (!name || artImage(name) === null) return false;
+  if (!(Number.isFinite(nRaw) && nRaw >= 1)) return true; // nothing to serve: draw nothing, picture stays "handled"
+  const s = spring(t * 1.3);
+  if (s <= 0) return true;
+  const bob = 1 + 0.015 * Math.sin(t * 6);
+  drawArt(ctx, name, cx, cy - 30, 350, 320, -0.02, s * bob, Math.max(0.2, 2 - s) / bob, 6);
   return true;
 }
 

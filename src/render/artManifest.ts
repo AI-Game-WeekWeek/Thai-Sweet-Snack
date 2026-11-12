@@ -107,15 +107,15 @@ export const COOK_SCENES: Record<ArtId, readonly StageSpec[]> = {
   ],
 };
 
-/** The finished look on the tray (cycled when several). */
+/** The finished dessert shown as ONE big picture on the tray. */
 export const SERVED_PICS: Record<ArtId, readonly string[]> = {
-  parcel: ['ktm-11'],
-  layered: ['chan-1', 'chan-1', 'chan-2'],
-  fruit: ['lukchup-1', 'lukchup-2', 'lukchup-3', 'lukchup-4', 'lukchup-5', 'lukchup-6', 'lukchup-7', 'lukchup-8'],
-  thread: ['foithong-1'],
-  flower: ['thongyipA-1'],
-  syrupBall: ['thongyodA-1'],
-  bowl: ['bualoy-2', 'bualoy-10', 'bualoy-1'],
+  parcel: ['ktmCover-1'],
+  layered: ['chan-1'],
+  fruit: ['menu-7'],
+  thread: ['menu-5'],
+  flower: ['menu-6'],
+  syrupBall: ['thongyodA-2'],
+  bowl: ['bualoy-2'],
   crepe: ['crepe-1'],
 };
 
