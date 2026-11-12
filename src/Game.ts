@@ -12,6 +12,7 @@ import type { RewardManager } from './reward/RewardManager';
 import type { SaveSystem } from './save/SaveSystem';
 import { dessertForGift } from './cafe/giftMenu';
 import { genderForSeed, politeEnding } from './cafe/gender';
+import { cleanName } from './tiktok/cleanName';
 import type { CafeQueue, Customer, CustomerKind } from './cafe/CafeQueue';
 import type { HeartMeter } from './cooking/HeartMeter';
 import type { VoteManager } from './vote/VoteManager';
@@ -122,6 +123,8 @@ export interface CafeView {
   shamanQuotaMax?: number;
   /** Link to the live event source (bridge). */
   connection?: ConnectionState;
+  /** Cooking waits for taps / hearts (idleCookRate is low): the screen says so. */
+  needsTaps?: boolean;
 }
 
 export interface GameCafeMode {
@@ -220,12 +223,18 @@ export class Game {
   private squeeze = 0;
   private squeezed = false;
   private ghostVisits = 0;
+  private ghostCookMs = 0;
   private forceGhostType: number | null = null;
   private visitCounted = false;
   private squeezeFlashMs = 0;
   private shamanMs = 0;
   private shamanSplashed = false;
   private shamanQuota = 0;
+  private refilling = false;
+  /** Viewers who gifted and may come back to order again while they are still around (memory only, never saved). */
+  private readonly regulars = new Map<string, { name: string; avatarUrl: string | null; dessertId: string; giftMs: number; lastMs: number; returns: number }>();
+  private readonly returning = new Set<string>();
+  private regularCheckMs = 0;
   private shamanFromQuota = false;
   private ghostTamed = false;
   private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
@@ -253,7 +262,11 @@ export class Game {
           meter.update(dtMs);
           // the squeezing ghost also slows the cooking down, so being squeezed makes it harder to escape
           const slow = this.ghostCooking() ? 1 - Math.min(0.9, Math.max(0, this.config.cafe.surprise.phone.squeezeSlow || 0)) * this.squeeze : 1;
-          this.cooking.setRateMultiplier(meter.multiplier * slow);
+          // idleCookRate < 1: with no hearts the dessert cooks slowly (0 = it waits for taps); a full meter always reaches the maximum
+          const idle = this.cafe && Number.isFinite(this.config.cafe.idleCookRate) ? Math.min(1, Math.max(0, this.config.cafe.idleCookRate)) : 1;
+          const mult = this.cafe ? idle + meter.value * (this.config.vote.maxBoost - idle) : meter.multiplier;
+          const heavy = this.ghostCooking() && !this.ghostTamed ? Math.min(1, Math.max(0.05, this.config.cafe.surprise.phone.cookRateMul || 1)) : 1; // a ghost's dessert is heavy
+          this.cooking.setRateMultiplier(mult * slow * heavy);
         }
         this.cooking.update(dtMs);
       },
@@ -549,6 +562,7 @@ export class Game {
     if (this.squeezeFlashMs > 0) this.squeezeFlashMs = Math.max(0, this.squeezeFlashMs - dt);
     if (!this.ghostCooking()) {
       if (this.cafe?.queue.current?.kind !== 'phone') {
+        this.ghostCookMs = 0;
         this.squeeze = 0;
         this.squeezed = false;
         if (this.visitCounted) {
@@ -559,6 +573,16 @@ export class Game {
       return;
     }
     const ph = this.config.cafe.surprise.phone;
+    this.ghostCookMs += dt;
+    if (!this.ghostTamed && this.ghostCookMs >= (Number.isFinite(ph.giveUpMs) && ph.giveUpMs > 0 ? ph.giveUpMs : 90_000)) {
+      // a ghost nobody could deal with gets bored and vanishes: the game is never stuck on it
+      this.ghostTamed = true;
+      this.visitCounted = true; // so the calm is reset when this visit ends
+      this.squeeze = 0;
+      this.squeezed = false;
+      this.toastText = 'ผีเบื่อแล้ว หายไปเอง';
+      return;
+    }
     if (!this.visitCounted) {
       this.visitCounted = true;
       this.ghostVisits += 1;
@@ -570,6 +594,8 @@ export class Game {
     if (this.ghostTamed) return; // calmed by the shaman: no squeezing this visit
     const fill = Math.max(floor, base / (1 + harder * (this.ghostVisits - 1)));
     this.squeeze = Math.min(1, this.squeeze + dt / fill);
+    // the hungry ghost eats the hearts the viewers send
+    if (!this.ghostTamed) this.cafe?.meter.drain(((Number.isFinite(ph.heartDrainPerSec) ? ph.heartDrainPerSec : 0) * dt) / 1000);
     if (this.squeeze >= 1 && !this.squeezed) {
       this.squeezed = true;
       this.squeezeFlashMs = 1800;
@@ -600,7 +626,8 @@ export class Game {
     if (cafe.queue.waiting().length === 0) this.spawnNpc();
     // Opening time: start with a visible queue instead of an empty shop.
     if (this.lastCookedId === null) {
-      for (let i = 0; i <= this.config.cafe.npcMinWaiting && cafe.queue.waiting().length < this.config.cafe.npcMinWaiting + 1; i++) this.spawnNpc();
+      const target = Math.max(this.config.cafe.npcMinWaiting, this.config.cafe.npcFillTo ?? 0);
+      for (let i = 0; i <= target && cafe.queue.waiting().length < target; i++) this.spawnNpc();
     }
     const c = cafe.queue.startNext();
     this.current = (c && this.desserts.get(c.dessertId)) || this.desserts.next();
@@ -624,6 +651,50 @@ export class Game {
     if (id) cafe.queue.enqueue({ viewer: false, dessertId: id });
   }
 
+  /** A viewer who gifted is remembered (in memory only) so they can come back to order while they are still around. */
+  private rememberRegular(rawName: string, avatarUrl: string | null, dessertId: string, fresh: boolean): void {
+    const name = cleanName(rawName, this.config.cafe.maxNameLength);
+    if (name === '' || this.config.cafe.anonymousNames) return;
+    const prev = this.regulars.get(name);
+    if (fresh) this.returning.delete(name);
+    this.regulars.delete(name); // re-insert: most recent last
+    this.regulars.set(name, {
+      name,
+      avatarUrl: avatarUrl ?? prev?.avatarUrl ?? null,
+      dessertId: fresh ? dessertId : (prev?.dessertId ?? dessertId),
+      giftMs: fresh ? this.clockMs : (prev?.giftMs ?? this.clockMs),
+      lastMs: this.clockMs,
+      returns: fresh ? 0 : (prev?.returns ?? 0),
+    });
+    while (this.regulars.size > 30) this.regulars.delete(this.regulars.keys().next().value as string);
+  }
+
+  /** Every so often a remembered viewer who gifted recently walks back in and orders the same dessert again. */
+  private tickRegulars(dt: number): void {
+    const cafe = this.cafe;
+    if (!cafe || this.regulars.size === 0) return;
+    this.regularCheckMs += dt;
+    if (this.regularCheckMs < 1000) return;
+    this.regularCheckMs = 0;
+    const c = this.config.cafe;
+    const now = this.clockMs;
+    const inCafe = new Set<string>([...cafe.queue.waiting().map((x) => x.name ?? ''), cafe.queue.current?.name ?? '']);
+    for (const [name, r] of this.regulars) {
+      if (now - r.giftMs > c.regularWindowMs || r.returns >= c.regularMaxReturns) {
+        this.regulars.delete(name);
+        continue;
+      }
+      if (now - r.lastMs < c.regularEveryMs || inCafe.has(name) || cafe.queue.waiting().length >= c.maxWaiting) continue;
+      const dessertId = this.desserts.unlockedIds.includes(r.dessertId) ? r.dessertId : c.defaultDessertId;
+      if (cafe.queue.enqueue({ viewer: true, name, avatarUrl: r.avatarUrl, dessertId }) === 'ok') {
+        r.returns += 1;
+        r.lastMs = now;
+        this.returning.add(name);
+      }
+      break; // one comes back at a time
+    }
+  }
+
   private tickCafe(dt: number): void {
     const cafe = this.cafe;
     if (!cafe || !this.manager.running) return;
@@ -637,8 +708,14 @@ export class Game {
       for (let i = 0; i < left.length * 5; i++) this.fx?.particles?.spawn({ x: WORLD_W / 2 + (i % 5) * 30 - 60, y: 400, vx: (i % 5) * 20 - 40, vy: -80, lifeMs: 700, size: 6, color: 'rgba(120,120,120,0.7)', g: -0.2 });
     }
     this.tickPhone(dt);
+    this.tickRegulars(dt);
     const c = this.config.cafe;
-    if (cafe.queue.waiting().length >= c.npcMinWaiting) this.npcTimer = 0;
+    // fewer than npcMinWaiting people in the café (the one being served counts, viewers included): bots come until npcFillTo are there
+    const people = cafe.queue.waiting().length + (cafe.queue.current ? 1 : 0);
+    const fillTo = Math.max(c.npcMinWaiting, c.npcFillTo ?? c.npcMinWaiting);
+    if (people < c.npcMinWaiting) this.refilling = true;
+    else if (people >= fillTo) this.refilling = false;
+    if (!this.refilling) this.npcTimer = 0;
     else {
       this.npcTimer += dt;
       if (this.npcTimer >= c.npcSpawnEveryMs) {
@@ -765,6 +842,7 @@ export class Game {
       if (!dessertId) continue;
       const r = cafe.queue.enqueue({ viewer: true, name: anon ? null : (g.displayName ?? null), avatarUrl: anon ? null : (g.avatarUrl ?? null), dessertId });
       if (r === 'full') this.rewards?.addCoins(this.config.cafe.overflowGiftCoins);
+      else this.rememberRegular(anon ? '' : (g.displayName ?? ''), anon ? null : (g.avatarUrl ?? null), dessertId, true);
     }
   }
 
@@ -806,6 +884,7 @@ export class Game {
       shamanQuota: this.shamanQuota,
       shamanQuotaMax: SHAMAN_MAX_QUOTA,
       connection: this.events?.connection ?? 'offline',
+      needsTaps: this.config.cafe.idleCookRate < 0.5,
       spooky: this.phoneRingMs > 0 || this.phoneTalkMs > 0 || this.cafe?.queue.current?.kind === 'phone' || (this.cafe?.queue.waiting().some((c) => c.kind === 'phone') ?? false),
     };
   }
@@ -835,6 +914,13 @@ export class Game {
       const paid = this.cafe.queue.pay();
       const sur = this.config.cafe.surprise;
       if (paid) {
+        if (paid.customer.viewer && paid.customer.name) {
+          // after being served they stay on the list (a returning viewer just restarts the wait; their gift time does not change)
+          if (this.returning.delete(paid.customer.name)) {
+            const entry = this.regulars.get(paid.customer.name);
+            if (entry) entry.lastMs = this.clockMs; // already used up its returns: it is NOT put back on the list
+          }
+        }
         this.bonusPct += paid.happiness * this.config.cafe.payBonusMaxPct;
         if (paid.customer.kind === 'vip') this.bonusPct += sur.vip.payBonusPct;
         if (paid.customer.kind === 'phone' && !this.squeezed && !this.ghostTamed) this.bonusPct += sur.phone.payBonusPct;
@@ -991,8 +1077,15 @@ export class Game {
           const relief = (Number.isFinite(rl) ? rl : 0.012) * (fx.likes + fx.hearts * 3);
           this.squeeze = Math.max(0, this.squeeze - (Number.isFinite(relief) ? relief : 0));
         }
+        if (this.config.cafe.tapPercent > 0 && fx.likeEvents && this.manager.snapshot().state === 'COOKING' && !this.ghostCooking()) {
+          // each tap / key press = +tapPercent % on the bar (a ghost's dessert only moves with the hearts)
+          this.cooking.addProgress(Math.min(100, fx.likeEvents * this.config.cafe.tapPercent), m.roundId);
+        }
         if (fx.shareBonus > 0) {
-          this.shamanQuota = Math.min(SHAMAN_MAX_QUOTA, this.shamanQuota + 1);
+          // exactly one saved visit per share, even when several shares arrive in the same moment
+          const per = this.config.events.shareBonusPct > 0 ? this.config.events.shareBonusPct : fx.shareBonus;
+          const shares = Math.max(1, Math.round(fx.shareBonus / per));
+          this.shamanQuota = Math.min(SHAMAN_MAX_QUOTA, this.shamanQuota + shares);
           this.toastText = `แชร์! โควตาหมอผี ${this.shamanQuota} ครั้ง`;
         }
         this.cafe.meter.add(fx.likes * this.config.vote.heartPerLike + fx.follows * this.config.vote.heartPerFollow + fx.hearts * this.config.vote.heartPerHeart);

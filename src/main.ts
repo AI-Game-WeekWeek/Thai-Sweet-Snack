@@ -28,6 +28,7 @@ import { WebSocketSource } from './tiktok/WebSocketSource';
 import { TikTokEventManager } from './tiktok/TikTokEventManager';
 
 declare const __DEMO__: boolean;
+declare const __PACKED__: boolean;
 
 const app = document.getElementById('app');
 if (!app) throw new Error('#app not found');
@@ -41,10 +42,14 @@ const cafeMode = mode === 'cafe';
 const voteMode = mode === 'vote';
 // ?surprise=1 brings the first phone call forward (to see it without waiting a minute).
 const quickPhone = params.get('surprise') === '1';
+// The downloadable game waits for taps before it cooks (hearts / the I key / a tap on the screen); ?auto=1 makes it cook by itself.
+const waitForTaps = __PACKED__ && params.get('auto') !== '1';
+// no hearts = nothing moves on, however long it takes (the café's 3-minute cooking watchdog is lifted too)
+const baseCafe = waitForTaps ? { ...cafeConfig, maxMs: { ...cafeConfig.maxMs, cooking: 6 * 3600_000 }, cafe: { ...cafeConfig.cafe, idleCookRate: 0, tapPercent: 10 } } : cafeConfig;
 const cfg = cafeMode
   ? quickPhone
-    ? { ...cafeConfig, cafe: { ...cafeConfig.cafe, surprise: { ...cafeConfig.cafe.surprise, phone: { ...cafeConfig.cafe.surprise.phone, firstMs: 6000, everyMs: 25_000 } } } }
-    : cafeConfig
+    ? { ...baseCafe, cafe: { ...baseCafe.cafe, surprise: { ...baseCafe.cafe.surprise, phone: { ...baseCafe.cafe.surprise.phone, firstMs: 6000, everyMs: 25_000 } } } }
+    : baseCafe
   : voteMode
     ? voteConfig
     : liveConfig;
@@ -124,18 +129,37 @@ if (cafeRenderer) {
   const hour = new Date().getHours();
   cafeRenderer.background = bgParam === 'rain' || bgParam === 'night' || bgParam === 'day' ? bgParam : hour >= 18 || hour < 6 ? 'night' : 'day';
 }
-if (cafeRenderer) cafeRenderer.showConnection = params.get('bridge') !== null || params.get('status') === '1';
+// The bridge address: ?bridge=ws://... or, when the page itself is served by the bridge, just ?token=... (a short URL
+// that TikTok LIVE Studio's Link field accepts: it rejects a URL with ws:// inside it).
+const bridgeToken = params.get('token') ?? (globalThis as { __BRIDGE_TOKEN__?: string }).__BRIDGE_TOKEN__ ?? null;
+const bridgeUrl = params.get('bridge') ?? (bridgeToken && /^https?:$/.test(location.protocol) ? `ws://${location.host}` : null);
+if (cafeRenderer) cafeRenderer.showConnection = bridgeUrl !== null || params.get('status') === '1';
 const renderer = cafeRenderer ?? (voteMode ? new VoteRenderer(cfg.vote.maxBoost) : new Renderer());
+
+// Commands from the bridge's control panel (/panel): call a ghost kind, the shaman, squeeze now, finish the dessert.
+function isCommand(raw: unknown): raw is { cmd: string; arg?: number } {
+  return typeof raw === 'object' && raw !== null && typeof (raw as { cmd?: unknown }).cmd === 'string';
+}
+function runCommand(c: { cmd: string; arg?: number }): void {
+  try {
+    if (c.cmd === 'ghost') game.callGhostNow(typeof c.arg === 'number' ? c.arg : undefined);
+    else if (c.cmd === 'shaman') game.callShaman(true);
+    else if (c.cmd === 'squeeze') game.squeezeNow();
+    else if (c.cmd === 'finish') game.finishCookingNow();
+  } catch {
+    /* a command must never break the game */
+  }
+}
 
 // ?bridge=ws://127.0.0.1:8787&token=... connects to the local bridge (see docs/tiktok-integration.md).
 // Without it the game runs on its own (or with ?mock=1); a dead bridge only changes the connection label.
-const bridgeParam = params.get('bridge');
+const bridgeParam = bridgeUrl;
 if (bridgeParam && /^wss?:\/\//i.test(bridgeParam)) {
   try {
     const url = new URL(bridgeParam);
-    const token = params.get('token');
+    const token = bridgeToken;
     if (token) url.searchParams.set('token', token);
-    const bridge = new WebSocketSource({ url: url.toString(), sink: (raw) => game.ingestEvent(raw), onState: (s) => events.setConnection(s) });
+    const bridge = new WebSocketSource({ url: url.toString(), sink: (raw) => (isCommand(raw) ? runCommand(raw) : game.ingestEvent(raw)), onState: (s) => events.setConnection(s) });
     bridge.start();
     addEventListener('pagehide', () => bridge.stop());
   } catch (err) {
@@ -154,6 +178,10 @@ if (bridgeParam && /^wss?:\/\//i.test(bridgeParam)) {
 }
 // Optional recorded voice lines in public/voice/ (see src/audio/voiceFiles.ts): played when present, otherwise the device voice speaks.
 // voice/index.json (made at build time) lists the files that really exist, so nothing is requested in vain.
+const inlineVoice = (globalThis as { __VOICE__?: Record<string, string> }).__VOICE__;
+if (inlineVoice && Object.keys(inlineVoice).length > 0) {
+  for (const v of voiceFiles(ALL_DESSERTS)) if (inlineVoice[v.file]) audio.registerSample(v.key, inlineVoice[v.file] as string);
+} else
 void fetch('voice/index.json')
   .then((r) => (r.ok ? (r.json() as Promise<unknown>) : []))
   .then((present) => {
@@ -168,7 +196,13 @@ const retryUnlock = (): void => {
   if (audio.running) for (const g of gestures) removeEventListener(g, retryUnlock);
 };
 for (const g of gestures) addEventListener(g, retryUnlock);
-if (!cafeMode) {
+if (cafeMode) {
+  // A tap or click on the screen is a burst of hearts (it speeds the cooking up, like the I key but stronger).
+  let tapSeq = 0;
+  canvas.addEventListener('pointerdown', () => {
+    game.ingestEvent({ id: `tap${++tapSeq}-${Date.now()}`, type: 'like', count: 5, tsMs: game.nowMs });
+  });
+} else {
   canvas.addEventListener('pointerdown', (e) => {
     const r = canvas.getBoundingClientRect();
     game.poke(((e.clientX - r.left) / r.width) * WORLD_W, ((e.clientY - r.top) / r.height) * WORLD_H);
@@ -188,13 +222,38 @@ const driver = new LoopDriver({
 // ?debug=1 exposes a read-only snapshot for automated browser checks.
 if (params.get('debug') === '1') (window as unknown as { __snapshot: () => unknown }).__snapshot = () => game.snapshot();
 
-game.start();
-driver.start();
+// A start screen (one click) in the downloadable game and the demo: it unlocks the sound and gives the page keyboard focus,
+// so shortcut keys work. Through the bridge / OBS (nobody to click) the game starts by itself. ?gate=1 forces it, ?gate=0 removes it.
+function begin(): void {
+  audio.unlock();
+  try {
+    window.focus();
+    canvas.tabIndex = 0;
+    canvas.focus({ preventScroll: true });
+  } catch {
+    /* focus is a convenience only */
+  }
+  game.start();
+  driver.start();
+}
+const gateParam = params.get('gate');
+const useGate = gateParam === '1' || (gateParam !== '0' && (__PACKED__ || __DEMO__) && bridgeUrl === null);
+if (useGate) {
+  const gate = document.createElement('div');
+  gate.style.cssText = 'position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:rgba(28,21,17,.94);color:#ffe9c8;z-index:50;font:700 22px "Mali",system-ui,sans-serif;text-align:center;padding:24px;cursor:pointer';
+  gate.innerHTML = '<div style="font-size:34px">ร้านขนมไทย</div><button type="button" style="font:inherit;font-size:26px;padding:14px 40px;border:0;border-radius:999px;background:#1f8a8a;color:#fff;cursor:pointer">เริ่มเกม</button><div style="font-size:16px;opacity:.8;font-weight:600">คลิก 1 ครั้งเพื่อเปิดเสียงและเริ่มเกม · คีย์ลัดจะใช้ได้หลังคลิก</div>';
+  const go = (): void => {
+    gate.remove();
+    begin();
+  };
+  gate.addEventListener('click', go, { once: true });
+  document.body.append(gate);
+} else begin();
 
 // Test shortcuts (press ? to see them): on with ?keys=1, ?debug=1 or in the hosted demo.
 // ?keys=live: the same keys for a streamer's own tool (e.g. a key-press action), with no help panel or toasts on screen.
 const keysParam = params.get('keys');
-if (cafeMode && (keysParam === '1' || keysParam === 'live' || params.get('debug') === '1' || __DEMO__)) {
+if (cafeMode && (keysParam === '1' || keysParam === 'live' || params.get('debug') === '1' || __DEMO__ || __PACKED__)) {
   const bgs = ['day', 'rain', 'night'] as const;
   installDevKeys({
     game,
@@ -210,7 +269,7 @@ if (cafeMode && (keysParam === '1' || keysParam === 'live' || params.get('debug'
     playSound: (id) => void audio.play(id as never, 0),
     voiceName: () => audio.lastVoiceName,
     voiceCount: () => (globalThis as { speechSynthesis?: SpeechSynthesis }).speechSynthesis?.getVoices?.().length ?? 0,
-  }, document, { quiet: keysParam === 'live' });
+  }, document, { quiet: keysParam === 'live' || (__PACKED__ && keysParam !== '1') });
 }
 
 // Classic mode's HUD only reads snapshots, ten times a second.

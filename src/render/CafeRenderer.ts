@@ -98,7 +98,7 @@ export class CafeRenderer {
           ctx.restore();
         }
       });
-      this.safely('logo', () => drawArt(ctx, CAFE_PICS.logo, 105, 1205, 180, 170, 0, 1, 1, 4));
+      this.safely('logo', () => drawArt(ctx, CAFE_PICS.logo, 105, 1268, 140, 130, 0, 1, 1, 4));
       this.safely('excite', () => {
         // a warm pulsing glow at the edges of the cooking window while the hearts are flying
         if (view.state !== 'COOKING' || this.level < 0.25) return;
@@ -544,29 +544,39 @@ export class CafeRenderer {
     this.text(ctx, 'ร้านขนมไทย', CAFE_W / 2, 82, 52, '#ffe9a8');
   }
 
+  /** The gift menu split in two small boards, left and right of the dessert, above where live chat covers the screen. */
   private drawGiftMenu(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined): void {
-    const tiers = cafe?.giftMenu ?? [];
-    // framed chalkboard
-    ctx.fillStyle = '#5a3820';
-    ctx.beginPath();
-    ctx.roundRect(70, 1560, 940, 350, 24);
-    ctx.fill();
-    ctx.fillStyle = '#2f4a3a';
-    ctx.beginPath();
-    ctx.roundRect(86, 1574, 908, 322, 16);
-    ctx.fill();
-    this.text(ctx, 'ส่งของขวัญ = สั่งขนม', CAFE_W / 2, 1604, 40, '#ffe9a8', '#1c2e24');
-    const colW = 440;
-    tiers.slice(0, 8).forEach((t, i) => {
-      const col = i % 2;
-      const row = Math.floor(i / 2);
-      const x = 110 + col * (colW + 20);
-      const y = 1646 + row * 58;
-      // the coin button, its number and the dessert picture are left out on purpose: that space stays empty
-      ctx.textAlign = 'left';
-      this.text(ctx, clip(t.nameTh, 10), x + 128, y + 24, 30, '#fff', '#1c2e24');
-      ctx.textAlign = 'center';
-    });
+    const tiers = (cafe?.giftMenu ?? []).slice(0, 8);
+    const boards: { x: number; title: string; items: typeof tiers }[] = [
+      { x: 24, title: 'ส่งของขวัญ', items: tiers.slice(0, 4) },
+      { x: 806, title: '= สั่งขนม', items: tiers.slice(4, 8) },
+    ];
+    const w = 250;
+    const top = 960;
+    for (const bd of boards) {
+      ctx.fillStyle = '#5a3820';
+      ctx.beginPath();
+      ctx.roundRect(bd.x, top, w, 262, 20);
+      ctx.fill();
+      ctx.fillStyle = '#2f4a3a';
+      ctx.beginPath();
+      ctx.roundRect(bd.x + 10, top + 10, w - 20, 242, 14);
+      ctx.fill();
+      this.text(ctx, bd.title, bd.x + w / 2, top + 36, 30, '#ffe9a8', '#1c2e24');
+      bd.items.forEach((t, i) => {
+        const y = top + 64 + i * 46;
+        const pic = ICON_PICS[t.id];
+        if (!(pic && drawArt(ctx, pic, bd.x + 44, y + 20, 40, 38, 0, 1, 1, 1.5))) {
+          ctx.fillStyle = 'rgba(255,255,255,0.08)';
+          ctx.beginPath();
+          ctx.roundRect(bd.x + 24, y, 40, 38, 8);
+          ctx.fill();
+        }
+        ctx.textAlign = 'left';
+        this.text(ctx, clip(t.nameTh, 11), bd.x + 72, y + 21, 24, '#fff', '#1c2e24');
+        ctx.textAlign = 'center';
+      });
+    }
   }
 
   private drawLuckyPill(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined): void {
@@ -731,7 +741,7 @@ export class CafeRenderer {
         this.text(ctx, clip(`กำลังทำ ${name}`.trim(), 24), CAFE_W / 2, 790, 46);
         if (view.stepNameTh) this.text(ctx, clip(view.stepNameTh, 30), CAFE_W / 2, 840, 32, '#ffe9a8');
         const heart = clamp01(view.heart);
-        this.text(ctx, 'กดหัวใจรัว ๆ ให้สุกเร็ว!', CAFE_W / 2, 892, 34, '#ffd1dc');
+        this.text(ctx, view.cafe?.needsTaps ? 'กดหัวใจรัว ๆ เพื่อทำขนม!' : 'กดหัวใจรัว ๆ ให้สุกเร็ว!', CAFE_W / 2, 892, 34, '#ffd1dc');
         for (let i = 0; i < 10; i++) this.drawHeart(ctx, 308 + i * 46, 944, 17, (i + 1) / 10 <= heart + 1e-6);
         this.text(ctx, `×${(1 + heart * (this.maxBoost - 1)).toFixed(1)}`, 830, 944, 34, '#ffd1dc');
         this.drawProgress(ctx, view.progress);

@@ -104,15 +104,38 @@ describe('test shortcuts', () => {
   });
 });
 
-describe('no notes on screen', () => {
-  it('pressing keys never adds a toast or hint to the page (only the help panel exists, hidden until ?)', () => {
+describe('test notes', () => {
+  it('the test version shows a hint and a note for each key; the live (quiet) version shows nothing', () => {
     const { t } = targets();
-    const before = document.body.children.length;
     const off = installDevKeys(t);
-    expect(document.body.children.length).toBe(before + 1); // just the hidden help panel
-    for (const k of ['1', 'l', 'f', 'p', 'v']) press(k);
-    expect(document.body.children.length).toBe(before + 1);
-    expect(document.body.textContent).not.toContain('กด ? ดูคีย์ลัด');
+    expect(document.body.textContent).toContain('กด ? ดูคีย์ลัดทดสอบ');
+    press('1');
+    expect(document.body.textContent).toContain('ส่งของขวัญ 1 เหรียญ');
     off();
+    expect(document.body.textContent).not.toContain('ส่งของขวัญ 1 เหรียญ');
+    const before = document.body.children.length;
+    const quiet = installDevKeys(t, document, { quiet: true });
+    press('1');
+    press('f');
+    expect(document.body.children.length).toBe(before);
+    expect(document.body.textContent).not.toContain('กด ? ดูคีย์ลัด');
+    expect(document.body.textContent).not.toContain('ติดตาม');
+    quiet();
+  });
+});
+
+describe('live mode gifts carry no made-up name', () => {
+  it('quiet (live) mode sends gifts and roses without a display name; test mode names them', () => {
+    const a = targets();
+    const offA = installDevKeys(a.t, document, { quiet: true });
+    press('3');
+    press('r');
+    expect(a.events.map((e) => e.displayName)).toEqual([undefined, undefined]);
+    offA();
+    const b = targets();
+    const offB = installDevKeys(b.t);
+    press('3');
+    expect(b.events[0]!.displayName).toBe('ทดสอบ3');
+    offB();
   });
 });

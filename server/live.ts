@@ -8,9 +8,11 @@ import { startTikFinityClient } from './tikfinityClient';
 const port = Number(process.env.BRIDGE_PORT) || 8787;
 const host = '127.0.0.1';
 const tokenFile = '.live-token';
-if (!existsSync('dist/index.html')) {
-  console.log('ยังไม่มีเกมที่ build ไว้ กำลัง build ให้ (ครั้งเดียว)…');
-  const r = spawnSync('npx', ['vite', 'build'], { stdio: 'inherit', shell: process.platform === 'win32' });
+// always build fresh, so an old build never hides a change
+if (existsSync('src') || !existsSync('dist/index.html')) {
+  console.log('กำลัง build เกม (รอสักครู่)…');
+  // the live build: dessert waits for hearts, shortcut keys on (quiet), no simulated viewers
+  const r = spawnSync('npx', ['vite', 'build', '--mode', 'packed'], { stdio: 'inherit', shell: process.platform === 'win32' });
   if (r.status !== 0) {
     console.error('build ไม่สำเร็จ ดูข้อความด้านบน');
     process.exit(1);
@@ -26,10 +28,12 @@ if (token.length < 16) {
 const bridge = createBridge({ token, host, port, staticDir: 'dist' });
 const { port: p } = await bridge.start();
 const base = `http://${host}:${p}`;
-const gameUrl = `${base}/?bridge=ws://${host}:${p}&token=${token}`;
+const gameUrl = `${base}/live.html`; // no ?query: the token is built into the page, which connects back to the bridge it came from
 console.log('\nพร้อมแล้ว ใช้ลิงก์เหล่านี้ (เก็บเป็นความลับ: มีรหัสลับอยู่ในลิงก์)\n');
 console.log('1) ใส่ใน TikTok LIVE Studio แบบ Link  ขนาด 1080x1920  Fill:');
 console.log('   ' + gameUrl + '\n');
+console.log('0) แผงควบคุม: กดส่งของขวัญ/อีเวนต์/เสกผี เข้าเกมใน LIVE Studio ได้เอง (เปิดในเบราว์เซอร์ธรรมดา):');
+console.log(`   ${base}/panel\n`);
 console.log('2) หน้าตรวจสอบว่าอีเวนต์เข้ามาไหม (เปิดในเบราว์เซอร์ธรรมดา):');
 console.log(`   ${base}/monitor?token=${token}\n`);
 console.log('3) ถ้า TikFinity ส่งแบบ Webhook / URL ให้ตั้งปลายทางเป็น:');

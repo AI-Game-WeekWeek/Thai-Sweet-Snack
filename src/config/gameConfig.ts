@@ -44,6 +44,16 @@ export interface GameConfig {
     /** Anonymous customers arrive this often while fewer than npcMinWaiting are waiting. */
     npcSpawnEveryMs: number;
     npcMinWaiting: number;
+    /** When bots are sent (fewer than npcMinWaiting people in the café), they keep coming until this many people are there, viewers included. */
+    npcFillTo: number;
+    /** Cooking speed with NO taps/hearts, as a fraction of normal (1 = cooks by itself, 0 = waits until someone taps or presses I; hearts still speed it up to the maximum). */
+    idleCookRate: number;
+    /** In the wait-for-taps game: every tap / press (one like event) adds this many percent to the cooking bar, on top of the hearts speed-up. 0 = off. */
+    tapPercent: number;
+    /** A viewer who gifted comes back to order again this often (while still active), at most regularMaxReturns times; active = gifted within regularWindowMs. */
+    regularEveryMs: number;
+    regularWindowMs: number;
+    regularMaxReturns: number;
     maxGiftsPerDrain: number;
     /** What anonymous customers order. Every other dessert is ordered only by a viewer's gift (or a VIP / phone call). */
     defaultDessertId: string;
@@ -62,7 +72,11 @@ export interface GameConfig {
       vip: { cooldownMs: number; payBonusPct: number; /** The VIP orders the best unlocked tier worth at least this many coins. */ minGiftCoins: number };
       tip: { perCustomer: number; max: number };
       /** The phone caller is a hungry Thai ghost: squeezeMs = time until it squeezes (if nobody taps), reliefPerLike = how much each tap loosens it, fineCoins = coins lost when squeezed. */
-      phone: { firstMs: number; everyMs: number; jitter: number; ringMs: number; deadlineMs: number; payBonusPct: number; squeezeMs: number; reliefPerLike: number; fineCoins: number; harderPerVisit: number; minSqueezeMs: number; squeezeSlow: number };
+      phone: { firstMs: number; everyMs: number; jitter: number; ringMs: number; deadlineMs: number; payBonusPct: number; squeezeMs: number; reliefPerLike: number; fineCoins: number; harderPerVisit: number; minSqueezeMs: number; squeezeSlow: number;
+        /** While a ghost is being served: cooking speed is multiplied by this (a heavy dessert), and it eats this much of the heart meter per second. */
+        cookRateMul: number; heartDrainPerSec: number;
+        /** A ghost that has been served this long without being calmed gets bored and vanishes (so the game can never be stuck on a ghost). */
+        giveUpMs: number };
     };
   };
   vote: {
@@ -113,8 +127,15 @@ export const defaultConfig: GameConfig = {
     maxWaiting: 12,
     visible: 5,
     patienceMs: 70_000,
-    npcSpawnEveryMs: 7000,
-    npcMinWaiting: 4,
+    npcSpawnEveryMs: 700,
+    // fewer than 3 people waiting: bots (anonymous customers) are sent in, so the café is never empty
+    npcMinWaiting: 3,
+    npcFillTo: 5,
+    idleCookRate: 1,
+    tapPercent: 0,
+    regularEveryMs: 75_000,
+    regularWindowMs: 15 * 60_000,
+    regularMaxReturns: 4,
     maxGiftsPerDrain: 20,
     overflowGiftCoins: 2,
     defaultDessertId: 'khao-tom-mat',
@@ -136,7 +157,7 @@ export const defaultConfig: GameConfig = {
       luckyCat: { durationMs: 20_000, maxMs: 60_000, payBonusPct: 50, patienceSlowdown: 0.5 },
       vip: { cooldownMs: 60_000, payBonusPct: 50, minGiftCoins: 50 },
       tip: { perCustomer: 1, max: 12 },
-      phone: { firstMs: 45_000, everyMs: 100_000, jitter: 0.3, ringMs: 3000, deadlineMs: 35_000, payBonusPct: 200, squeezeMs: 11_000, reliefPerLike: 0.009, fineCoins: 10, harderPerVisit: 0.12, minSqueezeMs: 5000, squeezeSlow: 0.45 },
+      phone: { firstMs: 45_000, everyMs: 100_000, jitter: 0.3, ringMs: 3000, deadlineMs: 35_000, payBonusPct: 200, squeezeMs: 5000, reliefPerLike: 0.004, fineCoins: 25, harderPerVisit: 0.25, minSqueezeMs: 2500, squeezeSlow: 0.8, cookRateMul: 0.5, heartDrainPerSec: 0.2, giveUpMs: 90_000 },
     },
   },
   vote: { candidates: 3, windowMs: 15_000, maxVoters: 5000, anonVotesPerSec: 50, heartPerLike: 0.012, heartPerFollow: 0.15, heartPerHeart: 0.08, graceMs: 3000, heartDecayPerSec: 0.1, maxBoost: 4, cookRatePerSec: 6 },

@@ -48,6 +48,8 @@ export interface EventEffects {
   votes: { vote: number; userKey?: string }[];
   /** Likes and follows applied while cooking (for the heart meter). */
   likes: number;
+  /** How many separate like events (taps / key presses) arrived in this drain, whatever their batch size. */
+  likeEvents?: number;
   follows: number;
   /** Orange hearts and small gifts applied while cooking. */
   hearts: number;

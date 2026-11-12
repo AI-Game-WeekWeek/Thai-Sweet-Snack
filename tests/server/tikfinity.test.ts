@@ -95,3 +95,49 @@ describe('TikFinity route', () => {
     expect((msgs.flat().find((m) => (m as { type?: string }).type === 'rose') as { giftCoins: number }).giftCoins).toBe(3);
   }, 12000);
 });
+
+describe('live.html', () => {
+  it('serves the game with the token built in (no query in the address) and with no-store', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dist-'));
+    writeFileSync(join(dir, 'index.html'), '<!doctype html><html><head><title>เกม</title></head><body></body></html>');
+    const { url } = await boot({ staticDir: dir });
+    const r = await fetch(`${url}/live.html`);
+    expect(r.status).toBe(200);
+    expect(r.headers.get('cache-control')).toBe('no-store');
+    const html = await r.text();
+    expect(html).toContain(`window.__BRIDGE_TOKEN__="${TOKEN}"`);
+    expect(html.indexOf('__BRIDGE_TOKEN__')).toBeLessThan(html.indexOf('<title>'));
+  });
+});
+
+describe('control panel', () => {
+  it('/panel is served with the token built in; /cmd needs the token, accepts only known commands and relays them to the game pages', async () => {
+    const { url, port } = await boot();
+    const panel = await fetch(`${url}/panel`);
+    expect(panel.status).toBe(200);
+    expect(await panel.text()).toContain(`const TOKEN="${TOKEN}"`);
+    const { msgs } = await connect(port);
+    const post = (body: unknown, h: Record<string, string> = {}) => fetch(`${url}/cmd`, { method: 'POST', headers: { 'content-type': 'application/json', ...h }, body: JSON.stringify(body) });
+    const auth = { authorization: `Bearer ${TOKEN}` };
+    expect((await post({ cmd: 'ghost', arg: 2 })).status).toBe(401);
+    expect((await post({ cmd: 'rm -rf' }, auth)).status).toBe(400);
+    expect((await post({ cmd: 'ghost', arg: 2 }, auth)).status).toBe(202);
+    expect((await post({ cmd: 'shaman' }, auth)).status).toBe(202);
+    expect((await post({ cmd: 'ghost', arg: 99 }, auth)).status).toBe(202); // a bad argument is dropped, the command still valid
+    await until(() => msgs.length >= 3);
+    expect(msgs[0]).toEqual({ cmd: 'ghost', arg: 2 });
+    expect(msgs[1]).toEqual({ cmd: 'shaman' });
+    expect(msgs[2]).toEqual({ cmd: 'ghost' });
+    expect((await fetch(`${url}/cmd`, { method: 'GET' })).status).toBe(405);
+    expect((await fetch(`${url}/cmd`, { method: 'POST', headers: auth, body: 'x'.repeat(5000) })).status).toBe(413);
+  });
+
+  it('events sent from the panel (POST /event with the token) reach the game pages', async () => {
+    const { url, port } = await boot();
+    const { msgs } = await connect(port);
+    const r = await fetch(`${url}/event`, { method: 'POST', headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' }, body: JSON.stringify({ id: 'panel1', type: 'gift', count: 1, giftCoins: 50, displayName: 'พี่ต้น', tsMs: Date.now() }) });
+    expect(r.status).toBe(202);
+    await until(() => msgs.length > 0);
+    expect((msgs.flat()[0] as { giftCoins: number }).giftCoins).toBe(50);
+  });
+});

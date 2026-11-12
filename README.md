@@ -24,6 +24,8 @@ Capture the page in OBS (browser source) or TikTok LIVE Studio. Click the page o
 | `?mode=vote` | landscape: viewers vote the next dessert with comments 1/2/3 |
 | `?mode=classic` | the first mode: one dessert at a time, no queue, with a DOM HUD |
 | `?mock=1` (`&rate=N`, max 500) | simulated viewers (likes, follows, named gifts, comments in vote mode); no TikTok needed |
+| `?auto=1` | in the downloadable game (packed build) the dessert waits for taps (screen tap or the I key) before it cooks; `?auto=1` makes it cook by itself again |
+| `http://127.0.0.1:8787/panel` | the control panel (served by `npm run live`): buttons to send gifts, likes, follow, share, orange heart and to call each ghost / the shaman into the game pages that are open (also the one in LIVE Studio) |
 | `?keys=live` | the same shortcut keys with no panel or pop-ups on screen (for a tool that presses keys when viewers act): see [docs/hotkeys.md](docs/hotkeys.md) |
 | `?keys=1` | test shortcuts (also on with `?debug=1` and in the hosted demo): press `?` to see them. 1–8 gifts of each tier, L/K likes, F follow, O orange heart, P phone → random Thai ghost, Q/W/E/T/Y the 5 ghost kinds (นางรำ, พราย, กระสือ, แม่นาค, ผีหิว), Z squeeze now, X call the shaman (calms a ghost if one is there), S share (+1 shaman visit), C finish the dessert, B backdrop, V voices, M mute |
 | `?debug=1` | exposes `window.__snapshot()` for automated browser checks |
@@ -39,8 +41,7 @@ are entitled to use and check TikTok's and the provider's terms. Details and lim
 ## How it plays (default: Thai café)
 
 1. **Queue:** customers line up (the front one large, up to 4 more behind, 12 waiting at most). Each orders one dessert and
-   has a patience bar; someone who waits too long leaves unhappy. Anonymous customers keep the queue full, so it works
-   with zero viewers. **Without gifts they all order ข้าวต้มมัด** (`cafe.defaultDessertId`); every other dessert is
+   has a patience bar; someone who waits too long leaves unhappy. Bots (anonymous customers) are sent in whenever fewer than 3 people are in the café, and keep coming until 5 are there (viewers included), so it works with zero viewers, and **a viewer who gifted comes back to order the same dessert again** every ~75 s while they are still around (up to 4 times, within 15 minutes of their last gift; remembered in memory only, never saved). **Without gifts they all order ข้าวต้มมัด** (`cafe.defaultDessertId`); every other dessert is
    ordered only because a viewer sent a gift (or by a VIP). Phone orders also ask for ข้าวต้มมัด. Each gift is its own customer: a gifting viewer is served the dessert they paid for, separately from every other viewer (two gifts = two customers).
 2. **Gifts order desserts:** a viewer's gift puts that viewer in the queue **right behind the customer being served**,
    with their name and a round head slot for their picture, ordering the dessert the gift value maps to. The menu board
