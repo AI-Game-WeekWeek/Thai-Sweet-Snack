@@ -45,3 +45,27 @@ describe('customer says the order', () => {
     }
   });
 });
+
+import { AudioManager } from '../../src/audio/AudioManager';
+
+describe('voice choice', () => {
+  it('uses a female Thai voice for ค่ะ and a male Thai voice for ครับ, stays silent when no Thai voice exists', () => {
+    const spoken: { text: string; voice: string | undefined }[] = [];
+    const voices = [{ name: 'Alex', lang: 'en-US' }, { name: 'Niwat', lang: 'th-TH' }, { name: 'Kanya', lang: 'th-TH' }];
+    const g = globalThis as Record<string, unknown>;
+    const old = { s: g.speechSynthesis, u: g.SpeechSynthesisUtterance };
+    g.SpeechSynthesisUtterance = class { text: string; voice: { name: string } | undefined; lang = ''; rate = 1; pitch = 1; volume = 1; constructor(t: string) { this.text = t; } };
+    g.speechSynthesis = { getVoices: () => voices, cancel() {}, speak(u: { text: string; voice?: { name: string } }) { spoken.push({ text: u.text, voice: u.voice?.name }); } };
+    try {
+      const a = new AudioManager(cafeConfig);
+      expect(a.speak('เอา… ข้าวต้มมัด… ค่ะ', 1, 1.35, 0.7, 'female')).toBe(true);
+      expect(a.speak('เอา… ข้าวต้มมัด… ครับ', 1, 0.85, 0.7, 'male')).toBe(true);
+      expect(spoken.map((s) => s.voice)).toEqual(['Kanya', 'Niwat']);
+      voices.splice(1, 2);
+      expect(a.speak('x', 1, 1, 1, 'female')).toBe(false);
+    } finally {
+      g.speechSynthesis = old.s;
+      g.SpeechSynthesisUtterance = old.u;
+    }
+  });
+});

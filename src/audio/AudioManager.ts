@@ -107,7 +107,7 @@ export class AudioManager {
   }
 
   /** A spoken line (the browser's Thai voice, if there is one). Silent when unsupported or muted; never throws. */
-  speak(text: string, roundId: number, pitch = 1.25, rate = 0.78): boolean {
+  speak(text: string, roundId: number, pitch = 1.25, rate = 0.78, gender?: 'male' | 'female'): boolean {
     void roundId;
     if (this.muted || typeof text !== 'string' || text.length === 0) return false;
     try {
@@ -115,8 +115,14 @@ export class AudioManager {
       const Utter = (globalThis as { SpeechSynthesisUtterance?: typeof SpeechSynthesisUtterance }).SpeechSynthesisUtterance;
       if (!synth || !Utter) return false;
       const voices = synth.getVoices?.() ?? [];
-      const thai = voices.find((v) => /^th/i.test(v.lang));
-      if (!thai && voices.length > 0) return false; // voices are known and none is Thai: stay silent rather than mispronounce
+      const thaiVoices = voices.filter((v) => /^th/i.test(v.lang.replace('_', '-')));
+      if (thaiVoices.length === 0 && voices.length > 0) return false; // voices are known and none is Thai: stay silent rather than mispronounce
+      // pick by well-known Thai voice names: Kanya / Narisa / Premwadee are female, Niwat / Pattara are male
+      const FEMALE = /kanya|narisa|premwadee|pattara.*female|female|หญิง|google.*(ไทย|thai)/i;
+      const MALE = /niwat|male|ชาย/i;
+      const named = gender === 'female' ? thaiVoices.find((v) => FEMALE.test(v.name) && !/^male/i.test(v.name)) : gender === 'male' ? thaiVoices.find((v) => MALE.test(v.name) && !/female/i.test(v.name)) : undefined;
+      const thai = named ?? thaiVoices[0];
+      this.lastVoiceName = thai?.name ?? null;
       const u = new Utter(text.slice(0, 80));
       u.lang = 'th-TH';
       if (thai) u.voice = thai;
@@ -130,6 +136,9 @@ export class AudioManager {
       return false;
     }
   }
+
+  /** Name of the voice used for the last spoken line (null when none). For the on-screen hint and tests. */
+  lastVoiceName: string | null = null;
 
   stopRound(roundId: number): number {
     let n = 0;

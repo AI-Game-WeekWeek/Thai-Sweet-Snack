@@ -31,7 +31,7 @@ export interface AudioLike {
   play(sound: SoundId, roundId: number): boolean;
   stopRound(roundId: number): number;
   /** Optional spoken line (browser voice). */
-  speak?(text: string, roundId: number, pitch?: number, rate?: number): boolean;
+  speak?(text: string, roundId: number, pitch?: number, rate?: number, gender?: 'male' | 'female'): boolean;
 }
 
 export interface GameFx {
@@ -167,7 +167,7 @@ export class Game {
   private stepSound: SoundId | null = null;
   private soundAcc = 0;
   private rewardMs = 0;
-  private orderSpeak: { text: string; pitch: number; roundId: number; ms: number } | null = null;
+  private orderSpeak: { text: string; pitch: number; roundId: number; ms: number; gender: 'male' | 'female' } | null = null;
   private dripAcc = 0;
   private stepT = 0;
   private presentT: number | null = null;
@@ -433,7 +433,7 @@ export class Game {
     if (o.ms > 0) return;
     this.orderSpeak = null;
     const st = this.manager.snapshot().state;
-    if (st === 'PREPARING' || st === 'COOKING') this.fx?.audio.speak?.(o.text, this.soundRound(o.roundId), o.pitch, 0.7);
+    if (st === 'PREPARING' || st === 'COOKING') this.fx?.audio.speak?.(o.text, this.soundRound(o.roundId), o.pitch, 0.7, o.gender);
   }
 
   /** Café: the customer at the counter orders; anonymous customers keep the queue full when nobody is gifting. */
@@ -452,7 +452,7 @@ export class Game {
     if (c && this.current) {
       // the customer says their order once they have walked up to the counter (a moment after they become the next one)
       const g = genderForSeed(c.seed);
-      this.orderSpeak = { text: `เอา… ${this.current.nameTh}… ${politeEnding(g)}`, pitch: g === 'male' ? 0.85 : 1.35, roundId: this.manager.snapshot().roundId, ms: 1100 };
+      this.orderSpeak = { text: `เอา… ${this.current.nameTh}… ${politeEnding(g)}`, pitch: g === 'male' ? 0.85 : 1.35, roundId: this.manager.snapshot().roundId, ms: 1100, gender: g };
     }
   }
 
@@ -670,7 +670,7 @@ export class Game {
       this.toastText = `${who}+${r.score} คะแนน +${r.coins} เหรียญ${r.levelUp ? ' • เลเวลอัป!' : ''}`;
       const sr = this.soundRound(roundId);
       this.fx?.audio.play('reward', sr);
-      this.fx?.audio.speak?.(`${this.current.nameTh}… เสร็จแล้วค่ะ`, sr, 1.25, 0.75);
+      this.fx?.audio.speak?.(`${this.current.nameTh}… เสร็จแล้วค่ะ`, sr, 1.25, 0.75, 'female');
     }
   }
 
