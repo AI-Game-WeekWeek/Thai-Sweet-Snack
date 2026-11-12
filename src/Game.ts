@@ -490,8 +490,9 @@ export class Game {
   }
 
   /** A share calls the Isan shaman (หมอผี) when a ghost is around: he walks in, splashes holy water and calms it. False when nothing to do. */
-  callShaman(): boolean {
-    if (!this.cafe || this.shamanMs > 0 || this.ghostTamed || !this.ghostPresent()) return false;
+  callShaman(force = false): boolean {
+    // force = test shortcut: he comes even with no ghost around (then there is nothing to calm)
+    if (!this.cafe || this.shamanMs > 0 || (!force && (this.ghostTamed || !this.ghostPresent()))) return false;
     this.shamanMs = SHAMAN_MS;
     this.shamanSplashed = false;
     const sr = this.soundRound(this.manager.snapshot().roundId);
@@ -505,10 +506,12 @@ export class Game {
     const t = 1 - this.shamanMs / SHAMAN_MS;
     if (!this.shamanSplashed && t >= 0.5) {
       this.shamanSplashed = true;
-      this.ghostTamed = true;
-      this.squeeze = 0;
-      this.squeezed = false;
-      this.toastText = 'หมอผีสาดน้ำมนต์! ผีสงบแล้ว';
+      if (this.ghostPresent()) {
+        this.ghostTamed = true;
+        this.squeeze = 0;
+        this.squeezed = false;
+        this.toastText = 'หมอผีสาดน้ำมนต์! ผีสงบแล้ว';
+      } else this.toastText = 'หมอผีสาดน้ำมนต์!';
       this.fx?.audio.play('splash', this.soundRound(this.manager.snapshot().roundId));
       this.burst(26, 220);
     }
