@@ -192,7 +192,9 @@ game.start();
 driver.start();
 
 // Test shortcuts (press ? to see them): on with ?keys=1, ?debug=1 or in the hosted demo.
-if (cafeMode && (params.get('keys') === '1' || params.get('debug') === '1' || __DEMO__)) {
+// ?keys=live: the same keys for a streamer's own tool (e.g. a key-press action), with no help panel or toasts on screen.
+const keysParam = params.get('keys');
+if (cafeMode && (keysParam === '1' || keysParam === 'live' || params.get('debug') === '1' || __DEMO__)) {
   const bgs = ['day', 'rain', 'night'] as const;
   installDevKeys({
     game,
@@ -208,7 +210,7 @@ if (cafeMode && (params.get('keys') === '1' || params.get('debug') === '1' || __
     playSound: (id) => void audio.play(id as never, 0),
     voiceName: () => audio.lastVoiceName,
     voiceCount: () => (globalThis as { speechSynthesis?: SpeechSynthesis }).speechSynthesis?.getVoices?.().length ?? 0,
-  });
+  }, document, { quiet: keysParam === 'live' });
 }
 
 // Classic mode's HUD only reads snapshots, ten times a second.

@@ -39,6 +39,7 @@ export function devKeys(): DevKey[] {
   }));
   return [
     ...gifts,
+    { key: 'i', label: 'ไลก์ 1 ครั้ง (ผูกกับ "ผู้ชมกดไลก์" หนึ่งครั้ง)', run: (t) => (ev(t, 'like', { count: 1 }), 'ไลก์ ×1') },
     { key: 'l', label: 'กดไลก์รัว 30 ครั้ง (หัวใจ + ซูม)', run: (t) => (ev(t, 'like', { count: 30 }), 'ไลก์ ×30') },
     { key: 'k', label: 'ไลก์ระเบิด 400 ครั้ง', run: (t) => (ev(t, 'like', { count: 400 }), 'ไลก์ ×400') },
     { key: 'f', label: 'กดติดตาม → แมวกวักนำโชค', run: (t) => (ev(t, 'follow'), 'ติดตาม') },
@@ -68,8 +69,25 @@ export function devKeys(): DevKey[] {
   ];
 }
 
+/** The physical key code a shortcut letter/digit lives on, so the shortcuts also work with a Thai (or any) keyboard layout. */
+export function codesFor(key: string): string[] {
+  if (/^[0-9]$/.test(key)) return [`Digit${key}`, `Numpad${key}`];
+  if (/^[a-z]$/.test(key)) return [`Key${key.toUpperCase()}`];
+  return [];
+}
+
+/** Does this keyboard event press the shortcut `key`? Matches the typed character, or the physical key whatever the layout. */
+export function pressed(e: Pick<KeyboardEvent, 'key' | 'code'>, key: string): boolean {
+  return e.key.toLowerCase() === key || codesFor(key).includes(e.code);
+}
+
+export interface InstallOptions {
+  /** On a live stream: no help panel, no hint and no on-screen toasts (the keys still work). */
+  quiet?: boolean;
+}
+
 /** Installs the keyboard handler and a small help panel (toggle with ? or h). Returns an uninstall function. */
-export function installDevKeys(t: DevKeyTargets, doc: Document = document): () => void {
+export function installDevKeys(t: DevKeyTargets, doc: Document = document, opts: InstallOptions = {}): () => void {
   const keys = devKeys();
   const panel = doc.createElement('div');
   panel.style.cssText = 'position:fixed;left:8px;bottom:8px;max-width:min(92vw,380px);max-height:70vh;overflow:auto;background:rgba(20,12,8,.86);color:#ffe9c8;font:12px/1.5 system-ui,sans-serif;padding:8px 10px;border-radius:10px;z-index:9;display:none';
@@ -79,7 +97,7 @@ export function installDevKeys(t: DevKeyTargets, doc: Document = document): () =
   const hint = doc.createElement('div');
   hint.textContent = 'กด ? ดูคีย์ลัดทดสอบ';
   hint.style.cssText = 'position:fixed;left:8px;bottom:8px;color:#ffe9c8;background:rgba(20,12,8,.6);font:12px system-ui,sans-serif;padding:3px 8px;border-radius:8px;z-index:9';
-  doc.body.append(panel, toast, hint);
+  if (!opts.quiet) doc.body.append(panel, toast, hint);
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
   const say = (m: string): void => {
     toast.textContent = m;
@@ -88,21 +106,21 @@ export function installDevKeys(t: DevKeyTargets, doc: Document = document): () =
     toastTimer = setTimeout(() => (toast.style.opacity = '0'), 1400);
   };
   const onKey = (e: KeyboardEvent): void => {
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return; // a held key must not become a flood of events
     const target = e.target as HTMLElement | null;
     if (target && /^(input|textarea|select)$/i.test(target.tagName)) return;
     const k = e.key.toLowerCase();
-    if (k === '?' || k === 'h' || k === '/') {
+    if (!opts.quiet && (k === '?' || e.code === 'KeyH' || k === 'h' || k === '/')) {
       const open = panel.style.display === 'none';
       panel.style.display = open ? 'block' : 'none';
       hint.style.display = open ? 'none' : 'block';
       return;
     }
-    const def = keys.find((d) => d.key === k);
+    const def = keys.find((d) => pressed(e, d.key));
     if (!def) return;
     try {
       const msg = def.run(t);
-      if (msg) say(msg);
+      if (msg && !opts.quiet) say(msg);
     } catch (err) {
       say('ผิดพลาด: ' + String(err));
     }

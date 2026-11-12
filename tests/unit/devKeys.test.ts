@@ -77,4 +77,29 @@ describe('test shortcuts', () => {
     expect(panel().style.display).toBe('none');
     off();
   });
+
+  it('works with a Thai keyboard layout (matches the physical key), ignores held-down repeats, and the numpad digits count', () => {
+    const { t, events } = targets();
+    const off = installDevKeys(t);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ส', code: 'KeyL' })); // L on a Thai layout
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ๆ', code: 'Digit1' })); // 1 on a Thai layout
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '5', code: 'Numpad5' }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'l', code: 'KeyL', repeat: true })); // held key: ignored
+    expect(events.map((e) => [e.type, e.giftCoins ?? e.count])).toEqual([['like', 30], ['gift', 1], ['gift', 50]]);
+    press('i');
+    expect(events.at(-1)).toMatchObject({ type: 'like', count: 1 });
+    off();
+  });
+
+  it('quiet mode (for a live stream) still reacts to keys but adds no panel, hint or toast to the page', () => {
+    const { t, events } = targets();
+    const before = document.body.children.length;
+    const off = installDevKeys(t, document, { quiet: true });
+    expect(document.body.children.length).toBe(before);
+    press('f');
+    press('?');
+    expect(events.map((e) => e.type)).toEqual(['follow']);
+    expect(document.body.children.length).toBe(before);
+    off();
+  });
 });
