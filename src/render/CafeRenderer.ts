@@ -8,7 +8,7 @@ import { Renderer } from './Renderer';
 export const CAFE_W = 1080;
 export const CAFE_H = 1920;
 const STATION_X = 40;
-const STATION_Y = 760;
+const STATION_Y = 910;
 
 const FONT = '"Noto Sans Thai", system-ui, sans-serif';
 const INK = '#3b2a1a';
@@ -17,8 +17,9 @@ const clamp01 = (n: number): number => (Number.isFinite(n) ? Math.min(1, Math.ma
 const isColor = (c: string): boolean => /^#[0-9a-f]{3,8}$/i.test(c);
 
 /**
- * The whole café-mode UI on one portrait canvas: Thai-style awning and lanterns, the gift menu board, the cooking
- * counter (existing scene), a lucky cat, and the customer queue with a round head slot for each viewer's picture.
+ * The whole café-mode UI on one portrait canvas. Top to bottom: awning and shop sign, the customers (queue with a round
+ * head slot for each viewer's picture; the important part sits at the top because the bottom of a TikTok Live screen is
+ * covered by chat), status and hearts, the cooking counter (existing scene) with a lucky cat, and the gift menu board.
  * Few, large, outlined elements so it reads on a phone. Pure drawing; never changes game state.
  */
 export class CafeRenderer {
@@ -56,7 +57,7 @@ export class CafeRenderer {
           ctx.restore();
         }
       });
-      this.safely('cat', () => this.drawCat(ctx, 950, 1215));
+      this.safely('cat', () => this.drawCat(ctx, 950, 1342));
       this.safely('status', () => this.drawStatus(ctx, view));
       this.safely('queue', () => this.drawQueue(ctx, view.cafe));
       this.safely('hud', () => this.drawHud(ctx, view.cafe));
@@ -87,46 +88,46 @@ export class CafeRenderer {
 
   private drawBackdrop(ctx: CanvasRenderingContext2D): void {
     // back wall: warm wood planks
-    const wall = ctx.createLinearGradient(0, 200, 0, 1420);
+    const wall = ctx.createLinearGradient(0, 165, 0, 1920);
     wall.addColorStop(0, '#8a5a36');
     wall.addColorStop(1, '#b57a47');
     ctx.fillStyle = wall;
-    ctx.fillRect(0, 200, CAFE_W, 1240);
+    ctx.fillRect(0, 165, CAFE_W, 1755);
     ctx.strokeStyle = 'rgba(60,35,18,0.35)';
     ctx.lineWidth = 3;
     for (let x = 90; x < CAFE_W; x += 135) {
       ctx.beginPath();
-      ctx.moveTo(x, 200);
-      ctx.lineTo(x, 1420);
+      ctx.moveTo(x, 165);
+      ctx.lineTo(x, 1920);
       ctx.stroke();
     }
     // Thai-style frieze: a band of gold diamonds
     ctx.fillStyle = '#4a2c17';
-    ctx.fillRect(0, 232, CAFE_W, 46);
+    ctx.fillRect(0, 716, CAFE_W, 46);
     ctx.strokeStyle = '#e8b64c';
     ctx.lineWidth = 3;
     for (let x = 30; x < CAFE_W; x += 60) {
       ctx.beginPath();
-      ctx.moveTo(x, 255);
-      ctx.lineTo(x + 20, 240);
-      ctx.lineTo(x + 40, 255);
-      ctx.lineTo(x + 20, 270);
+      ctx.moveTo(x, 739);
+      ctx.lineTo(x + 20, 724);
+      ctx.lineTo(x + 40, 739);
+      ctx.lineTo(x + 20, 754);
       ctx.closePath();
       ctx.stroke();
     }
-    // floor: terracotta tiles
-    for (let row = 0; row < 5; row++) {
-      for (let col = 0; col < 9; col++) {
+    // floor under the customers: terracotta tiles
+    for (let row = 0; row < 2; row++) {
+      for (let col = 0; col < 10; col++) {
         ctx.fillStyle = (row + col) % 2 === 0 ? '#c9825a' : '#b9724c';
-        ctx.fillRect(col * 130 - (row % 2) * 65, 1430 + row * 100, 130, 100);
+        ctx.fillRect(col * 120 - (row % 2) * 60, 664 + row * 26, 120, 26);
       }
     }
     // awning with scalloped edge
     for (let i = 0; i < 12; i++) {
       ctx.fillStyle = i % 2 === 0 ? '#d94f4f' : '#fff3dc';
-      ctx.fillRect(i * 90, 0, 90, 170);
+      ctx.fillRect(i * 90, 0, 90, 112);
       ctx.beginPath();
-      ctx.arc(i * 90 + 45, 170, 45, 0, Math.PI);
+      ctx.arc(i * 90 + 45, 112, 45, 0, Math.PI);
       ctx.fill();
     }
     ctx.fillStyle = 'rgba(0,0,0,0.18)';
@@ -135,11 +136,11 @@ export class CafeRenderer {
     const sway = Math.sin(this.timeMs / 900);
     [[60, 20], [250, 46], [830, 46], [1020, 20]].forEach(([x, len], i) => {
       const sx = (x as number) + sway * 6 * (i % 2 ? 1 : -1);
-      const ly = 196 + (len as number);
+      const ly = 164 + (len as number);
       ctx.strokeStyle = '#6b3a1c';
       ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.moveTo(x as number, 170);
+      ctx.moveTo(x as number, 112);
       ctx.lineTo(sx, ly - 38);
       ctx.stroke();
       ctx.fillStyle = '#f6c244';
@@ -159,12 +160,12 @@ export class CafeRenderer {
     // shop sign
     ctx.fillStyle = '#4a2c17';
     ctx.beginPath();
-    ctx.roundRect(300, 96, 480, 96, 20);
+    ctx.roundRect(330, 22, 420, 84, 18);
     ctx.fill();
     ctx.lineWidth = 5;
     ctx.strokeStyle = '#e8b64c';
     ctx.stroke();
-    this.text(ctx, 'ร้านขนมไทย', CAFE_W / 2, 146, 60, '#ffe9a8');
+    this.text(ctx, 'ร้านขนมไทย', CAFE_W / 2, 66, 52, '#ffe9a8');
   }
 
   private drawGiftMenu(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined): void {
@@ -172,33 +173,33 @@ export class CafeRenderer {
     // framed chalkboard
     ctx.fillStyle = '#5a3820';
     ctx.beginPath();
-    ctx.roundRect(70, 292, 940, 430, 24);
+    ctx.roundRect(70, 1560, 940, 350, 24);
     ctx.fill();
     ctx.fillStyle = '#2f4a3a';
     ctx.beginPath();
-    ctx.roundRect(86, 308, 908, 398, 16);
+    ctx.roundRect(86, 1574, 908, 322, 16);
     ctx.fill();
-    this.text(ctx, 'ส่งของขวัญ = สั่งขนม', CAFE_W / 2, 345, 44, '#ffe9a8', '#1c2e24');
+    this.text(ctx, 'ส่งของขวัญ = สั่งขนม', CAFE_W / 2, 1604, 40, '#ffe9a8', '#1c2e24');
     const colW = 440;
     tiers.slice(0, 8).forEach((t, i) => {
       const col = i % 2;
       const row = Math.floor(i / 2);
       const x = 110 + col * (colW + 20);
-      const y = 410 + row * 74;
+      const y = 1646 + row * 58;
       ctx.fillStyle = '#e8b64c';
       ctx.beginPath();
-      ctx.arc(x + 34, y + 30, 31, 0, Math.PI * 2);
+      ctx.arc(x + 30, y + 22, 25, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#a9761f';
       ctx.lineWidth = 4;
       ctx.stroke();
-      this.text(ctx, String(t.coins), x + 34, y + 32, t.coins >= 100 ? 24 : 30, '#fff', '#7a4f12');
+      this.text(ctx, String(t.coins), x + 30, y + 24, t.coins >= 100 ? 21 : 26, '#fff', '#7a4f12');
       ctx.fillStyle = isColor(t.color) ? t.color : '#f5f0e1';
       ctx.beginPath();
-      ctx.arc(x + 96, y + 30, 11, 0, Math.PI * 2);
+      ctx.arc(x + 86, y + 22, 10, 0, Math.PI * 2);
       ctx.fill();
       ctx.textAlign = 'left';
-      this.text(ctx, clip(t.nameTh, 11), x + 118, y + 32, 36, '#fff', '#1c2e24');
+      this.text(ctx, clip(t.nameTh, 11), x + 106, y + 24, 32, '#fff', '#1c2e24');
       ctx.textAlign = 'center';
     });
   }
@@ -265,23 +266,23 @@ export class CafeRenderer {
     const serving = view.cafe?.serving ?? null;
     switch (view.state) {
       case 'PREPARING':
-        this.text(ctx, serving ? 'ลูกค้ามาแล้ว!' : 'เตรียมร้าน…', CAFE_W / 2, 748, 46);
-        if (serving) this.text(ctx, clip(`สั่ง ${serving.dessertNameTh}`, 22), CAFE_W / 2, 808, 42, '#ffe9a8');
+        this.text(ctx, serving ? 'ลูกค้ามาแล้ว!' : 'เตรียมร้าน…', CAFE_W / 2, 790, 46);
+        if (serving) this.text(ctx, clip(`สั่ง ${serving.dessertNameTh}`, 22), CAFE_W / 2, 850, 42, '#ffe9a8');
         break;
       case 'COOKING': {
-        this.text(ctx, clip(`กำลังทำ ${name}`.trim(), 24), CAFE_W / 2, 748, 46);
-        if (view.stepNameTh) this.text(ctx, clip(view.stepNameTh, 30), CAFE_W / 2, 800, 32, '#ffe9a8');
+        this.text(ctx, clip(`กำลังทำ ${name}`.trim(), 24), CAFE_W / 2, 790, 46);
+        if (view.stepNameTh) this.text(ctx, clip(view.stepNameTh, 30), CAFE_W / 2, 840, 32, '#ffe9a8');
         const heart = clamp01(view.heart);
-        this.text(ctx, 'กดหัวใจรัว ๆ ให้สุกเร็ว!', CAFE_W / 2, 858, 34, '#ffd1dc');
-        for (let i = 0; i < 10; i++) this.drawHeart(ctx, 308 + i * 46, 912, 17, (i + 1) / 10 <= heart + 1e-6);
-        this.text(ctx, `×${(1 + heart * (this.maxBoost - 1)).toFixed(1)}`, 830, 912, 34, '#ffd1dc');
+        this.text(ctx, 'กดหัวใจรัว ๆ ให้สุกเร็ว!', CAFE_W / 2, 892, 34, '#ffd1dc');
+        for (let i = 0; i < 10; i++) this.drawHeart(ctx, 308 + i * 46, 944, 17, (i + 1) / 10 <= heart + 1e-6);
+        this.text(ctx, `×${(1 + heart * (this.maxBoost - 1)).toFixed(1)}`, 830, 944, 34, '#ffd1dc');
         this.drawProgress(ctx, view.progress);
         break;
       }
       case 'PRESENTING':
       case 'REWARDING':
-        this.text(ctx, clip(`เสร็จแล้ว! ${name}`.trim(), 26), CAFE_W / 2, 748, 48);
-        if (view.toast) this.text(ctx, clip(view.toast, 40), CAFE_W / 2, 810, 42, '#ffd966');
+        this.text(ctx, clip(`เสร็จแล้ว! ${name}`.trim(), 26), CAFE_W / 2, 790, 48);
+        if (view.toast) this.text(ctx, clip(view.toast, 40), CAFE_W / 2, 850, 42, '#ffd966');
         break;
       default:
         break;
@@ -292,7 +293,7 @@ export class CafeRenderer {
     const p = Number.isFinite(progress) ? Math.min(100, Math.max(0, progress)) : 0;
     ctx.fillStyle = 'rgba(59,42,26,0.6)';
     ctx.beginPath();
-    ctx.roundRect(140, 1392, 800, 30, 15);
+    ctx.roundRect(140, 1522, 800, 30, 15);
     ctx.fill();
     if (p > 0) {
       const g = ctx.createLinearGradient(140, 0, 940, 0);
@@ -300,10 +301,10 @@ export class CafeRenderer {
       g.addColorStop(1, '#e06666');
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.roundRect(140, 1392, Math.max(30, 800 * (p / 100)), 30, 15);
+      ctx.roundRect(140, 1522, Math.max(30, 800 * (p / 100)), 30, 15);
       ctx.fill();
     }
-    this.text(ctx, `${Math.round(p)}%`, CAFE_W / 2, 1407, 24);
+    this.text(ctx, `${Math.round(p)}%`, CAFE_W / 2, 1537, 24);
   }
 
   private drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, filled: boolean): void {
@@ -324,23 +325,23 @@ export class CafeRenderer {
   private drawQueue(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined): void {
     if (!cafe) return;
     // Waiting customers stand in a line behind the counter; the one being served is large in the middle.
-    const slots: [number, number][] = [[170, 1730], [360, 1730], [720, 1730], [910, 1730]];
+    const slots: [number, number][] = [[170, 548], [360, 548], [720, 548], [910, 548]];
     cafe.waiting.slice(0, slots.length).forEach((c, i) => {
       const [x, y] = slots[i] as [number, number];
       this.drawCustomer(ctx, c, x, y, 54);
     });
     if (cafe.serving) {
-      this.drawCustomer(ctx, cafe.serving, CAFE_W / 2, 1655, 92);
+      this.drawCustomer(ctx, cafe.serving, CAFE_W / 2, 446, 92);
       this.drawOrderBubble(ctx, cafe.serving);
     } else {
-      this.text(ctx, 'รอลูกค้า…', CAFE_W / 2, 1650, 40, '#fff3dc');
+      this.text(ctx, 'รอลูกค้า…', CAFE_W / 2, 440, 40, '#fff3dc');
     }
   }
 
   private drawOrderBubble(ctx: CanvasRenderingContext2D, c: CustomerView): void {
     const w = 460;
     const x = CAFE_W / 2 - w / 2;
-    const y = 1440;
+    const y = 196;
     ctx.fillStyle = '#fffaf0';
     ctx.beginPath();
     ctx.roundRect(x, y, w, 96, 30);

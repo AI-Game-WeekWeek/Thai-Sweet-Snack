@@ -8,6 +8,7 @@ import type { GameState } from '../../src/core/StateMachine';
 /** A canvas context that records the text drawn and accepts every call (also counts save/restore and image draws). */
 function fakeCtx(opts: { throwOnText?: boolean } = {}) {
   const texts: string[] = [];
+  const at: { t: string; y: number }[] = [];
   let depth = 0;
   let images = 0;
   const handler: ProxyHandler<object> = {
@@ -15,7 +16,7 @@ function fakeCtx(opts: { throwOnText?: boolean } = {}) {
       if (prop === 'save') return () => { depth++; };
       if (prop === 'restore') return () => { depth--; };
       if (prop === 'drawImage') return () => { images++; };
-      if (prop === 'fillText' || prop === 'strokeText') return (t: string) => { if (opts.throwOnText) throw new Error('font failed'); texts.push(String(t)); };
+      if (prop === 'fillText' || prop === 'strokeText') return (t: string, _x?: number, y?: number) => { if (opts.throwOnText) throw new Error('font failed'); texts.push(String(t)); at.push({ t: String(t), y: Number(y) }); };
       if (prop === 'measureText') return () => ({ width: 100 });
       if (prop === 'createLinearGradient' || prop === 'createRadialGradient') return () => ({ addColorStop() {} });
       return () => proxy;
@@ -23,7 +24,7 @@ function fakeCtx(opts: { throwOnText?: boolean } = {}) {
     set: () => true,
   };
   const proxy: object = new Proxy({}, handler);
-  return { ctx: proxy as unknown as CanvasRenderingContext2D, texts, depth: () => depth, images: () => images };
+  return { ctx: proxy as unknown as CanvasRenderingContext2D, texts, at, depth: () => depth, images: () => images };
 }
 
 const cust = (id: number, over: Partial<CustomerView> = {}): CustomerView => ({
@@ -107,5 +108,26 @@ describe('CafeRenderer', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(() => new CafeRenderer(4, cache).draw(f.ctx, 720, 1280, view({ cafe: cafe({ serving: cust(1, { serving: true, avatarUrl: 'https://cdn.example.com/a.jpg' }) }) }), new ParticleSystem(10, 0), 16)).not.toThrow();
     expect(f.depth()).toBe(0);
+  });
+
+  it('layout: customers are in the top part of the screen, then status, then the cooking counter, then the gift menu', () => {
+    const f = draw(view({ state: 'COOKING', progress: 42, cafe: cafe() }));
+    const yOf = (text: string): number => f.at.find((a) => a.t === text)!.y;
+    const customerYs = ['มะลิ', 'น้ำฝน'].map(yOf);
+    const sign = yOf('ร้านขนมไทย');
+    const status = yOf('กำลังทำ บัวลอย');
+    const progress = yOf('42%');
+    const menuTitle = yOf('ส่งของขวัญ = สั่งขนม');
+    for (const y of customerYs) {
+      expect(y).toBeGreaterThan(sign);
+      expect(y).toBeLessThan(720); // upper third: nothing a customer says or shows is low on the screen
+      expect(y).toBeLessThan(status);
+    }
+    expect(status).toBeLessThan(progress);
+    expect(progress).toBeLessThan(menuTitle);
+    expect(menuTitle).toBeLessThan(1920);
+    // the order bubble sits above the served customer, near the top
+    const bubble = f.at.find((a) => a.t === 'บัวลอย' && a.y < 400);
+    expect(bubble).toBeDefined();
   });
 });
