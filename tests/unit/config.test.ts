@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultConfig } from '../../src/config/gameConfig';
+import { defaultConfig, liveConfig } from '../../src/config/gameConfig';
 
 const KEYS = ['preparing', 'cooking', 'presenting', 'rewarding', 'nextDessert'] as const;
 
@@ -17,5 +17,12 @@ describe('defaultConfig', () => {
   });
   it('has a positive maxFrameMs', () => {
     expect(defaultConfig.maxFrameMs).toBeGreaterThan(0);
+  });
+
+  it('liveConfig turns placeholder cooking off with a generous global watchdog', () => {
+    expect(defaultConfig.placeholderCooking).toBe(true);
+    expect(liveConfig.placeholderCooking).toBe(false);
+    expect(liveConfig.maxMs.cooking).toBeGreaterThan(60_000);
+    expect(liveConfig.cooking.baseProgressPerSec).toBeGreaterThan(0);
   });
 });
