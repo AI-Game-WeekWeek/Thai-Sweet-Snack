@@ -603,3 +603,20 @@ describe('the ghost is very hard, but never a dead end', () => {
     expect(game.snapshot().toast ?? '').toContain('ผีเบื่อ');
   });
 });
+
+describe('each tap adds a fixed percent', () => {
+  it('with tapPercent 10 every like event adds 10% to the bar (one tap = +10, three = +30), whatever its batch size', () => {
+    const { game } = mk({}, { idleCookRate: 0, tapPercent: 10, npcSpawnEveryMs: 1e9 }, { maxMs: { ...cafeConfig.maxMs, cooking: 6 * 3600_000 } });
+    game.start();
+    for (let i = 0; i < 100_000 && game.snapshot().state !== 'COOKING'; i++) game.update(16);
+    const p0 = game.snapshot().progress;
+    game.ingestEvent({ id: `tp${++n}`, type: 'like', count: 1, tsMs: game.nowMs });
+    advance(game, 100);
+    const p1 = game.snapshot().progress;
+    expect(p1 - p0).toBeGreaterThanOrEqual(9.5);
+    expect(p1 - p0).toBeLessThan(12);
+    game.ingestEvent({ id: `tp${++n}`, type: 'like', count: 300, tsMs: game.nowMs }); // a big batch is still ONE tap
+    advance(game, 100);
+    expect(game.snapshot().progress - p1).toBeLessThan(20);
+  });
+});

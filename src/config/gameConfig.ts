@@ -48,6 +48,8 @@ export interface GameConfig {
     npcFillTo: number;
     /** Cooking speed with NO taps/hearts, as a fraction of normal (1 = cooks by itself, 0 = waits until someone taps or presses I; hearts still speed it up to the maximum). */
     idleCookRate: number;
+    /** In the wait-for-taps game: every tap / press (one like event) adds this many percent to the cooking bar, on top of the hearts speed-up. 0 = off. */
+    tapPercent: number;
     /** A viewer who gifted comes back to order again this often (while still active), at most regularMaxReturns times; active = gifted within regularWindowMs. */
     regularEveryMs: number;
     regularWindowMs: number;
@@ -130,6 +132,7 @@ export const defaultConfig: GameConfig = {
     npcMinWaiting: 3,
     npcFillTo: 5,
     idleCookRate: 1,
+    tapPercent: 0,
     regularEveryMs: 75_000,
     regularWindowMs: 15 * 60_000,
     regularMaxReturns: 4,

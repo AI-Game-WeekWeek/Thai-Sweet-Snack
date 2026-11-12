@@ -106,6 +106,7 @@ export class TikTokEventManager {
           case 'like':
             fx.progressAdd += cfg.likeProgress * e.count;
             fx.likes += e.count;
+            fx.likeEvents = (fx.likeEvents ?? 0) + 1;
             break;
           case 'follow':
             fx.progressAdd += cfg.followProgress;

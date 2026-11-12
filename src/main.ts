@@ -45,7 +45,7 @@ const quickPhone = params.get('surprise') === '1';
 // The downloadable game waits for taps before it cooks (hearts / the I key / a tap on the screen); ?auto=1 makes it cook by itself.
 const waitForTaps = __PACKED__ && params.get('auto') !== '1';
 // no hearts = nothing moves on, however long it takes (the café's 3-minute cooking watchdog is lifted too)
-const baseCafe = waitForTaps ? { ...cafeConfig, maxMs: { ...cafeConfig.maxMs, cooking: 6 * 3600_000 }, cafe: { ...cafeConfig.cafe, idleCookRate: 0 } } : cafeConfig;
+const baseCafe = waitForTaps ? { ...cafeConfig, maxMs: { ...cafeConfig.maxMs, cooking: 6 * 3600_000 }, cafe: { ...cafeConfig.cafe, idleCookRate: 0, tapPercent: 10 } } : cafeConfig;
 const cfg = cafeMode
   ? quickPhone
     ? { ...baseCafe, cafe: { ...baseCafe.cafe, surprise: { ...baseCafe.cafe.surprise, phone: { ...baseCafe.cafe.surprise.phone, firstMs: 6000, everyMs: 25_000 } } } }

@@ -1077,6 +1077,10 @@ export class Game {
           const relief = (Number.isFinite(rl) ? rl : 0.012) * (fx.likes + fx.hearts * 3);
           this.squeeze = Math.max(0, this.squeeze - (Number.isFinite(relief) ? relief : 0));
         }
+        if (this.config.cafe.tapPercent > 0 && fx.likeEvents && this.manager.snapshot().state === 'COOKING' && !this.ghostCooking()) {
+          // each tap / key press = +tapPercent % on the bar (a ghost's dessert only moves with the hearts)
+          this.cooking.addProgress(Math.min(100, fx.likeEvents * this.config.cafe.tapPercent), m.roundId);
+        }
         if (fx.shareBonus > 0) {
           // exactly one saved visit per share, even when several shares arrive in the same moment
           const per = this.config.events.shareBonusPct > 0 ? this.config.events.shareBonusPct : fx.shareBonus;
