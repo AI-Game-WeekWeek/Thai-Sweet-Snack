@@ -492,10 +492,9 @@ export class Game {
     return true;
   }
 
-  /** A ghost is actually in the café (in the line or at the counter), not just calling on the phone. */
+  /** The ghost has reached the counter (it is the customer being served): only then can the shaman banish it. */
   private ghostPresent(): boolean {
-    const q = this.cafe?.queue;
-    return !!q && (q.current?.kind === 'phone' || q.waiting().some((c) => c.kind === 'phone'));
+    return this.cafe?.queue.current?.kind === 'phone';
   }
 
   /** A share calls the Isan shaman (หมอผี) when a ghost is around: he walks in, splashes holy water and calms it. False when nothing to do. */

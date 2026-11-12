@@ -452,7 +452,7 @@ describe('shaman quota from shares', () => {
 });
 
 describe('shaman only banishes a ghost that is really there', () => {
-  it('does not come while the ghost is only calling; when the ghost is in line he banishes it (it leaves the line), and the visit is refunded if nobody was there', () => {
+  it('does not come while the ghost is calling or waiting in line; he comes once the ghost is at the counter and banishes it', () => {
     const ph = { firstMs: 1e12, everyMs: 1e12, jitter: 0, ringMs: 2500, deadlineMs: 600_000, squeezeMs: 60_000, fineCoins: 0, reliefPerLike: 0, harderPerVisit: 0, minSqueezeMs: 1000, squeezeSlow: 0 };
     const { game, queue } = mk({ phone: ph, vip: {} }, { npcSpawnEveryMs: 1e9 });
     game.start();
@@ -464,9 +464,11 @@ describe('shaman only banishes a ghost that is really there', () => {
     expect(game.renderView().cafe?.phoneRinging).toBe(true);
     expect(game.renderView().cafe?.shaman ?? 0).toBe(0); // he waits
     expect(game.renderView().cafe?.shamanQuota).toBe(1);
-    runUntil(game, () => queue.waiting().some((c) => c.kind === 'phone') || queue.current?.kind === 'phone');
+    runUntil(game, () => queue.waiting().some((c) => c.kind === 'phone'));
+    advance(game, 200);
+    expect(game.renderView().cafe?.shaman ?? 0).toBe(0); // still waiting in line: he waits until the ghost reaches the counter
+    runUntil(game, () => queue.current?.kind === 'phone');
     runUntil(game, () => game.renderView().cafe?.ghostCalm === true, 600_000);
-    expect(queue.waiting().some((c) => c.kind === 'phone')).toBe(false); // banished from the line
     expect(game.renderView().cafe?.shamanQuota).toBe(0);
   });
 });
