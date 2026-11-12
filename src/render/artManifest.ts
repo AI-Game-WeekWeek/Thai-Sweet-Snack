@@ -89,7 +89,7 @@ export const COOK_SCENES: Record<ArtId, readonly StageSpec[]> = {
     { layers: [L('thongyodA-2', 500, 395, 320, { m: 'pulse', k: 0.03, speed: 1.2 })], fx: [{ kind: 'sparkle', x: 500, y: 360, w: 280, n: 5 }] },
   ],
   bowl: [
-    { layers: [L('bualoy-4', 270, 395, 190, { m: 'squash', k: 0.1, speed: 2.4 }), L('bualoy-3', 500, 395, 190, { m: 'squash', k: 0.1, speed: 2.1 }), L('bualoy-5', 730, 395, 190, { m: 'squash', k: 0.1, speed: 2.7 })], fx: [{ kind: 'sparkle', x: 500, y: 350, w: 460, n: 4 }] },
+    { layers: [L('bualoy-4', 330, 395, 165, { m: 'squash', k: 0.1, speed: 2.4 }), L('bualoy-3', 500, 395, 165, { m: 'squash', k: 0.1, speed: 2.1 }), L('bualoy-5', 670, 395, 165, { m: 'squash', k: 0.1, speed: 2.7 })], fx: [{ kind: 'sparkle', x: 500, y: 350, w: 460, n: 4 }] },
     { layers: [L('bualoy-6', 500, 400, 340, { m: 'pulse', k: 0.03, speed: 1.6 })], fx: [{ kind: 'sparkle', x: 500, y: 370, w: 320, n: 4 }] },
     { layers: [L('bualoy-7', 500, 385, 350, rock(0.012, 2))], fx: [{ kind: 'bubbles', x: 500, y: 360, w: 280, n: 4 }, { kind: 'steam', x: 500, y: 270, w: 240, n: 3 }] },
     { layers: [L('bualoy-11', 500, 370, 330, { m: 'dip', h: 36, speed: 1.3 })], fx: [{ kind: 'drop', x: 400, y: 430, w: 60, n: 3, color: '#fff7e2' }] },

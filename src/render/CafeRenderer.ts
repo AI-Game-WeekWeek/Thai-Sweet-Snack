@@ -93,6 +93,41 @@ export class CafeRenderer {
   /** Which painted backdrop to use ('day' | 'rain' | 'night'). */
   background: 'day' | 'rain' | 'night' = 'day';
 
+  private mutedKey = '';
+  private mutedCanvas: CanvasImageSource | null = null;
+
+  /** The painted backdrop with its colors toned down a little (less saturated, slightly darker). Built once. */
+  private mutedBackground(bg: CanvasImageSource): CanvasImageSource {
+    const key = this.backgroundKey();
+    if (this.mutedCanvas && this.mutedKey === key) return this.mutedCanvas;
+    let out: CanvasImageSource = bg;
+    try {
+      if (typeof document !== 'undefined') {
+        const c = document.createElement('canvas');
+        c.width = 720;
+        c.height = 1280;
+        const g = c.getContext('2d');
+        if (g) {
+          g.drawImage(bg, 0, 0, 720, 1280);
+          g.globalCompositeOperation = 'saturation';
+          g.globalAlpha = 0.32;
+          g.fillStyle = '#808080';
+          g.fillRect(0, 0, 720, 1280);
+          g.globalCompositeOperation = 'source-over';
+          g.globalAlpha = 1;
+          g.fillStyle = 'rgba(45,28,18,0.12)';
+          g.fillRect(0, 0, 720, 1280);
+          out = c;
+        }
+      }
+    } catch {
+      out = bg;
+    }
+    this.mutedKey = key;
+    this.mutedCanvas = out;
+    return out;
+  }
+
   private backgroundKey(): string {
     return this.background === 'rain' ? CAFE_PICS.bgRain : this.background === 'night' ? CAFE_PICS.bgNight : CAFE_PICS.bgDay;
   }
@@ -100,7 +135,7 @@ export class CafeRenderer {
   private drawBackdrop(ctx: CanvasRenderingContext2D): void {
     const bg = artImage(this.backgroundKey());
     if (bg) {
-      ctx.drawImage(bg, 0, 0, CAFE_W, CAFE_H);
+      ctx.drawImage(this.mutedBackground(bg), 0, 0, CAFE_W, CAFE_H);
       return;
     }
     // back wall: warm wood planks
@@ -458,13 +493,18 @@ export class CafeRenderer {
       this.drawCustomer(ctx, cafe.serving, CAFE_W / 2, 446, 92);
       this.drawOrderBubble(ctx, cafe.serving);
     } else {
-      this.text(ctx, 'รอลูกค้า…', CAFE_W / 2, 440, 40, '#fff3dc');
+      this.text(ctx, 'รอลูกค้า…', CAFE_W / 2, 318, 48, '#fff3dc');
     }
   }
 
   private drawOrderBubble(ctx: CanvasRenderingContext2D, c: CustomerView): void {
-    const w = 460;
+    const label = clip(c.dessertNameTh, 12);
+    ctx.font = `700 40px ${FONT}`;
+    const tw = Number.isFinite(ctx.measureText(label).width) ? ctx.measureText(label).width : 200;
+    const group = 84 + 16 + tw; // picture + gap + text, centred as one block in the bubble
+    const w = Math.max(320, Math.min(760, group + 90));
     const x = CAFE_W / 2 - w / 2;
+    const gx = CAFE_W / 2 - group / 2;
     const y = 196;
     ctx.fillStyle = '#fffaf0';
     ctx.beginPath();
@@ -480,17 +520,17 @@ export class CafeRenderer {
     ctx.closePath();
     ctx.fill();
     const icon = ICON_PICS[c.dessertId];
-    if (!(icon && drawArt(ctx, icon, x + 58, y + 46, 84, 84, 0, 1, 1, 2.2))) {
+    if (!(icon && drawArt(ctx, icon, gx + 42, y + 46, 84, 84, 0, 1, 1, 2.2))) {
       ctx.fillStyle = isColor(c.color) ? c.color : '#f5f0e1';
       ctx.beginPath();
-      ctx.arc(x + 58, y + 48, 26, 0, Math.PI * 2);
+      ctx.arc(gx + 42, y + 48, 26, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = INK;
       ctx.lineWidth = 3;
       ctx.stroke();
     }
     ctx.textAlign = 'left';
-    this.text(ctx, clip(c.dessertNameTh, 12), x + 100, y + 52, 40, INK, '#fffaf0');
+    this.text(ctx, label, gx + 100, y + 52, 40, INK, '#fffaf0');
     ctx.textAlign = 'center';
   }
 
