@@ -123,3 +123,20 @@ describe('dessert art', () => {
     void calls;
   });
 });
+
+describe('calm (waiting for a tap)', () => {
+  it('calm pictures only rock a little and show no steam or bubbles; with no calm the full animation and effects are drawn', () => {
+    clearArt();
+    for (const n of ALL_PIC_NAMES) registerArt(n, { width: 100, height: 80 } as unknown as CanvasImageSource & { width: number; height: number });
+    try {
+      const draw = (calm: number, time: number) => { const f = fakeCtx(); drawArtCooking(f.ctx, 'thread', { stage: 2, stages: 6, t: 0.5, p: 0.5, time, calm }); return f; };
+      const busy = draw(0, 1000);
+      const calm = draw(1, 1000);
+      expect(calm.signature().length).toBeLessThan(busy.signature().length); // fewer pictures/effects
+      // calm: two moments a quarter second apart differ only by a slight sway; the full animation moves a lot more
+      const move = (calmV: number) => { const a = draw(calmV, 1000).signature().match(/-?\d+/g)!.map(Number); const b = draw(calmV, 1250).signature().match(/-?\d+/g)!.map(Number); let d = 0; for (let i = 0; i < Math.min(a.length, b.length); i++) d += Math.abs(a[i]! - b[i]!); return d; };
+      expect(move(1)).toBeLessThan(move(0));
+      for (const c of [NaN, -1, 5, Infinity]) expect(() => draw(c, 1000)).not.toThrow();
+    } finally { clearArt(); }
+  });
+});

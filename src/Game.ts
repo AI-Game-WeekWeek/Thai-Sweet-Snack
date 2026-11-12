@@ -223,6 +223,7 @@ export class Game {
   private squeeze = 0;
   private squeezed = false;
   private ghostVisits = 0;
+  private ghostCookMs = 0;
   private forceGhostType: number | null = null;
   private visitCounted = false;
   private squeezeFlashMs = 0;
@@ -264,7 +265,8 @@ export class Game {
           // idleCookRate < 1: with no hearts the dessert cooks slowly (0 = it waits for taps); a full meter always reaches the maximum
           const idle = this.cafe && Number.isFinite(this.config.cafe.idleCookRate) ? Math.min(1, Math.max(0, this.config.cafe.idleCookRate)) : 1;
           const mult = this.cafe ? idle + meter.value * (this.config.vote.maxBoost - idle) : meter.multiplier;
-          this.cooking.setRateMultiplier(mult * slow);
+          const heavy = this.ghostCooking() && !this.ghostTamed ? Math.min(1, Math.max(0.05, this.config.cafe.surprise.phone.cookRateMul || 1)) : 1; // a ghost's dessert is heavy
+          this.cooking.setRateMultiplier(mult * slow * heavy);
         }
         this.cooking.update(dtMs);
       },
@@ -560,6 +562,7 @@ export class Game {
     if (this.squeezeFlashMs > 0) this.squeezeFlashMs = Math.max(0, this.squeezeFlashMs - dt);
     if (!this.ghostCooking()) {
       if (this.cafe?.queue.current?.kind !== 'phone') {
+        this.ghostCookMs = 0;
         this.squeeze = 0;
         this.squeezed = false;
         if (this.visitCounted) {
@@ -570,6 +573,16 @@ export class Game {
       return;
     }
     const ph = this.config.cafe.surprise.phone;
+    this.ghostCookMs += dt;
+    if (!this.ghostTamed && this.ghostCookMs >= (Number.isFinite(ph.giveUpMs) && ph.giveUpMs > 0 ? ph.giveUpMs : 90_000)) {
+      // a ghost nobody could deal with gets bored and vanishes: the game is never stuck on it
+      this.ghostTamed = true;
+      this.visitCounted = true; // so the calm is reset when this visit ends
+      this.squeeze = 0;
+      this.squeezed = false;
+      this.toastText = 'ผีเบื่อแล้ว หายไปเอง';
+      return;
+    }
     if (!this.visitCounted) {
       this.visitCounted = true;
       this.ghostVisits += 1;
@@ -581,6 +594,8 @@ export class Game {
     if (this.ghostTamed) return; // calmed by the shaman: no squeezing this visit
     const fill = Math.max(floor, base / (1 + harder * (this.ghostVisits - 1)));
     this.squeeze = Math.min(1, this.squeeze + dt / fill);
+    // the hungry ghost eats the hearts the viewers send
+    if (!this.ghostTamed) this.cafe?.meter.drain(((Number.isFinite(ph.heartDrainPerSec) ? ph.heartDrainPerSec : 0) * dt) / 1000);
     if (this.squeeze >= 1 && !this.squeezed) {
       this.squeezed = true;
       this.squeezeFlashMs = 1800;

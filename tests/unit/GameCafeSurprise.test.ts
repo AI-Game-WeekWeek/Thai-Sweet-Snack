@@ -480,7 +480,7 @@ describe('regulars come back, bots fill the line', () => {
   const served = (g: Game, name: string) => { runUntil(g, () => g.snapshot().cafe!.serving?.name === name, 400_000); runUntil(g, () => g.snapshot().state === 'NEXT_DESSERT' || g.snapshot().cafe!.serving?.name !== name, 400_000); };
 
   it('a viewer who gifted comes back with the same order after a while, at most the configured number of times', () => {
-    const { game } = mk({}, { npcSpawnEveryMs: 1e9, regularEveryMs: 5000, regularWindowMs: 10 * 60_000, regularMaxReturns: 2 });
+    const { game } = mk({ phone: { firstMs: 1e12, everyMs: 1e12 } }, { npcSpawnEveryMs: 1e9, regularEveryMs: 5000, regularWindowMs: 10 * 60_000, regularMaxReturns: 2 });
     game.start();
     gift(game, 20, 'มะลิ');
     const firstDessert = () => { const c = game.snapshot().cafe!; return [...c.waiting, ...(c.serving ? [c.serving] : [])].find((x) => x.name === 'มะลิ')?.dessertId; };
@@ -498,7 +498,7 @@ describe('regulars come back, bots fill the line', () => {
   });
 
   it('stops coming back when it has not gifted for the whole window, and never when names are hidden', () => {
-    const a = mk({}, { npcSpawnEveryMs: 1e9, regularEveryMs: 5000, regularWindowMs: 20_000 });
+    const a = mk({ phone: { firstMs: 1e12, everyMs: 1e12 } }, { npcSpawnEveryMs: 1e9, regularEveryMs: 5000, regularWindowMs: 20_000 });
     a.game.start();
     gift(a.game, 5, 'น้ำฝน');
     runUntil(a.game, () => names(a.game).includes('น้ำฝน'), 200_000);
@@ -574,5 +574,32 @@ describe('one share = one shaman visit', () => {
     for (let i = 0; i < 3; i++) game.ingestEvent({ id: `o${++n}`, type: 'share', count: 1, tsMs: game.nowMs });
     advance(game, 200);
     expect(game.renderView().cafe?.shamanQuota).toBe(4);
+  });
+});
+
+describe('nothing moves on without a tap (idleCookRate 0)', () => {
+  it('for minutes with no hearts the bar stays at 0 and no step is forced; the first tap starts it', () => {
+    const { game } = mk({}, { idleCookRate: 0, npcSpawnEveryMs: 700 }, { maxMs: { ...cafeConfig.maxMs, cooking: 6 * 3600_000 } });
+    game.start();
+    runUntil(game, () => game.snapshot().state === 'COOKING', 200_000);
+    const step0 = game.snapshot().stepNameTh;
+    for (let t = 0; t < 5 * 60_000; t += 16) game.update(16);
+    expect(game.snapshot().state).toBe('COOKING');
+    expect(game.snapshot().progress).toBe(0);
+    expect(game.snapshot().stepNameTh).toBe(step0);
+    for (let i = 0; i < 20; i++) { game.ingestEvent({ id: `z${++n}`, type: 'like', count: 5, tsMs: game.nowMs }); advance(game, 100); }
+    expect(game.snapshot().progress).toBeGreaterThan(3);
+  });
+});
+
+describe('the ghost is very hard, but never a dead end', () => {
+  it('a ghost that nobody can deal with gets bored and vanishes after giveUpMs, and the game goes on', () => {
+    const ph = { firstMs: 1e12, everyMs: 1e12, jitter: 0, ringMs: 600, deadlineMs: 600_000, giveUpMs: 20_000 };
+    const { game } = mk({ phone: ph, vip: {} }, { npcSpawnEveryMs: 700, idleCookRate: 0 }, { maxMs: { ...cafeConfig.maxMs, cooking: 6 * 3600_000 } });
+    game.start();
+    for (let i = 0; i < 200_000 && !game.callGhostNow(); i++) game.update(16);
+    for (let i = 0; i < 600_000 && game.snapshot().cafe!.serving?.kind !== 'phone'; i++) { if (game.snapshot().state === 'COOKING') game.finishCookingNow(); game.update(16); } // the dessert before it needs taps too
+    runUntil(game, () => game.renderView().cafe?.ghostCalm === true, 2_000_000); // no taps at all: it gives up
+    expect(game.snapshot().toast ?? '').toContain('ผีเบื่อ');
   });
 });

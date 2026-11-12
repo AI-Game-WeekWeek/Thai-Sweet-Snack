@@ -62,7 +62,8 @@ export class CookingSystem {
   update(dtMs: number): void {
     if (!this.active || !Number.isFinite(dtMs) || dtMs <= 0) return;
     this.progress.add((this.config.cooking.baseProgressPerSec * this.rateMultiplier * dtMs) / 1000, this.roundId);
-    this.stepElapsedMs += dtMs;
+    // the step watchdog runs on cooking time: while nothing is cooking (waiting for taps) it does not tick, so it cannot push a step forward
+    this.stepElapsedMs += dtMs * Math.min(1, this.rateMultiplier);
     const step = this.dessert?.steps[this.stepIndex];
     if (step && this.stepElapsedMs >= step.maxMs) {
       console.warn(`[CookingSystem] step watchdog forced "${step.id}" (round ${this.roundId})`);

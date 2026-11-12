@@ -74,7 +74,7 @@ export class Renderer {
 
   private drawCookingArt(ctx: CanvasRenderingContext2D, view: RenderView): void {
     // station back plate so every scene sits on the same table
-    drawArtCooking(ctx, view.art as ArtId, { stage: view.stepIndex ?? 0, stages: view.stepCount ?? 1, t: view.stepT, p: view.progress / 100, time: this.timeMs });
+    drawArtCooking(ctx, view.art as ArtId, { stage: view.stepIndex ?? 0, stages: view.stepCount ?? 1, t: view.stepT, p: view.progress / 100, time: this.timeMs, calm: view.cafe?.needsTaps ? 1 - Math.min(1, Math.max(0, Number.isFinite(view.heart) ? view.heart : 0) * 8) : 0 });
   }
 
   private batterColor(view: RenderView): string {

@@ -17,6 +17,8 @@ export interface CookingArt {
   p: number;
   /** Animation clock in ms. */
   time: number;
+  /** 0..1: how calm the scene is. 1 = only a gentle sway and no steam/bubbles (waiting for a tap), 0 = full animation. */
+  calm?: number;
 }
 export interface ServedArt {
   /** 0..1 presentation animation. */
@@ -458,7 +460,16 @@ interface Pose {
 const REST: Pose = { dx: 0, dy: 0, rot: 0, sx: 1, sy: 1 };
 
 /** How a picture moves at `time` (ms). Pure; hostile numbers give the rest pose. */
-function poseOf(m: Motion | undefined, size: number, time: number, t = 1): Pose {
+function poseOf(m: Motion | undefined, size: number, time: number, t = 1, calm = 0): Pose {
+  const full = poseFull(m, size, time, t);
+  if (!(calm > 0)) return full;
+  // calm: blend towards a slow gentle sway (the pictures just rock a little)
+  const c = Math.min(1, calm);
+  const sway = 0.03 * Math.sin((time / 1000) * Math.PI * 2 * 0.5);
+  return { dx: full.dx * (1 - c), dy: full.dy * (1 - c), rot: full.rot * (1 - c) + sway * c, sx: 1 + (full.sx - 1) * (1 - c), sy: 1 + (full.sy - 1) * (1 - c) };
+}
+
+function poseFull(m: Motion | undefined, size: number, time: number, t = 1): Pose {
   if (!m) return REST;
   const w = (time / 1000) * Math.PI * 2 * (m.speed ?? 1) * 0.9;
   switch (m.m) {
@@ -602,6 +613,7 @@ function drawCookPics(ctx: CanvasRenderingContext2D, art: ArtId, a: CookingArt):
   if (layers.length === 0) return false;
   const t = c01(a.t);
   const time = Number.isFinite(a.time) ? a.time : 0;
+  const calm = Number.isFinite(a.calm) ? Math.min(1, Math.max(0, a.calm as number)) : 0;
 
   // Step changes are timed in real milliseconds (not in cooking progress), so a hearts-boosted fast step still fades readably.
   if (!track || track.art !== art || track.stage !== stage) {
@@ -620,7 +632,7 @@ function drawCookPics(ctx: CanvasRenderingContext2D, art: ArtId, a: CookingArt):
   if (prev && outA > 0.01) {
     for (const l of prev.layers) {
       if (artImage(l.pic) === null || layers.some((n) => n.pic === l.pic)) continue; // shared pictures simply stay
-      const pose = poseOf(l.motion, l.size, time, 1);
+      const pose = poseOf(l.motion, l.size, time, 1, calm);
       ctx.save();
       try {
         ctx.globalAlpha = outA * (l.fade === 'in' ? 1 : 1);
@@ -638,7 +650,7 @@ function drawCookPics(ctx: CanvasRenderingContext2D, art: ArtId, a: CookingArt):
   for (const l of layers) {
     const alpha = alphaOf(l);
     if (alpha <= 0.01) continue;
-    const pose = poseOf(l.motion, l.size, time, t);
+    const pose = poseOf(l.motion, l.size, time, t, calm);
     ctx.save();
     try {
       ctx.globalAlpha = alpha;
@@ -652,7 +664,7 @@ function drawCookPics(ctx: CanvasRenderingContext2D, art: ArtId, a: CookingArt):
     if (l.front === undefined || !Number.isFinite(l.front)) continue;
     const alpha = alphaOf(l);
     if (alpha <= 0.01) continue;
-    const pose = poseOf(l.motion, l.size, time, t);
+    const pose = poseOf(l.motion, l.size, time, t, calm);
     ctx.save();
     try {
       ctx.globalAlpha = alpha;
@@ -664,7 +676,7 @@ function drawCookPics(ctx: CanvasRenderingContext2D, art: ArtId, a: CookingArt):
       ctx.restore();
     }
   }
-  for (const fx of spec.fx ?? []) drawFx(ctx, fx, time);
+  if (calm <= 0.5) for (const fx of spec.fx ?? []) drawFx(ctx, fx, time); // steam, bubbles, drops and sparkles wait for the taps too
   return true;
 }
 

@@ -23,6 +23,12 @@ export class HeartMeter {
     this.v = Math.min(1, this.v + amount);
   }
 
+  /** Takes hearts away (a ghost eating them). */
+  drain(amount: number): void {
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    this.v = Math.max(0, this.v - amount);
+  }
+
   update(dtMs: number): void {
     if (!Number.isFinite(dtMs) || dtMs <= 0) return;
     this.v = Math.max(0, this.v - (this.opts.decayPerSec * dtMs) / 1000);
