@@ -10,6 +10,8 @@ interface Recipe {
   tone?: { type: OscillatorType; from: number; to: number; level: number };
   /** Amplitude wobble (stirring, bubbling). */
   lfo?: { hz: number; depth: number };
+  /** A rising run of notes (Hz), one every 0.1 s (reward jingle). */
+  arp?: number[];
 }
 
 const RECIPES: Record<SoundId, Recipe> = {
@@ -28,6 +30,8 @@ const RECIPES: Record<SoundId, Recipe> = {
   slosh: { durationSec: 0.55, peak: 0.42, attackSec: 0.08, noise: { filter: 'bandpass', freq: 380, freqTo: 620, q: 1.6 }, lfo: { hz: 4, depth: 0.45 } },
   drip: { durationSec: 0.16, peak: 0.4, attackSec: 0.004, tone: { type: 'sine', from: 1900, to: 520, level: 1 } },
   bubble: { durationSec: 0.12, peak: 0.3, attackSec: 0.005, tone: { type: 'sine', from: 320, to: 760, level: 1 } },
+  // Prize jingle: a bright rising run (C5 E5 G5 C6 E6) with a sparkle on top.
+  reward: { durationSec: 1.1, peak: 0.42, attackSec: 0.01, arp: [523, 659, 784, 1047, 1319], noise: { filter: 'highpass', freq: 6500, q: 0.5 } },
   coin: { durationSec: 0.35, peak: 0.4, attackSec: 0.005, tone: { type: 'sine', from: 1400, to: 2100, level: 1 } },
 };
 
@@ -102,6 +106,31 @@ export class AudioManager {
     }
   }
 
+  /** A spoken line (the browser's Thai voice, if there is one). Silent when unsupported or muted; never throws. */
+  speak(text: string, roundId: number): boolean {
+    void roundId;
+    if (this.muted || typeof text !== 'string' || text.length === 0) return false;
+    try {
+      const synth = (globalThis as { speechSynthesis?: SpeechSynthesis }).speechSynthesis;
+      const Utter = (globalThis as { SpeechSynthesisUtterance?: typeof SpeechSynthesisUtterance }).SpeechSynthesisUtterance;
+      if (!synth || !Utter) return false;
+      const voices = synth.getVoices?.() ?? [];
+      const thai = voices.find((v) => /^th/i.test(v.lang));
+      if (!thai && voices.length > 0) return false; // voices are known and none is Thai: stay silent rather than mispronounce
+      const u = new Utter(text.slice(0, 80));
+      u.lang = 'th-TH';
+      if (thai) u.voice = thai;
+      u.rate = 1.05;
+      u.pitch = 1.25;
+      u.volume = 1;
+      synth.cancel();
+      synth.speak(u);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   stopRound(roundId: number): number {
     let n = 0;
     for (const v of [...this.voices.values()]) {
@@ -147,6 +176,23 @@ export class AudioManager {
       lvl.connect(out);
       sources.push(osc);
     }
+    if (r.arp) {
+      r.arp.forEach((hz, i) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(hz, now);
+        const g = ctx.createGain();
+        const at = now + i * 0.1;
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.linearRampToValueAtTime(0.9, at + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+        osc.connect(g);
+        g.connect(out);
+        osc.start(at);
+        osc.stop(Math.min(end, at + 0.52) + 0.02);
+        sources.push(osc);
+      });
+    }
     if (r.lfo) {
       const lfo = ctx.createOscillator();
       lfo.frequency.value = r.lfo.hz;
@@ -158,8 +204,20 @@ export class AudioManager {
     }
 
     const voice: Voice = { id: this.nextId++, roundId, sources, out };
-    for (const s of sources) s.start(now);
-    for (const s of sources) s.stop(end + 0.02);
+    for (const s of sources) {
+      try {
+        s.start(now);
+      } catch {
+        /* already started (note oscillators start at their own time) */
+      }
+    }
+    for (const s of sources) {
+      try {
+        s.stop(end + 0.02);
+      } catch {
+        /* already scheduled */
+      }
+    }
     const first = sources[0];
     if (first) first.onended = () => this.release(voice);
     return voice;

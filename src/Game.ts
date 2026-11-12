@@ -29,6 +29,8 @@ export interface AnimationsLike {
 export interface AudioLike {
   play(sound: SoundId, roundId: number): boolean;
   stopRound(roundId: number): number;
+  /** Optional spoken line (browser voice). */
+  speak?(text: string, roundId: number): boolean;
 }
 
 export interface GameFx {
@@ -639,7 +641,12 @@ export class Game {
     }
     if (!this.rewards || !this.current) return;
     const r = this.rewards.award(this.current, { roundId, bonusPct: this.bonusPct, cookMs: this.clockMs - this.roundStart });
-    if (r) this.toastText = `${who}+${r.score} คะแนน +${r.coins} เหรียญ${r.levelUp ? ' • เลเวลอัป!' : ''}`;
+    if (r) {
+      this.toastText = `${who}+${r.score} คะแนน +${r.coins} เหรียญ${r.levelUp ? ' • เลเวลอัป!' : ''}`;
+      const sr = this.soundRound(roundId);
+      this.fx?.audio.play('reward', sr);
+      this.fx?.audio.speak?.(`${this.current.nameTh}เสร็จแล้วค่ะ`, sr);
+    }
   }
 
   private startStepFx(anim: AnimId, sound: SoundId, stepMaxMs: number, index: number, roundId: number): void {
