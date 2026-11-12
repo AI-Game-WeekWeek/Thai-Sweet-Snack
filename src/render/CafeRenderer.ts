@@ -72,20 +72,10 @@ export class CafeRenderer {
       ctx.lineJoin = 'round';
       this.safely('backdrop', () => this.drawBackdrop(ctx));
       this.safely('spooky', () => {
-        // the lights dim and flicker while the ghost is calling or at the counter
+        // a plain, steady cool tint while the ghost is calling or at the counter (no frame, no flicker)
         if (!view.cafe?.spooky) return;
-        const f = 0.3 + 0.1 * Math.sin(this.timeMs / 90) * Math.sin(this.timeMs / 370);
-        ctx.fillStyle = `rgba(20,28,70,${Math.max(0.15, f).toFixed(3)})`;
+        ctx.fillStyle = 'rgba(25,32,85,0.3)';
         ctx.fillRect(0, 0, CAFE_W, CAFE_H);
-        const frame = artImage(CAFE_PICS.frame);
-        if (frame) {
-          ctx.save();
-          ctx.globalAlpha = 0.55 + 0.2 * Math.sin(this.timeMs / 400);
-          ctx.drawImage(frame, -40, -40, CAFE_W + 80, CAFE_H + 80);
-          ctx.restore();
-        }
-        drawArt(ctx, CAFE_PICS.wisps, 140 + Math.sin(this.timeMs / 1400) * 30, 900 + Math.sin(this.timeMs / 1100) * 20, 200, 260);
-        drawArt(ctx, CAFE_PICS.wisps, 960 + Math.sin(this.timeMs / 1300) * 30, 1000 + Math.sin(this.timeMs / 900) * 20, 180, 230);
       });
       this.safely('menu', () => this.drawGiftMenu(ctx, view.cafe));
       this.safely('station', () => {
