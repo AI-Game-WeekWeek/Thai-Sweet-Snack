@@ -40,7 +40,7 @@ are entitled to use and check TikTok's and the provider's terms. Details and lim
 ## How it plays (default: Thai café)
 
 1. **Queue:** customers line up (the front one large, up to 4 more behind, 12 waiting at most). Each orders one dessert and
-   has a patience bar; someone who waits too long leaves unhappy. Bots (anonymous customers) are sent in whenever fewer than 3 people are in the café, so it works with zero viewers, and **a viewer who gifted comes back to order the same dessert again** every ~75 s while they are still around (up to 4 times, within 15 minutes of their last gift; remembered in memory only, never saved). **Without gifts they all order ข้าวต้มมัด** (`cafe.defaultDessertId`); every other dessert is
+   has a patience bar; someone who waits too long leaves unhappy. Bots (anonymous customers) are sent in whenever fewer than 3 people are in the café, and keep coming until 5 are there (viewers included), so it works with zero viewers, and **a viewer who gifted comes back to order the same dessert again** every ~75 s while they are still around (up to 4 times, within 15 minutes of their last gift; remembered in memory only, never saved). **Without gifts they all order ข้าวต้มมัด** (`cafe.defaultDessertId`); every other dessert is
    ordered only because a viewer sent a gift (or by a VIP). Phone orders also ask for ข้าวต้มมัด. Each gift is its own customer: a gifting viewer is served the dessert they paid for, separately from every other viewer (two gifts = two customers).
 2. **Gifts order desserts:** a viewer's gift puts that viewer in the queue **right behind the customer being served**,
    with their name and a round head slot for their picture, ordering the dessert the gift value maps to. The menu board

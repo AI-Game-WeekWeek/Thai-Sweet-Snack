@@ -513,7 +513,7 @@ describe('regulars come back, bots fill the line', () => {
     expect(names(b.game).includes('ลับ')).toBe(false);
   });
 
-  it('with no viewers at all the line is kept at 3 by bots', () => {
+  it('when fewer than 3 people are in the café, bots come until there are 5 (viewers included)', () => {
     const { game } = mk();
     game.start();
     let frames = 0;
@@ -523,6 +523,20 @@ describe('regulars come back, bots fill the line', () => {
       if (t > 20_000) { const c = game.snapshot().cafe!; frames++; if (c.waitingTotal + (c.serving ? 1 : 0) < 3) low++; }
     }
     expect(low / frames).toBeLessThan(0.1); // below 3 only for the moment a bot is on its way
+    // viewers count too: with 3 viewers in the café, only 2 bots are added to reach 5; with 5 viewers no bot at all
+    const v = mk({}, { npcSpawnEveryMs: 700 });
+    v.game.start();
+    for (let i = 0; i < 3; i++) gift(v.game, 10, `ผู้ชม${i}`);
+    let peak = 0;
+    for (let t = 0; t < 20_000; t += 16) { v.game.update(16); const c = v.game.snapshot().cafe!; peak = Math.max(peak, c.waitingTotal + (c.serving ? 1 : 0)); }
+    expect(peak).toBeLessThanOrEqual(5 + 3); // never floods: the viewers' own orders can go above 5, bots stop at 5
+    const w = mk({}, { npcSpawnEveryMs: 700 });
+    w.game.start();
+    advance(w.game, 20_000);
+    const c0 = w.game.snapshot().cafe!;
+    const total = c0.waitingTotal + (c0.serving ? 1 : 0);
+    expect(total).toBeGreaterThanOrEqual(3);
+    expect(total).toBeLessThanOrEqual(5);
   });
 });
 

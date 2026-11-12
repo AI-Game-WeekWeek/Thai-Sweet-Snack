@@ -229,6 +229,7 @@ export class Game {
   private shamanMs = 0;
   private shamanSplashed = false;
   private shamanQuota = 0;
+  private refilling = false;
   /** Viewers who gifted and may come back to order again while they are still around (memory only, never saved). */
   private readonly regulars = new Map<string, { name: string; avatarUrl: string | null; dessertId: string; giftMs: number; lastMs: number; returns: number }>();
   private readonly returning = new Set<string>();
@@ -610,7 +611,8 @@ export class Game {
     if (cafe.queue.waiting().length === 0) this.spawnNpc();
     // Opening time: start with a visible queue instead of an empty shop.
     if (this.lastCookedId === null) {
-      for (let i = 0; i <= this.config.cafe.npcMinWaiting && cafe.queue.waiting().length < this.config.cafe.npcMinWaiting + 1; i++) this.spawnNpc();
+      const target = Math.max(this.config.cafe.npcMinWaiting, this.config.cafe.npcFillTo ?? 0);
+      for (let i = 0; i <= target && cafe.queue.waiting().length < target; i++) this.spawnNpc();
     }
     const c = cafe.queue.startNext();
     this.current = (c && this.desserts.get(c.dessertId)) || this.desserts.next();
@@ -693,8 +695,12 @@ export class Game {
     this.tickPhone(dt);
     this.tickRegulars(dt);
     const c = this.config.cafe;
-    // fewer than npcMinWaiting people in the café (the one being served counts): send in a bot
-    if (cafe.queue.waiting().length + (cafe.queue.current ? 1 : 0) >= c.npcMinWaiting) this.npcTimer = 0;
+    // fewer than npcMinWaiting people in the café (the one being served counts, viewers included): bots come until npcFillTo are there
+    const people = cafe.queue.waiting().length + (cafe.queue.current ? 1 : 0);
+    const fillTo = Math.max(c.npcMinWaiting, c.npcFillTo ?? c.npcMinWaiting);
+    if (people < c.npcMinWaiting) this.refilling = true;
+    else if (people >= fillTo) this.refilling = false;
+    if (!this.refilling) this.npcTimer = 0;
     else {
       this.npcTimer += dt;
       if (this.npcTimer >= c.npcSpawnEveryMs) {
