@@ -91,7 +91,7 @@ describe('test shortcuts', () => {
     off();
   });
 
-  it('quiet mode (for a live stream) still reacts to keys but adds no panel, hint or toast to the page', () => {
+  it('quiet mode (for a live stream) still reacts to keys but adds no panel to the page; the normal mode shows no hint or note either', () => {
     const { t, events } = targets();
     const before = document.body.children.length;
     const off = installDevKeys(t, document, { quiet: true });
@@ -100,6 +100,19 @@ describe('test shortcuts', () => {
     press('?');
     expect(events.map((e) => e.type)).toEqual(['follow']);
     expect(document.body.children.length).toBe(before);
+    off();
+  });
+});
+
+describe('no notes on screen', () => {
+  it('pressing keys never adds a toast or hint to the page (only the help panel exists, hidden until ?)', () => {
+    const { t } = targets();
+    const before = document.body.children.length;
+    const off = installDevKeys(t);
+    expect(document.body.children.length).toBe(before + 1); // just the hidden help panel
+    for (const k of ['1', 'l', 'f', 'p', 'v']) press(k);
+    expect(document.body.children.length).toBe(before + 1);
+    expect(document.body.textContent).not.toContain('กด ? ดูคีย์ลัด');
     off();
   });
 });

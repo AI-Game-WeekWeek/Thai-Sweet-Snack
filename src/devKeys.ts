@@ -82,7 +82,7 @@ export function pressed(e: Pick<KeyboardEvent, 'key' | 'code'>, key: string): bo
 }
 
 export interface InstallOptions {
-  /** On a live stream: no help panel, no hint and no on-screen toasts (the keys still work). */
+  /** On a live stream: no help panel (the keys still work). */
   quiet?: boolean;
 }
 
@@ -92,44 +92,27 @@ export function installDevKeys(t: DevKeyTargets, doc: Document = document, opts:
   const panel = doc.createElement('div');
   panel.style.cssText = 'position:fixed;left:8px;bottom:8px;max-width:min(92vw,380px);max-height:70vh;overflow:auto;background:rgba(20,12,8,.86);color:#ffe9c8;font:12px/1.5 system-ui,sans-serif;padding:8px 10px;border-radius:10px;z-index:9;display:none';
   panel.innerHTML = '<b>คีย์ลัดทดสอบ</b> (กด ? หรือ h ซ่อน/แสดง)<br>' + keys.map((k) => `<kbd style="background:#4a2c17;border-radius:4px;padding:0 5px">${k.key.toUpperCase()}</kbd> ${k.label}`).join('<br>');
-  const toast = doc.createElement('div');
-  toast.style.cssText = 'position:fixed;left:50%;top:10px;transform:translateX(-50%);background:rgba(20,12,8,.9);color:#fff;font:600 14px system-ui,sans-serif;padding:6px 14px;border-radius:16px;z-index:10;opacity:0;transition:opacity .2s;pointer-events:none';
-  const hint = doc.createElement('div');
-  hint.textContent = 'กด ? ดูคีย์ลัดทดสอบ';
-  hint.style.cssText = 'position:fixed;left:8px;bottom:8px;color:#ffe9c8;background:rgba(20,12,8,.6);font:12px system-ui,sans-serif;padding:3px 8px;border-radius:8px;z-index:9';
-  if (!opts.quiet) doc.body.append(panel, toast, hint);
-  let toastTimer: ReturnType<typeof setTimeout> | undefined;
-  const say = (m: string): void => {
-    toast.textContent = m;
-    toast.style.opacity = '1';
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => (toast.style.opacity = '0'), 1400);
-  };
+  if (!opts.quiet) doc.body.append(panel);
   const onKey = (e: KeyboardEvent): void => {
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return; // a held key must not become a flood of events
     const target = e.target as HTMLElement | null;
     if (target && /^(input|textarea|select)$/i.test(target.tagName)) return;
     const k = e.key.toLowerCase();
     if (!opts.quiet && (k === '?' || e.code === 'KeyH' || k === 'h' || k === '/')) {
-      const open = panel.style.display === 'none';
-      panel.style.display = open ? 'block' : 'none';
-      hint.style.display = open ? 'none' : 'block';
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
       return;
     }
     const def = keys.find((d) => pressed(e, d.key));
     if (!def) return;
     try {
-      const msg = def.run(t);
-      if (msg && !opts.quiet) say(msg);
+      def.run(t); // no on-screen note: the keys act silently
     } catch (err) {
-      say('ผิดพลาด: ' + String(err));
+      console.warn('[devKeys]', err);
     }
   };
   doc.addEventListener('keydown', onKey);
   return () => {
     doc.removeEventListener('keydown', onKey);
     panel.remove();
-    toast.remove();
-    hint.remove();
   };
 }
