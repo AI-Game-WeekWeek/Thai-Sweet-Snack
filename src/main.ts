@@ -121,7 +121,14 @@ if (mock) {
   mock.steady(Math.min(500, Math.max(1, Number(params.get('rate')) || 20)), 24 * 3600 * 1000);
   setInterval(() => mock.burst('like', 300, Date.now()), 15_000);
 }
-const cafeRenderer = cafeMode ? new CafeRenderer(cfg.vote.maxBoost, new AvatarCache(cfg.cafe.avatar)) : null;
+// Profile pictures of viewers load only from hosts you allow: ?avatarHosts=a.com,b.com, or AVATAR_HOSTS in `npm run live`.
+function avatarHosts(): string[] {
+  const fromUrl = params.get('avatarHosts');
+  const injected = (globalThis as { __AVATAR_HOSTS__?: unknown }).__AVATAR_HOSTS__;
+  const raw = fromUrl ? fromUrl.split(',') : Array.isArray(injected) ? injected : cfg.cafe.avatar.hosts;
+  return raw.filter((h): h is string => typeof h === 'string' && /^[a-z0-9.-]{3,100}$/i.test(h.trim())).map((h) => h.trim().toLowerCase());
+}
+const cafeRenderer = cafeMode ? new CafeRenderer(cfg.vote.maxBoost, new AvatarCache({ ...cfg.cafe.avatar, hosts: avatarHosts() })) : null;
 if (cafeRenderer) {
   // painted pictures are optional: shapes are drawn until (and unless) they load
   preloadArt(ALL_PIC_NAMES);

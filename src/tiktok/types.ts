@@ -1,4 +1,4 @@
-export const LIVE_EVENT_TYPES = ['like', 'follow', 'orangeHeart', 'rose', 'gift', 'share', 'comment'] as const;
+export const LIVE_EVENT_TYPES = ['like', 'follow', 'orangeHeart', 'rose', 'gift', 'share', 'comment', 'join'] as const;
 export type LiveEventType = (typeof LIVE_EVENT_TYPES)[number];
 export type ConnectionState = 'connected' | 'reconnecting' | 'offline';
 
@@ -57,5 +57,7 @@ export interface EventEffects {
   gifts: GiftInfo[];
   /** Café surprise triggers, counted in every state: one per follow event / orange-heart event. No names. */
   surprises: { follows: number; orangeHearts: number };
+  /** Viewers who just came into the live (café mode): each becomes a named customer who orders the everyday dessert. */
+  joins: { displayName?: string; avatarUrl?: string }[];
   counters: Counters;
 }

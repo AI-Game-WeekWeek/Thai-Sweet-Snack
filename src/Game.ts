@@ -833,6 +833,31 @@ export class Game {
   }
 
   /** A gift puts that viewer in the queue ordering what the gift value maps to; a full queue still pays the café a flat thank-you. */
+  private readonly recentJoins = new Map<string, number>();
+
+  /** A viewer who came into the live becomes a named customer who orders the everyday dessert (not a gift). Same name at most once a minute. */
+  private enqueueJoins(joins: readonly { displayName?: string; avatarUrl?: string }[]): void {
+    const cafe = this.cafe;
+    if (!cafe || joins.length === 0) return;
+    const c = this.config.cafe;
+    if (c.anonymousNames) return;
+    const ids = this.desserts.unlockedIds;
+    const dessertId = ids.includes(c.defaultDessertId) ? c.defaultDessertId : ids[0];
+    if (!dessertId) return;
+    for (const j of joins) {
+      const name = cleanName(j.displayName ?? '', c.maxNameLength);
+      if (name === '') continue;
+      const last = this.recentJoins.get(name);
+      if (last !== undefined && this.clockMs - last < 60_000) continue;
+      const here = cafe.queue.waiting().some((x) => x.name === name) || cafe.queue.current?.name === name;
+      if (here || cafe.queue.waiting().length >= c.maxWaiting) continue;
+      this.recentJoins.delete(name);
+      this.recentJoins.set(name, this.clockMs);
+      while (this.recentJoins.size > 100) this.recentJoins.delete(this.recentJoins.keys().next().value as string);
+      cafe.queue.enqueue({ viewer: true, name, avatarUrl: j.avatarUrl ?? null, dessertId });
+    }
+  }
+
   private enqueueGifts(gifts: readonly { coins: number; displayName?: string; avatarUrl?: string }[]): void {
     const cafe = this.cafe;
     if (!cafe) return;
@@ -1071,6 +1096,7 @@ export class Game {
         this.vote.meter.add(fx.likes * this.config.vote.heartPerLike + fx.follows * this.config.vote.heartPerFollow + fx.hearts * this.config.vote.heartPerHeart);
       } else if (this.cafe) {
         this.enqueueGifts(fx.gifts);
+        this.enqueueJoins(fx.joins);
         if (this.manager.running) this.applySurprises(fx.surprises, m.roundId);
         if (this.ghostCooking() && !this.squeezed) {
           const rl = this.config.cafe.surprise.phone.reliefPerLike;

@@ -25,7 +25,8 @@ if (token.length < 16) {
   writeFileSync(tokenFile, token + '\n', { mode: 0o600 });
 }
 
-const bridge = createBridge({ token, host, port, staticDir: 'dist' });
+const avatarHosts = (process.env.AVATAR_HOSTS ?? '').split(',').map((h) => h.trim().toLowerCase()).filter((h) => /^[a-z0-9.-]{3,100}$/.test(h));
+const bridge = createBridge({ token, host, port, staticDir: 'dist', avatarHosts });
 const { port: p } = await bridge.start();
 const base = `http://${host}:${p}`;
 const gameUrl = `${base}/live.html`; // no ?query: the token is built into the page, which connects back to the bridge it came from

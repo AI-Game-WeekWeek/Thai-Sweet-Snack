@@ -66,9 +66,19 @@ describe('TikFinity adapter', () => {
     for (const m of [null, undefined, 1, 'x', [], {}, { event: 5 }, { event: 'gift', data: null }, { event: 'gift', data: { diamondCount: 'abc' } }, { event: 'like', data: { likeCount: 1e12 } }, { event: 'chat', data: { comment: 123 } }, { event: 'join' }, { event: 'gift', data: { diamondCount: 1e30, repeatCount: 1e30 } }]) {
       expect(() => a.convert(m)).not.toThrow();
     }
-    expect(a.convert({ event: 'join', data: { nickname: 'x' } })).toEqual([]);
+    expect(a.convert({ event: 'viewercount', data: { nickname: 'x' } })).toEqual([]);
     expect(a.convert({ event: 'like', data: { likeCount: 1e12 } })[0]).toMatchObject({ count: 1000 });
     const big = a.convert({ event: 'gift', data: { diamondCount: 1e30, repeatCount: 1e30 } })[0]!;
     expect(big.giftCoins as number).toBeLessThanOrEqual(1_000_000);
+  });
+});
+
+describe('join events', () => {
+  it('a join with a name becomes a join event (name and picture kept); a join without a name is dropped', () => {
+    const { a } = mk();
+    const out = a.convert({ event: 'join', data: { nickname: 'พี่ต้น', profilePictureUrl: 'https://p16.example.com/x.jpg' } });
+    expect(out[0]).toMatchObject({ type: 'join', displayName: 'พี่ต้น', avatarUrl: 'https://p16.example.com/x.jpg' });
+    expect(parseLiveEvent(out[0], 1000)).not.toBeNull();
+    expect(a.convert({ event: 'join', data: {} })).toEqual([]);
   });
 });
