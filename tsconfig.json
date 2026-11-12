@@ -20,6 +20,7 @@
     "vite.config.ts"
   ],
   "exclude": [
-    "tests/server"
+    "tests/server",
+    "tests/perf"
   ]
 }

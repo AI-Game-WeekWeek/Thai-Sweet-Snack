@@ -5,15 +5,18 @@
       "node"
     ],
     "lib": [
-      "ES2022"
+      "ES2022",
+      "DOM"
     ],
     "noEmit": true
   },
   "include": [
     "server",
-    "tests/server",
+    "src",
     "src/tiktok/parseLiveEvent.ts",
-    "src/tiktok/types.ts"
+    "src/tiktok/types.ts",
+    "tests/perf",
+    "tests/server"
   ],
   "exclude": []
 }
