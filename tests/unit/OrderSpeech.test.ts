@@ -49,7 +49,7 @@ describe('customer says the order', () => {
 import { AudioManager } from '../../src/audio/AudioManager';
 
 describe('voice choice', () => {
-  it('uses a female Thai voice for ค่ะ and a male Thai voice for ครับ, stays silent when no Thai voice exists', () => {
+  it('uses a female Thai voice for ค่ะ and a male Thai voice for ครับ, falls back to any voice when no Thai voice exists', () => {
     const spoken: { text: string; voice: string | undefined }[] = [];
     const voices = [{ name: 'Alex', lang: 'en-US' }, { name: 'Niwat', lang: 'th-TH' }, { name: 'Kanya', lang: 'th-TH' }];
     const g = globalThis as Record<string, unknown>;
@@ -61,8 +61,10 @@ describe('voice choice', () => {
       expect(a.speak('เอา… ข้าวต้มมัด… ค่ะ', 1, 1.35, 0.7, 'female')).toBe(true);
       expect(a.speak('เอา… ข้าวต้มมัด… ครับ', 1, 0.85, 0.7, 'male')).toBe(true);
       expect(spoken.map((s) => s.voice)).toEqual(['Kanya', 'Niwat']);
-      voices.splice(1, 2);
-      expect(a.speak('x', 1, 1, 1, 'female')).toBe(false);
+      voices.splice(1, 2); // only an English voice left: still speaks (any voice beats silence)
+      expect(a.speak('x', 1, 1, 1, 'female')).toBe(true);
+      voices.splice(0, 1); // no voices at all (not loaded yet): the browser default voice is used
+      expect(a.speak('x', 1, 1, 1, 'female')).toBe(true);
     } finally {
       g.speechSynthesis = old.s;
       g.SpeechSynthesisUtterance = old.u;

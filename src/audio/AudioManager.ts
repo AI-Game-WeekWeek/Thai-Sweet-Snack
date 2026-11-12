@@ -175,12 +175,15 @@ export class AudioManager {
       if (!synth || !Utter) return false;
       const voices = synth.getVoices?.() ?? [];
       const thaiVoices = voices.filter((v) => /^th/i.test(v.lang.replace('_', '-')));
-      if (thaiVoices.length === 0 && voices.length > 0) return false; // voices are known and none is Thai: stay silent rather than mispronounce
       // pick by well-known Thai voice names: Kanya / Narisa / Premwadee are female, Niwat / Pattara are male
       const FEMALE = /kanya|narisa|premwadee|pattara.*female|female|หญิง|google.*(ไทย|thai)/i;
       const MALE = /niwat|male|ชาย/i;
       const named = gender === 'female' ? thaiVoices.find((v) => FEMALE.test(v.name) && !/^male/i.test(v.name)) : gender === 'male' ? thaiVoices.find((v) => MALE.test(v.name) && !/female/i.test(v.name)) : undefined;
-      const thai = named ?? thaiVoices[0];
+      // No Thai voice on this device: any female-sounding voice is better than silence (it is asked for Thai either way)
+      const anyFemale = voices.find((v) => /female|woman|samantha|zira|siri|google|kanya|narisa|premwadee|หญิง/i.test(v.name));
+      const anyMale = voices.find((v) => /\bmale\b|david|mark|niwat|ชาย/i.test(v.name) && !/female/i.test(v.name));
+      const fallback = gender === 'male' ? (anyMale ?? voices[0]) : (anyFemale ?? voices[0]);
+      const thai = named ?? thaiVoices[0] ?? fallback;
       this.lastVoiceName = thai?.name ?? null;
       const u = new Utter(text.slice(0, 80));
       u.lang = 'th-TH';
