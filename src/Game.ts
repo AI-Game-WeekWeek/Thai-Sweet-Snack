@@ -7,6 +7,8 @@ import { DessertManager } from './dessert/DessertManager';
 import type { AnimId, DessertDef, SoundId } from './dessert/types';
 import { GameManager } from './core/GameManager';
 import type { GameState } from './core/StateMachine';
+import type { RewardManager } from './reward/RewardManager';
+import type { RewardResult } from './reward/types';
 import type { TikTokEventManager } from './tiktok/TikTokEventManager';
 import type { ConnectionState, Counters } from './tiktok/types';
 
@@ -41,6 +43,10 @@ export interface GameSnapshot {
   connection: ConnectionState;
   /** Share bonus (percent) banked for the current round. */
   bonusPct: number;
+  ingredients: { id: string; nameTh: string; color: string }[];
+  reward: { score: number; coins: number; xp: number; level: number; last: RewardResult | null };
+  /** Short message for the HUD (reward summary, unlock news); null when there is none. */
+  toast: string | null;
 }
 
 /** What the Renderer needs, in world units (WORLD_W x WORLD_H). */
@@ -77,12 +83,14 @@ export class Game {
   private clockMs = 0;
   private roundStart = 0;
   private bonusPct = 0;
+  private toastText: string | null = null;
 
   constructor(
     private readonly config: GameConfig,
     private readonly desserts: DessertManager,
     private readonly fx?: GameFx,
     private readonly events?: TikTokEventManager,
+    private readonly rewards?: RewardManager,
   ) {
     this.cooking = new CookingSystem(config, this.progress, {
       onStepStart: (step, index, roundId) => this.startStepFx(step.anim, step.sound, step.maxMs, index, roundId),
@@ -151,6 +159,15 @@ export class Game {
       counters: this.events?.totals ?? { likes: 0, follows: 0, hearts: 0, gifts: 0, shares: 0 },
       connection: this.events?.connection ?? 'offline',
       bonusPct: this.bonusPct,
+      ingredients: this.current?.ingredients.map((i) => ({ ...i })) ?? [],
+      reward: {
+        score: this.rewards?.profile.score ?? 0,
+        coins: this.rewards?.profile.coins ?? 0,
+        xp: this.rewards?.profile.xp ?? 0,
+        level: this.rewards?.level ?? 1,
+        last: this.rewards?.last ?? null,
+      },
+      toast: this.toastText,
     };
   }
 
@@ -198,6 +215,7 @@ export class Game {
       this.current = this.desserts.next();
       this.progress.startRound(roundId);
       this.bonusPct = 0;
+      this.toastText = null;
     } else if (state === 'COOKING' && this.current) {
       this.roundStart = this.clockMs;
       this.cooking.start(this.current, roundId);
@@ -206,6 +224,13 @@ export class Game {
       this.cooking.cancel();
     }
     if (state === 'PRESENTING') this.startPresentation(roundId);
+    if (state === 'REWARDING') this.awardRound(roundId);
+  }
+
+  private awardRound(roundId: number): void {
+    if (!this.rewards || !this.current) return;
+    const r = this.rewards.award(this.current, { roundId, bonusPct: this.bonusPct, cookMs: this.clockMs - this.roundStart });
+    if (r) this.toastText = `+${r.score} คะแนน +${r.coins} เหรียญ${r.levelUp ? ' • เลเวลอัป!' : ''}`;
   }
 
   private startStepFx(anim: AnimId, sound: SoundId, stepMaxMs: number, index: number, roundId: number): void {
