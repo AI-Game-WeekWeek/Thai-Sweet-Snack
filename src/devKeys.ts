@@ -26,14 +26,15 @@ const ev = (t: DevKeyTargets, type: string, extra: Record<string, unknown> = {})
 };
 
 /** The test shortcuts (only active with ?keys=1, ?debug=1 or in the hosted demo). */
-export function devKeys(): DevKey[] {
+export function devKeys(opts: { named?: boolean } = {}): DevKey[] {
+  const named = opts.named !== false; // test mode gives gifts a made-up name; live mode sends none (a key press carries no viewer name)
   const gifts: DevKey[] = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
     key: String(n),
     label: `ของขวัญชั้น ${n} (ลูกค้าสั่งขนมตามชั้น)`,
     run: (t) => {
       const coins = t.giftCoins[n - 1];
       if (coins === undefined) return;
-      ev(t, 'gift', { giftCoins: coins, displayName: `ทดสอบ${n}` });
+      ev(t, 'gift', { giftCoins: coins, ...(named ? { displayName: `ทดสอบ${n}` } : {}) });
       return `ส่งของขวัญ ${coins} เหรียญ`;
     },
   }));
@@ -45,7 +46,7 @@ export function devKeys(): DevKey[] {
     { key: 'f', label: 'กดติดตาม → แมวกวักนำโชค', run: (t) => (ev(t, 'follow'), 'ติดตาม') },
     { key: 'o', label: 'หัวใจสีส้ม → ลูกค้า VIP + ฝนทิป', run: (t) => (ev(t, 'orangeHeart'), 'หัวใจสีส้ม') },
     { key: 's', label: 'แชร์ (โบนัสคะแนน + โควตาหมอผี +1)', run: (t) => (ev(t, 'share'), 'แชร์') },
-    { key: 'r', label: 'กุหลาบ (เอฟเฟกต์)', run: (t) => (ev(t, 'rose', { displayName: 'ทดสอบ' }), 'กุหลาบ') },
+    { key: 'r', label: 'กุหลาบ (เอฟเฟกต์)', run: (t) => (ev(t, 'rose', named ? { displayName: 'ทดสอบ' } : {}), 'กุหลาบ') },
     { key: 'p', label: 'โทรศัพท์ดัง → ผีไทยมา (ผีบีบถ้าช้า)', run: (t) => (t.game.callGhostNow() ? 'โทรศัพท์ดัง!' : 'มีผีอยู่แล้ว หรือคิวเต็ม') },
     ...(['นางรำ', 'ผีพราย', 'กระสือ', 'แม่นาค', 'ผีหิว'] as const).map((name, i): DevKey => ({
       key: ['q', 'w', 'e', 't', 'y'][i] as string,
@@ -88,7 +89,7 @@ export interface InstallOptions {
 
 /** Installs the keyboard handler and a small help panel (toggle with ? or h). Returns an uninstall function. */
 export function installDevKeys(t: DevKeyTargets, doc: Document = document, opts: InstallOptions = {}): () => void {
-  const keys = devKeys();
+  const keys = devKeys({ named: !opts.quiet });
   const panel = doc.createElement('div');
   panel.style.cssText = 'position:fixed;left:8px;bottom:8px;max-width:min(92vw,380px);max-height:70vh;overflow:auto;background:rgba(20,12,8,.86);color:#ffe9c8;font:12px/1.5 system-ui,sans-serif;padding:8px 10px;border-radius:10px;z-index:9;display:none';
   panel.innerHTML = '<b>คีย์ลัดทดสอบ</b> (กด ? หรือ h ซ่อน/แสดง)<br>' + keys.map((k) => `<kbd style="background:#4a2c17;border-radius:4px;padding:0 5px">${k.key.toUpperCase()}</kbd> ${k.label}`).join('<br>');

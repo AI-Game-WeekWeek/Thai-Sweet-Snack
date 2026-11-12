@@ -123,3 +123,19 @@ describe('test notes', () => {
     quiet();
   });
 });
+
+describe('live mode gifts carry no made-up name', () => {
+  it('quiet (live) mode sends gifts and roses without a display name; test mode names them', () => {
+    const a = targets();
+    const offA = installDevKeys(a.t, document, { quiet: true });
+    press('3');
+    press('r');
+    expect(a.events.map((e) => e.displayName)).toEqual([undefined, undefined]);
+    offA();
+    const b = targets();
+    const offB = installDevKeys(b.t);
+    press('3');
+    expect(b.events[0]!.displayName).toBe('ทดสอบ3');
+    offB();
+  });
+});
