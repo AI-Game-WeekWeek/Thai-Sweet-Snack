@@ -12,6 +12,7 @@ import type { RewardManager } from './reward/RewardManager';
 import type { SaveSystem } from './save/SaveSystem';
 import { dessertForGift } from './cafe/giftMenu';
 import { genderForSeed, politeEnding } from './cafe/gender';
+import { cleanName } from './tiktok/cleanName';
 import type { CafeQueue, Customer, CustomerKind } from './cafe/CafeQueue';
 import type { HeartMeter } from './cooking/HeartMeter';
 import type { VoteManager } from './vote/VoteManager';
@@ -226,6 +227,10 @@ export class Game {
   private shamanMs = 0;
   private shamanSplashed = false;
   private shamanQuota = 0;
+  /** Viewers who gifted and may come back to order again while they are still around (memory only, never saved). */
+  private readonly regulars = new Map<string, { name: string; avatarUrl: string | null; dessertId: string; giftMs: number; lastMs: number; returns: number }>();
+  private readonly returning = new Set<string>();
+  private regularCheckMs = 0;
   private shamanFromQuota = false;
   private ghostTamed = false;
   private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
@@ -624,6 +629,50 @@ export class Game {
     if (id) cafe.queue.enqueue({ viewer: false, dessertId: id });
   }
 
+  /** A viewer who gifted is remembered (in memory only) so they can come back to order while they are still around. */
+  private rememberRegular(rawName: string, avatarUrl: string | null, dessertId: string, fresh: boolean): void {
+    const name = cleanName(rawName, this.config.cafe.maxNameLength);
+    if (name === '' || this.config.cafe.anonymousNames) return;
+    const prev = this.regulars.get(name);
+    if (fresh) this.returning.delete(name);
+    this.regulars.delete(name); // re-insert: most recent last
+    this.regulars.set(name, {
+      name,
+      avatarUrl: avatarUrl ?? prev?.avatarUrl ?? null,
+      dessertId: fresh ? dessertId : (prev?.dessertId ?? dessertId),
+      giftMs: fresh ? this.clockMs : (prev?.giftMs ?? this.clockMs),
+      lastMs: this.clockMs,
+      returns: fresh ? 0 : (prev?.returns ?? 0),
+    });
+    while (this.regulars.size > 30) this.regulars.delete(this.regulars.keys().next().value as string);
+  }
+
+  /** Every so often a remembered viewer who gifted recently walks back in and orders the same dessert again. */
+  private tickRegulars(dt: number): void {
+    const cafe = this.cafe;
+    if (!cafe || this.regulars.size === 0) return;
+    this.regularCheckMs += dt;
+    if (this.regularCheckMs < 1000) return;
+    this.regularCheckMs = 0;
+    const c = this.config.cafe;
+    const now = this.clockMs;
+    const inCafe = new Set<string>([...cafe.queue.waiting().map((x) => x.name ?? ''), cafe.queue.current?.name ?? '']);
+    for (const [name, r] of this.regulars) {
+      if (now - r.giftMs > c.regularWindowMs || r.returns >= c.regularMaxReturns) {
+        this.regulars.delete(name);
+        continue;
+      }
+      if (now - r.lastMs < c.regularEveryMs || inCafe.has(name) || cafe.queue.waiting().length >= c.maxWaiting) continue;
+      const dessertId = this.desserts.unlockedIds.includes(r.dessertId) ? r.dessertId : c.defaultDessertId;
+      if (cafe.queue.enqueue({ viewer: true, name, avatarUrl: r.avatarUrl, dessertId }) === 'ok') {
+        r.returns += 1;
+        r.lastMs = now;
+        this.returning.add(name);
+      }
+      break; // one comes back at a time
+    }
+  }
+
   private tickCafe(dt: number): void {
     const cafe = this.cafe;
     if (!cafe || !this.manager.running) return;
@@ -637,8 +686,10 @@ export class Game {
       for (let i = 0; i < left.length * 5; i++) this.fx?.particles?.spawn({ x: WORLD_W / 2 + (i % 5) * 30 - 60, y: 400, vx: (i % 5) * 20 - 40, vy: -80, lifeMs: 700, size: 6, color: 'rgba(120,120,120,0.7)', g: -0.2 });
     }
     this.tickPhone(dt);
+    this.tickRegulars(dt);
     const c = this.config.cafe;
-    if (cafe.queue.waiting().length >= c.npcMinWaiting) this.npcTimer = 0;
+    // fewer than npcMinWaiting people in the café (the one being served counts): send in a bot
+    if (cafe.queue.waiting().length + (cafe.queue.current ? 1 : 0) >= c.npcMinWaiting) this.npcTimer = 0;
     else {
       this.npcTimer += dt;
       if (this.npcTimer >= c.npcSpawnEveryMs) {
@@ -765,6 +816,7 @@ export class Game {
       if (!dessertId) continue;
       const r = cafe.queue.enqueue({ viewer: true, name: anon ? null : (g.displayName ?? null), avatarUrl: anon ? null : (g.avatarUrl ?? null), dessertId });
       if (r === 'full') this.rewards?.addCoins(this.config.cafe.overflowGiftCoins);
+      else this.rememberRegular(anon ? '' : (g.displayName ?? ''), anon ? null : (g.avatarUrl ?? null), dessertId, true);
     }
   }
 
@@ -835,6 +887,13 @@ export class Game {
       const paid = this.cafe.queue.pay();
       const sur = this.config.cafe.surprise;
       if (paid) {
+        if (paid.customer.viewer && paid.customer.name) {
+          // after being served they stay on the list (a returning viewer just restarts the wait; their gift time does not change)
+          if (this.returning.delete(paid.customer.name)) {
+            const entry = this.regulars.get(paid.customer.name);
+            if (entry) entry.lastMs = this.clockMs; // already used up its returns: it is NOT put back on the list
+          }
+        }
         this.bonusPct += paid.happiness * this.config.cafe.payBonusMaxPct;
         if (paid.customer.kind === 'vip') this.bonusPct += sur.vip.payBonusPct;
         if (paid.customer.kind === 'phone' && !this.squeezed && !this.ghostTamed) this.bonusPct += sur.phone.payBonusPct;

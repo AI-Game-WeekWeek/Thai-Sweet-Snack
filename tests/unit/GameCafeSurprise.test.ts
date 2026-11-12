@@ -473,3 +473,55 @@ describe('shaman only banishes a ghost that is really there', () => {
     expect(game.renderView().cafe?.shamanQuota).toBe(0);
   });
 });
+
+describe('regulars come back, bots fill the line', () => {
+  const names = (g: Game) => { const c = g.snapshot().cafe!; return [...c.waiting, ...(c.serving ? [c.serving] : [])].filter((x) => x.viewer).map((x) => x.name); };
+  const seenAgain = (g: Game, name: string, ms: number) => { for (let t = 0; t < ms; t += 16) { g.update(16); if (names(g).includes(name)) return true; } return false; };
+  const served = (g: Game, name: string) => { runUntil(g, () => g.snapshot().cafe!.serving?.name === name, 400_000); runUntil(g, () => g.snapshot().state === 'NEXT_DESSERT' || g.snapshot().cafe!.serving?.name !== name, 400_000); };
+
+  it('a viewer who gifted comes back with the same order after a while, at most the configured number of times', () => {
+    const { game } = mk({}, { npcSpawnEveryMs: 1e9, regularEveryMs: 5000, regularWindowMs: 10 * 60_000, regularMaxReturns: 2 });
+    game.start();
+    gift(game, 20, 'มะลิ');
+    const firstDessert = () => { const c = game.snapshot().cafe!; return [...c.waiting, ...(c.serving ? [c.serving] : [])].find((x) => x.name === 'มะลิ')?.dessertId; };
+    runUntil(game, () => names(game).includes('มะลิ'), 200_000);
+    const dessert = firstDessert();
+    served(game, 'มะลิ');
+    advance(game, 200);
+    for (let back = 1; back <= 2; back++) {
+      expect(seenAgain(game, 'มะลิ', 60_000), `return ${back}`).toBe(true);
+      expect(firstDessert()).toBe(dessert);
+      served(game, 'มะลิ');
+      advance(game, 200);
+    }
+    expect(seenAgain(game, 'มะลิ', 40_000)).toBe(false); // used up its returns
+  });
+
+  it('stops coming back when it has not gifted for the whole window, and never when names are hidden', () => {
+    const a = mk({}, { npcSpawnEveryMs: 1e9, regularEveryMs: 5000, regularWindowMs: 20_000 });
+    a.game.start();
+    gift(a.game, 5, 'น้ำฝน');
+    runUntil(a.game, () => names(a.game).includes('น้ำฝน'), 200_000);
+    served(a.game, 'น้ำฝน');
+    advance(a.game, 30_000); // longer than the window
+    expect(seenAgain(a.game, 'น้ำฝน', 30_000)).toBe(false);
+
+    const b = mk({}, { npcSpawnEveryMs: 1e9, regularEveryMs: 5000, anonymousNames: true });
+    b.game.start();
+    gift(b.game, 5, 'ลับ');
+    advance(b.game, 120_000);
+    expect(names(b.game).includes('ลับ')).toBe(false);
+  });
+
+  it('with no viewers at all the line is kept at 3 by bots', () => {
+    const { game } = mk();
+    game.start();
+    let frames = 0;
+    let low = 0;
+    for (let t = 0; t < 120_000; t += 16) {
+      game.update(16);
+      if (t > 20_000) { const c = game.snapshot().cafe!; frames++; if (c.waitingTotal + (c.serving ? 1 : 0) < 3) low++; }
+    }
+    expect(low / frames).toBeLessThan(0.1); // below 3 only for the moment a bot is on its way
+  });
+});

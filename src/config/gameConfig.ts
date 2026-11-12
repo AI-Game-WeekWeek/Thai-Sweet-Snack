@@ -44,6 +44,10 @@ export interface GameConfig {
     /** Anonymous customers arrive this often while fewer than npcMinWaiting are waiting. */
     npcSpawnEveryMs: number;
     npcMinWaiting: number;
+    /** A viewer who gifted comes back to order again this often (while still active), at most regularMaxReturns times; active = gifted within regularWindowMs. */
+    regularEveryMs: number;
+    regularWindowMs: number;
+    regularMaxReturns: number;
     maxGiftsPerDrain: number;
     /** What anonymous customers order. Every other dessert is ordered only by a viewer's gift (or a VIP / phone call). */
     defaultDessertId: string;
@@ -113,8 +117,12 @@ export const defaultConfig: GameConfig = {
     maxWaiting: 12,
     visible: 5,
     patienceMs: 70_000,
-    npcSpawnEveryMs: 7000,
-    npcMinWaiting: 4,
+    npcSpawnEveryMs: 700,
+    // fewer than 3 people waiting: bots (anonymous customers) are sent in, so the café is never empty
+    npcMinWaiting: 3,
+    regularEveryMs: 75_000,
+    regularWindowMs: 15 * 60_000,
+    regularMaxReturns: 4,
     maxGiftsPerDrain: 20,
     overflowGiftCoins: 2,
     defaultDessertId: 'khao-tom-mat',
