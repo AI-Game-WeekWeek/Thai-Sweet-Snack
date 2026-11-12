@@ -1,6 +1,6 @@
 # Thai Café Mode (Round 1) — Design Spec (draft for review)
 
-Date: 2026-11-12 · Status: **waiting for user review, no code written yet**
+Date: 2026-11-12 · Status: **implemented and tested (Round 1); Round 2 surprise events not started**
 Builds on: `2026-11-12-thai-dessert-asmr-design.md` and `2026-11-12-menu-vote-mode-design.md` (both implemented and tested).
 
 ## 1. Idea
@@ -119,3 +119,9 @@ never saved; works with no viewers and without TikTok; vote and classic mode tes
 Pictures, names and gift values depend on the event provider (none verified); art is procedural and simple; sound and visuals are
 checked by tests and screenshots, not on a live stream; the surprise events and the phone call are Round 2. Orange heart and fan club are
 treated as one event (`orangeHeart` in our event format); whether a given provider sends it is not verified.
+
+## 12. Changes made during build
+
+- The shop opens with a visible queue (anonymous customers are pre-seeded) instead of an empty counter.
+- Large gifts no longer complete a cooking step in café mode: every gift is an order (the old `completeStep` rule applies to classic mode only).
+- A gift with an unknown value counts as 1 coin; a name or picture that fails validation just makes the customer anonymous.

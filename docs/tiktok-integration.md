@@ -21,7 +21,11 @@ small local bridge. Any source you are entitled to use only has to POST events i
 - `id`: unique per event (duplicates are dropped). `tsMs`: source time in ms, advisory only: the game stamps the receive time, never trusts a future time, and treats nothing as older than `events.maxSourceLagMs` (3 s), so provider clock skew costs at most the first 3 s of a dessert. Events that are genuinely late (from an earlier dessert) are ignored.
 - `count`: batch size (likes 1–1000), otherwise 1. `giftCoins`: value of a gift; at or above `events.largeGiftCoins` (default 100) it completes the current step.
 - Event types your provider cannot supply simply never arrive; the game does not depend on any of them.
-- **Menu votes** use `{"id":"c1","type":"comment","text":"2","userId":"opaque-viewer-key","tsMs":...}`. Only comments that are exactly
+- **Gifts** (café mode): `{"id":"g1","type":"gift","giftCoins":50,"displayName":"พี่ต้น","avatarUrl":"https://…/p.jpg","tsMs":...}`.
+  `giftCoins` picks the dessert (missing = 1 coin); `displayName` (cleaned, max 16 characters shown) and `avatarUrl` (https only) are
+  kept **only on gift and rose events**, shown while that customer is on screen, never saved. The bridge relays them, so use a
+  provider you trust with viewer names. Pictures are not loaded unless you allow their host in `cafe.avatar.hosts`.
+- **Menu votes** (vote mode) use `{"id":"c1","type":"comment","text":"2","userId":"opaque-viewer-key","tsMs":...}`. Only comments that are exactly
   `1`, `2` or `3` (or `#1`..`#3`) count; ordinary chat is accepted and ignored (the bridge answers 202 with `ignored` > 0, so a provider never sees an error for
   chatter; 400 is only for requests where nothing is understood). The bridge reduces a comment to `{"type":"comment","vote":2,"userId":...}` and **drops the text**, so it never
   reaches the game. `userId` should be an opaque key (not a nickname) and is used only for one vote per viewer per round.
