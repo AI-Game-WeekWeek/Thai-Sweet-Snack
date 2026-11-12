@@ -3,6 +3,8 @@ import { StateMachine, TRANSITIONS, type GameState } from './StateMachine';
 
 export interface GameHooks {
   onEnter?(state: GameState, roundId: number): void;
+  /** Called each valid update with the clamped dt, before timers are checked. */
+  onTick?(state: GameState, dtMs: number, roundId: number): void;
   /** Called once when a round ends (entering NEXT_DESSERT); later phases cancel animations/voices/events here. */
   onCleanupRound?(roundId: number): void;
 }
@@ -55,13 +57,18 @@ export class GameManager {
     const key = TIMING_KEY[state];
     if (!key) return;
 
-    this.stateElapsedMs += Math.min(dtMs, this.config.maxFrameMs);
+    const dt = Math.min(dtMs, this.config.maxFrameMs);
+    this.safely(() => this.hooks.onTick?.(state, dt, this.roundId));
+    // A hook may have moved the state (e.g. cooking finished); that was this update's transition.
+    if (this.machine.state !== state) return;
+
+    this.stateElapsedMs += dt;
 
     if (this.stateElapsedMs >= this.config.maxMs[key]) {
       console.warn(`[GameManager] watchdog forced ${state} to advance (round ${this.roundId})`);
       this.advance(state);
-    } else if (this.stateElapsedMs >= this.config.durationsMs[key]) {
-      // In COOKING this expiry is the PLACEHOLDER auto-complete.
+    } else if (this.stateElapsedMs >= this.config.durationsMs[key] && (state !== 'COOKING' || this.config.placeholderCooking)) {
+      // In COOKING this expiry is the PLACEHOLDER auto-complete (only when placeholderCooking is on).
       this.advance(state);
     }
   }

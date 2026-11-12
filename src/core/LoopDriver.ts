@@ -1,4 +1,7 @@
-import type { GameManager } from './GameManager';
+/** Anything the loop can drive. */
+export interface Updatable {
+  update(dtMs: number): void;
+}
 
 type Raf = (cb: (t: number) => void) => number;
 type Caf = (id: number) => void;
@@ -10,7 +13,7 @@ export class LoopDriver {
   private lastT: number | null = null;
 
   constructor(
-    private readonly game: GameManager,
+    private readonly game: Updatable,
     private readonly raf: Raf = (cb) => requestAnimationFrame(cb),
     private readonly caf: Caf = (id) => cancelAnimationFrame(id),
   ) {}

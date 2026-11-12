@@ -143,4 +143,54 @@ describe('GameManager', () => {
     g.update(100);
     expect(g.snapshot().state).toBe('IDLE');
   });
+
+  it('onTick gets the clamped dt only for valid dt while running', () => {
+    const ticks: [GameState, number, number][] = [];
+    const g = new GameManager(defaultConfig, { onTick: (st, dt, id) => ticks.push([st, dt, id]) });
+    g.update(100); // not running
+    g.start();
+    g.update(60_000);
+    g.update(NaN);
+    g.update(-1);
+    g.update(16);
+    expect(ticks).toEqual([
+      ['PREPARING', defaultConfig.maxFrameMs, 1],
+      ['PREPARING', 16, 1],
+    ]);
+  });
+
+  it('a state change made inside onTick (completeRound) ends that update without a second transition', () => {
+    const seen: GameState[] = [];
+    let g!: GameManager;
+    g = new GameManager(defaultConfig, {
+      onEnter: (s) => seen.push(s),
+      onTick: (st, _dt, id) => {
+        if (st === 'COOKING') g.completeRound(id);
+      },
+    });
+    g.start();
+    for (let i = 0; i < 20 && g.snapshot().state !== 'COOKING'; i++) g.update(100);
+    g.update(100);
+    expect(g.snapshot().state).toBe('PRESENTING');
+    expect(g.snapshot().stateElapsedMs).toBe(0);
+    expect(seen.filter((s) => s === 'PRESENTING')).toHaveLength(1);
+  });
+
+  it('with placeholderCooking=false COOKING ignores the nominal duration and ends at the watchdog', () => {
+    const live: GameConfig = {
+      ...defaultConfig,
+      placeholderCooking: false,
+      maxMs: { ...defaultConfig.maxMs, cooking: 5000 },
+    };
+    const g = new GameManager(live);
+    g.start();
+    runUntil(g, () => g.snapshot().state === 'COOKING');
+    let t = 0;
+    while (g.snapshot().state === 'COOKING') {
+      g.update(100);
+      t += 100;
+      expect(t).toBeLessThanOrEqual(5100);
+    }
+    expect(t).toBeGreaterThanOrEqual(4900);
+  });
 });
