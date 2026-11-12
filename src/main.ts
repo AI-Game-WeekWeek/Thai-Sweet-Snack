@@ -143,6 +143,13 @@ if (bridgeParam && /^wss?:\/\//i.test(bridgeParam)) {
 
 // Create the audio context right away (OBS browser sources allow it; nobody clicks there). Where the browser
 // blocks it until a gesture, keep retrying on every gesture until the context is really running.
+// Recorded sounds (cat meow, ghost wail) replace the synthesized ones once loaded; the demo build inlines them.
+{
+  const inline = (globalThis as { __SFX__?: Record<string, string> }).__SFX__;
+  audio.registerSample('meow', inline?.meow ?? 'sfx/cat.mp3');
+  audio.registerSample('ghost', inline?.ghost ?? 'sfx/ghost.mp3');
+  audio.registerSample('ring', inline?.ring ?? 'sfx/ring.mp3');
+}
 audio.unlock();
 const gestures = ['pointerup', 'click', 'keydown', 'touchend'] as const;
 const retryUnlock = (): void => {

@@ -146,6 +146,11 @@ export const CAFE_PICS = {
   crown: 'prop-11',
   coin: 'prop-12',
   glow: 'fx-21',
+  ghosts: ['ghost-1', 'ghost-2', 'ghost-3', 'ghost-4', 'ghost-5'],
+  ghostHands: 'ghost-6',
+  wisps: 'halo-1',
+  mist: 'halo-2',
+  frame: 'halo-8',
 } as const;
 
 function allNames(): string[] {

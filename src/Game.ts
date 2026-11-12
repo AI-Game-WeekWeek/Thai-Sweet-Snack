@@ -577,7 +577,7 @@ export class Game {
     if (sur.follows > 0) {
       this.luckyCatMs = Math.min(cfg.luckyCat.maxMs, this.luckyCatMs + sur.follows * cfg.luckyCat.durationMs);
       this.sparkle(910, 432, 14);
-      this.fx?.audio.play('pop', this.soundRound(roundId));
+      this.fx?.audio.play('meow', this.soundRound(roundId));
     }
     if (sur.orangeHearts > 0 && this.vipCooldownMs <= 0) {
       this.vipCooldownMs = cfg.vip.cooldownMs;

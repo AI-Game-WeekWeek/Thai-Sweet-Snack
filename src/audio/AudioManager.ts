@@ -34,6 +34,8 @@ const RECIPES: Record<SoundId, Recipe> = {
   reward: { durationSec: 1.1, peak: 0.42, attackSec: 0.01, arp: [523, 659, 784, 1047, 1319], noise: { filter: 'highpass', freq: 6500, q: 0.5 } },
   // A friendly Thai ghost arrives: a high, thin wavering wail with a breath of wind.
   ghost: { durationSec: 1.9, peak: 0.4, attackSec: 0.4, tone: { type: 'sine', from: 780, to: 420, level: 1 }, noise: { filter: 'bandpass', freq: 1800, freqTo: 900, q: 3 }, lfo: { hz: 5.5, depth: 0.7 } },
+  // Lucky cat meow (used only when the recorded sample is not available).
+  meow: { durationSec: 0.6, peak: 0.4, attackSec: 0.05, tone: { type: 'triangle', from: 520, to: 900, level: 1 }, lfo: { hz: 7, depth: 0.4 } },
   coin: { durationSec: 0.35, peak: 0.4, attackSec: 0.005, tone: { type: 'sine', from: 1400, to: 2100, level: 1 } },
 };
 
@@ -79,6 +81,7 @@ export class AudioManager {
       if (this.ctx.state === 'suspended') {
         void this.ctx.resume().catch((err) => console.warn('[AudioManager] resume blocked', err));
       }
+      if (this.pendingSamples.length > 0) void this.loadPending();
     } catch (err) {
       console.warn('[AudioManager] audio unavailable, staying silent', err);
       this.ctx = null;
@@ -91,10 +94,64 @@ export class AudioManager {
     if (muted) for (const v of [...this.voices.values()]) this.stopVoice(v);
   }
 
+  private readonly samples = new Map<string, AudioBuffer>();
+  private readonly pendingSamples: [string, string][] = [];
+
+  /** Registers a recorded sound for an id (an url, or a data: url). It replaces the synthesized one once loaded; failures keep the synth. */
+  registerSample(id: SoundId, url: string): void {
+    this.pendingSamples.push([id, url]);
+    if (this.ctx) void this.loadPending();
+  }
+
+  private async loadPending(): Promise<void> {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    while (this.pendingSamples.length > 0) {
+      const [id, url] = this.pendingSamples.shift() as [string, string];
+      try {
+        let data: ArrayBuffer;
+        const m = /^data:[^;,]*;base64,(.*)$/s.exec(url);
+        if (m) {
+          const bin = atob(m[1] as string);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          data = bytes.buffer;
+        } else {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          data = await res.arrayBuffer();
+        }
+        this.samples.set(id, await ctx.decodeAudioData(data));
+      } catch (err) {
+        console.warn('[AudioManager] sample not loaded, keeping the synthesized sound', id, err);
+      }
+    }
+  }
+
+  private playSample(buf: AudioBuffer, peak: number, roundId: number): boolean {
+    const ctx = this.ctx;
+    const master = this.master;
+    if (!ctx || !master) return false;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const out = ctx.createGain();
+    out.gain.value = peak;
+    src.connect(out);
+    out.connect(master);
+    const voice: Voice = { id: this.nextId++, roundId, sources: [src], out };
+    src.onended = () => this.release(voice);
+    src.start();
+    this.voices.set(voice.id, voice);
+    while (this.voices.size > this.config.audio.maxVoices) this.stopVoice(this.voices.values().next().value as Voice);
+    return true;
+  }
+
   play(sound: SoundId, roundId: number): boolean {
     const recipe = RECIPES[sound] as Recipe | undefined;
     if (!recipe || this.muted || !this.ctx || !this.master) return false;
     try {
+      const sample = this.samples.get(sound);
+      if (sample) return this.playSample(sample, 0.9, roundId);
       const voice = this.build(this.ctx, this.master, recipe, roundId);
       this.voices.set(voice.id, voice);
       while (this.voices.size > this.config.audio.maxVoices) {

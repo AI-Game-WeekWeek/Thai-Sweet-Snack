@@ -77,6 +77,15 @@ export class CafeRenderer {
         const f = 0.3 + 0.1 * Math.sin(this.timeMs / 90) * Math.sin(this.timeMs / 370);
         ctx.fillStyle = `rgba(20,28,70,${Math.max(0.15, f).toFixed(3)})`;
         ctx.fillRect(0, 0, CAFE_W, CAFE_H);
+        const frame = artImage(CAFE_PICS.frame);
+        if (frame) {
+          ctx.save();
+          ctx.globalAlpha = 0.55 + 0.2 * Math.sin(this.timeMs / 400);
+          ctx.drawImage(frame, -40, -40, CAFE_W + 80, CAFE_H + 80);
+          ctx.restore();
+        }
+        drawArt(ctx, CAFE_PICS.wisps, 140 + Math.sin(this.timeMs / 1400) * 30, 900 + Math.sin(this.timeMs / 1100) * 20, 200, 260);
+        drawArt(ctx, CAFE_PICS.wisps, 960 + Math.sin(this.timeMs / 1300) * 30, 1000 + Math.sin(this.timeMs / 900) * 20, 180, 230);
       });
       this.safely('menu', () => this.drawGiftMenu(ctx, view.cafe));
       this.safely('station', () => {
@@ -189,6 +198,15 @@ export class CafeRenderer {
     g.addColorStop(1, `rgba(120,0,40,${(0.25 + 0.5 * sq).toFixed(3)})`);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, CAFE_W, CAFE_H);
+    // the ghost's hands close in from both sides
+    const hands = artImage(CAFE_PICS.ghostHands);
+    if (hands) {
+      ctx.save();
+      ctx.globalAlpha = 0.18 + 0.4 * sq;
+      // the hands start wide at the screen edges and close in as the squeeze grows
+      drawArt(ctx, CAFE_PICS.ghostHands, CAFE_W / 2, 790, 1200 - 380 * sq, 420);
+      ctx.restore();
+    }
     const cx = CAFE_W / 2;
     const y = 1000;
     ctx.fillStyle = 'rgba(40,10,30,0.8)';
@@ -777,6 +795,25 @@ export class CafeRenderer {
     const float = Math.sin(t + c.id) * 10;
     const y = baseY - 14 + float;
     const krasue = outfitIndex(c.seed) % 2 === 0;
+    // painted ghost when the pictures are loaded (นางรำ, ผีพราย, กระสือ, แม่นาค, ผีหิว), otherwise the drawn one below
+    const pic = CAFE_PICS.ghosts[Math.abs(Math.floor(Number.isFinite(c.seed) ? c.seed : 0)) % CAFE_PICS.ghosts.length] as string;
+    if (artImage(pic)) {
+      const fl = 0.8 + 0.2 * Math.sin(this.timeMs / 130 + c.id) * Math.sin(this.timeMs / 530);
+      ctx.save();
+      try {
+        drawArt(ctx, CAFE_PICS.mist, x, baseY + r * 2.6, r * 3.4, r * 0.9);
+        ctx.globalAlpha = Math.max(0.45, fl);
+        drawArt(ctx, pic, x + Math.sin(this.timeMs / 900 + c.id) * 4, y + r * 1.15, r * 3.7, r * 5.0, Math.sin(this.timeMs / 1100 + c.id) * 0.03);
+      } finally {
+        ctx.restore();
+      }
+      this.text(ctx, 'ผี', x, y + r * 3.6, Math.round(r * 0.5), '#d6e4ff', INK);
+      if (!c.serving) {
+        this.drawPatience(ctx, x, y + r * 4.05, r * 2, c.patience);
+        this.text(ctx, clip(c.dessertNameTh, 11), x, y - r - 22, Math.round(r * 0.36), '#fff3dc', INK);
+      }
+      return;
+    }
     // an uneasy flicker: now and then the ghost fades for a blink
     const flick = 0.78 + 0.22 * Math.sin(this.timeMs / 130 + c.id) * Math.sin(this.timeMs / 530);
     const sway = Math.sin(t * 0.8 + c.id) * 0.05;

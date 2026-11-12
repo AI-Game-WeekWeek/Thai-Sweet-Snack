@@ -168,4 +168,22 @@ describe('AudioManager', () => {
     a.unlock();
     expect(resumes).toBe(3);
   });
+
+  it('a registered recorded sample replaces the synthesized sound once decoded; a broken sample keeps the synth', async () => {
+    const { ctx, a } = mk();
+    (ctx as unknown as { decodeAudioData: (d: ArrayBuffer) => Promise<unknown> }).decodeAudioData = async () => ({ duration: 1 });
+    a.unlock();
+    a.registerSample('ghost', 'data:audio/mpeg;base64,AAAA');
+    a.registerSample('meow', 'data:audio/mpeg;base64,@@@@');
+    (ctx as unknown as { decodeAudioData: (d: ArrayBuffer) => Promise<unknown> }).decodeAudioData = async (d: ArrayBuffer) => {
+      if (d.byteLength === 0) throw new Error('bad');
+      return { duration: 1 };
+    };
+    await new Promise((r) => setTimeout(r, 20));
+    const before = ctx.sources.length;
+    expect(a.play('ghost', 1)).toBe(true);
+    expect(ctx.sources.length - before).toBe(1); // one buffer source, no oscillator or noise built
+    expect(a.play('meow', 1)).toBe(true); // falls back to the synthesized meow when the sample failed
+    expect(a.activeVoices).toBe(2);
+  });
 });
