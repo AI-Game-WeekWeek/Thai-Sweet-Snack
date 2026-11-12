@@ -159,6 +159,9 @@ export class Game {
   private current: DessertDef | null = null;
 
   private stepKind: AnimId | null = null;
+  private stepSound: SoundId | null = null;
+  private soundAcc = 0;
+  private dripAcc = 0;
   private stepT = 0;
   private presentT: number | null = null;
   private wobble = 0;
@@ -249,7 +252,10 @@ export class Game {
     this.fx?.particles?.update(dt);
     this.wobble = Math.max(0, this.wobble - dt / 700);
     if (this.cafe) this.tickCafe(dt);
-    if (this.stepKind && this.manager.snapshot().state === 'COOKING') this.emitParticles(this.stepKind, dt);
+    if (this.stepKind && this.manager.snapshot().state === 'COOKING') {
+      this.emitParticles(this.stepKind, dt);
+      this.tickStepSound(dt);
+    }
     this.applyEvents();
   }
 
@@ -661,7 +667,34 @@ export class Game {
       roundId,
     );
     this.finalAnim = isLast ? handle : null;
+    this.stepSound = sound;
+    this.soundAcc = 0;
+    this.dripAcc = 0;
     fx.audio.play(sound, roundId);
+  }
+
+  /** Keeps the cooking sound going for the whole step (not just a blip at its start), with small detail sounds on top. */
+  private tickStepSound(dt: number): void {
+    const audio = this.fx?.audio;
+    const sound = this.stepSound;
+    if (!audio || !sound) return;
+    const roundId = this.manager.snapshot().roundId;
+    const heart = Math.max(1, this.cafe?.meter.value ?? this.vote?.meter.value ?? 0);
+    const speed = Number.isFinite(heart) ? Math.min(3, heart) : 1;
+    this.soundAcc += dt * (sound === 'stir' || sound === 'sizzle' ? speed : 1);
+    this.dripAcc += dt;
+    const period: Partial<Record<SoundId, number>> = { stir: 520, pour: 850, syrup: 800, steam: 1200, boil: 1000, sizzle: 1000, pop: 700, arrange: 700, slice: 600 };
+    const every = period[sound] ?? 900;
+    if (this.soundAcc >= every) {
+      this.soundAcc = 0;
+      audio.play(sound === 'stir' ? 'slosh' : sound, roundId);
+    }
+    const detail = sound === 'pour' || sound === 'syrup' ? 'drip' : sound === 'boil' || sound === 'steam' ? 'bubble' : sound === 'stir' ? 'slosh' : null;
+    const detailEvery = detail === 'drip' ? 420 : detail === 'bubble' ? 330 : 520;
+    if (detail && this.dripAcc >= detailEvery) {
+      this.dripAcc = 0;
+      if (detail !== 'slosh') audio.play(detail, roundId);
+    }
   }
 
   /** Cooking reached 100%: finish once the last step's animation is done (or its timeout fired). */
@@ -679,6 +712,7 @@ export class Game {
     this.pendingComplete = null;
     this.finalAnim = null;
     this.stepKind = null;
+    this.stepSound = null;
     if (!fx) return;
     fx.animations.cancelRound(roundId); // drop any step animation that outlived COOKING
     this.presentT = 0;
@@ -713,6 +747,7 @@ export class Game {
     this.pendingComplete = null;
     this.finalAnim = null;
     this.stepKind = null;
+    this.stepSound = null;
     this.stepT = 0;
     this.presentT = null;
     this.emitAcc = 0;

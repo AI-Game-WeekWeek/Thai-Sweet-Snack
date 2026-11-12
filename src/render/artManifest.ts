@@ -112,7 +112,7 @@ export const SERVED_PICS: Record<ArtId, readonly string[]> = {
   parcel: ['ktmCover-1'],
   layered: ['chan-1'],
   fruit: ['menu-7'],
-  thread: ['menu-5'],
+  thread: ['foithong-2'],
   flower: ['menu-6'],
   syrupBall: ['thongyodA-2'],
   bowl: ['bualoy-2'],

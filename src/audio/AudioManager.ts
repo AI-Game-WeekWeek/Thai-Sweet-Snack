@@ -13,7 +13,7 @@ interface Recipe {
 }
 
 const RECIPES: Record<SoundId, Recipe> = {
-  pour: { durationSec: 1.0, peak: 0.5, attackSec: 0.08, noise: { filter: 'lowpass', freq: 1400, freqTo: 600, q: 0.7 } },
+  pour: { durationSec: 1.0, peak: 0.5, attackSec: 0.08, noise: { filter: 'bandpass', freq: 1900, freqTo: 1100, q: 0.9 }, lfo: { hz: 13, depth: 0.3 } },
   stir: { durationSec: 0.9, peak: 0.35, attackSec: 0.05, noise: { filter: 'bandpass', freq: 700, q: 2 }, lfo: { hz: 3, depth: 0.5 } },
   syrup: { durationSec: 0.9, peak: 0.3, attackSec: 0.1, noise: { filter: 'lowpass', freq: 500, q: 1 }, tone: { type: 'sine', from: 280, to: 520, level: 0.25 } },
   steam: { durationSec: 1.3, peak: 0.28, attackSec: 0.35, noise: { filter: 'highpass', freq: 2800, q: 0.5 } },
@@ -24,6 +24,10 @@ const RECIPES: Record<SoundId, Recipe> = {
   pop: { durationSec: 0.28, peak: 0.5, attackSec: 0.01, tone: { type: 'sine', from: 620, to: 1240, level: 1 } },
   // Telephone trill and a coin ping (café surprise events).
   ring: { durationSec: 1.1, peak: 0.35, attackSec: 0.01, tone: { type: 'triangle', from: 760, to: 900, level: 1 }, lfo: { hz: 18, depth: 0.9 } },
+  // Cooking details: spoon sloshing through batter, a drip landing in liquid, a bubble popping.
+  slosh: { durationSec: 0.55, peak: 0.42, attackSec: 0.08, noise: { filter: 'bandpass', freq: 380, freqTo: 620, q: 1.6 }, lfo: { hz: 4, depth: 0.45 } },
+  drip: { durationSec: 0.16, peak: 0.4, attackSec: 0.004, tone: { type: 'sine', from: 1900, to: 520, level: 1 } },
+  bubble: { durationSec: 0.12, peak: 0.3, attackSec: 0.005, tone: { type: 'sine', from: 320, to: 760, level: 1 } },
   coin: { durationSec: 0.35, peak: 0.4, attackSec: 0.005, tone: { type: 'sine', from: 1400, to: 2100, level: 1 } },
 };
 
