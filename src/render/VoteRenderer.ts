@@ -2,7 +2,7 @@ import type { ParticleSystem } from '../anim/ParticleSystem';
 import { WORLD_H, WORLD_W, type RenderView } from '../Game';
 import { Renderer } from './Renderer';
 
-const FONT = '"Noto Sans Thai", system-ui, sans-serif';
+const FONT = '"Mali", "Noto Sans Thai", system-ui, sans-serif';
 /** Fixed, high-contrast colour per menu slot (dessert palettes are pastel and vanish on the cream board). */
 const SLOT_COLORS = ['#e06666', '#4a90d9', '#58a55c'] as const;
 const clamp01 = (n: number): number => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0);
@@ -57,7 +57,7 @@ export class VoteRenderer {
   }
 
   private text(ctx: CanvasRenderingContext2D, s: string, x: number, y: number, size: number, fill = '#fff', stroke = '#3b2a1a'): void {
-    ctx.font = `800 ${size}px ${FONT}`;
+    ctx.font = `700 ${size}px ${FONT}`;
     ctx.lineWidth = Math.max(4, size / 6);
     ctx.strokeStyle = stroke;
     ctx.strokeText(s, x, y);

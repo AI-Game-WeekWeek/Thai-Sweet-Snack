@@ -13,6 +13,8 @@ import { RewardManager } from './reward/RewardManager';
 import { SaveSystem, type StorageLike } from './save/SaveSystem';
 import { UIManager } from './ui/UIManager';
 import { AvatarCache } from './render/AvatarCache';
+import '@fontsource/mali/thai-700.css';
+import '@fontsource/mali/latin-700.css';
 import { CafeRenderer } from './render/CafeRenderer';
 import { preloadArt } from './render/artImages';
 import { ALL_PIC_NAMES } from './render/artManifest';

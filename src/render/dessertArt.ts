@@ -1,6 +1,6 @@
 import type { ArtId } from '../dessert/types';
 import { artImage, drawArt } from './artImages';
-import { COOK_PICS, SERVED_PICS } from './artManifest';
+import { COOK_SCENES, FX_PICS, SERVED_PICS, type Fx, type Motion } from './artManifest';
 
 /**
  * Per-dessert art: each Thai dessert has its own cooking scene (following how it is really made) and its own served
@@ -446,24 +446,167 @@ const SCENES: Record<ArtId, Scene> = {
   crepe: crepeScene,
 };
 
-/** Watercolor pictures for one recipe step; false when none of them is loaded (the shapes are drawn instead). */
+const smooth = (t: number): number => t * t * (3 - 2 * t);
+
+interface Pose {
+  dx: number;
+  dy: number;
+  rot: number;
+  sx: number;
+  sy: number;
+}
+const REST: Pose = { dx: 0, dy: 0, rot: 0, sx: 1, sy: 1 };
+
+/** How a picture moves at `time` (ms). Pure; hostile numbers give the rest pose. */
+function poseOf(m: Motion | undefined, size: number, time: number): Pose {
+  if (!m) return REST;
+  const w = (time / 1000) * Math.PI * 2 * (m.speed ?? 1) * 0.9;
+  switch (m.m) {
+    case 'rock':
+      return { ...REST, rot: m.a * Math.sin(w) };
+    case 'orbit':
+      return { dx: m.r * Math.cos(w), dy: m.r * 0.45 * Math.sin(w), rot: (m.tilt ?? 0) * Math.sin(w + 1), sx: 1, sy: 1 };
+    case 'dip':
+      return { ...REST, dy: m.h * (0.5 + 0.5 * Math.sin(w)) };
+    case 'slide':
+      return { ...REST, dx: m.dx * Math.sin(w), dy: (m.dy ?? 0) * Math.sin(w * 2) };
+    case 'pulse':
+      return { ...REST, sx: 1 + m.k * Math.sin(w), sy: 1 + m.k * Math.sin(w) };
+    case 'squash':
+      return { ...REST, sx: 1 + m.k * Math.sin(w), sy: 1 - m.k * Math.sin(w) };
+    case 'swing': {
+      const rot = m.a * Math.sin(w);
+      const px = m.px * size;
+      const py = m.py * size;
+      // rotate about the pivot (px, py) relative to the picture centre
+      return { dx: px - (px * Math.cos(rot) - py * Math.sin(rot)), dy: py - (px * Math.sin(rot) + py * Math.cos(rot)), rot, sx: 1, sy: 1 };
+    }
+    default:
+      return REST;
+  }
+}
+
+/** A looping value 0..1 for the i-th particle of an effect. */
+const phaseOf = (time: number, i: number, n: number, periodMs: number): number => (((time / periodMs + i / Math.max(1, n)) % 1) + 1) % 1;
+
+/** Moving effects over a scene: steam, bubbles, sparkles, falling drops. Pictures when loaded, simple shapes otherwise. */
+function drawFx(ctx: CanvasRenderingContext2D, fx: Fx, time: number): void {
+  const n = Math.min(8, Math.max(1, Math.floor(fx.n ?? 3)));
+  const w = fx.w ?? 160;
+  for (let i = 0; i < n; i++) {
+    const seed = Math.sin((i + 1) * 12.9898) * 43758.5453;
+    const rnd = seed - Math.floor(seed); // fixed per particle, 0..1
+    const xOff = (rnd - 0.5) * w;
+    if (fx.kind === 'steam') {
+      const p = phaseOf(time, i, n, 2600);
+      const name = FX_PICS.steam[i % FX_PICS.steam.length] as string;
+      ctx.save();
+      try {
+        ctx.globalAlpha = Math.sin(Math.PI * p) * 0.75;
+        const size = 70 + p * 70;
+        if (!drawArt(ctx, name, fx.x + xOff + Math.sin(time / 500 + i) * 10, fx.y - p * 130, size, size * 1.2)) {
+          ctx.fillStyle = 'rgba(255,255,255,0.7)';
+          ctx.beginPath();
+          ctx.arc(fx.x + xOff, fx.y - p * 130, 10 + p * 18, 0, TAU);
+          ctx.fill();
+        }
+      } finally {
+        ctx.restore();
+      }
+    } else if (fx.kind === 'bubbles') {
+      const p = phaseOf(time, i, n, 1500 + rnd * 600);
+      const name = FX_PICS.bubbles[i % FX_PICS.bubbles.length] as string;
+      ctx.save();
+      try {
+        ctx.globalAlpha = Math.sin(Math.PI * p);
+        const size = 26 + rnd * 22 + p * 12;
+        if (!drawArt(ctx, name, fx.x + xOff, fx.y - p * 46, size, size)) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(fx.x + xOff, fx.y - p * 46, 5 + rnd * 7, 0, TAU);
+          ctx.stroke();
+        }
+      } finally {
+        ctx.restore();
+      }
+    } else if (fx.kind === 'sparkle') {
+      const p = phaseOf(time, i, n, 1400);
+      const s = Math.sin(Math.PI * p);
+      const name = FX_PICS.sparkle[i % FX_PICS.sparkle.length] as string;
+      const yOff = (((rnd * 7.3) % 1) - 0.5) * 120;
+      ctx.save();
+      try {
+        ctx.globalAlpha = s;
+        const size = 22 + s * 34;
+        if (!drawArt(ctx, name, fx.x + xOff, fx.y + yOff, size, size, p * 1.2)) {
+          ctx.fillStyle = '#ffe08a';
+          ctx.beginPath();
+          ctx.arc(fx.x + xOff, fx.y + yOff, 3 + s * 6, 0, TAU);
+          ctx.fill();
+        }
+      } finally {
+        ctx.restore();
+      }
+    } else {
+      // a drop falling into the container, with a small splash ring when it lands
+      const p = phaseOf(time, i, n, 900 + rnd * 300);
+      const fall = 95;
+      ctx.save();
+      try {
+        if (p < 0.78) {
+          const q = p / 0.78;
+          ctx.fillStyle = fx.color ?? '#f6b21b';
+          ctx.strokeStyle = 'rgba(58,34,22,0.7)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.ellipse(fx.x + xOff, fx.y + q * q * fall, 7, 10, 0, 0, TAU);
+          ctx.fill();
+          ctx.stroke();
+        } else {
+          const q = (p - 0.78) / 0.22;
+          ctx.globalAlpha = 1 - q;
+          ctx.strokeStyle = fx.color ?? '#f6b21b';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.ellipse(fx.x + xOff, fx.y + fall, 8 + q * 22, 3 + q * 7, 0, 0, TAU);
+          ctx.stroke();
+        }
+      } finally {
+        ctx.restore();
+      }
+    }
+  }
+}
+
+/** Watercolor cooking scene for one recipe step; false when none of its pictures is loaded (shapes are drawn instead). */
 function drawCookPics(ctx: CanvasRenderingContext2D, art: ArtId, a: CookingArt): boolean {
-  const steps = COOK_PICS[art];
+  const steps = COOK_SCENES[art];
   if (!steps || steps.length === 0) return false;
   const stages = Number.isFinite(a.stages) ? Math.max(1, Math.floor(a.stages)) : 1;
   const raw = Number.isFinite(a.stage) ? Math.floor(a.stage) : 0;
   const stage = Math.min(Math.max(0, raw), Math.max(0, Math.min(stages, steps.length) - 1));
-  const names = (steps[stage] ?? []).filter((n) => artImage(n) !== null);
-  if (names.length === 0) return false;
+  const spec = steps[stage];
+  if (!spec) return false;
+  const layers = spec.layers.filter((l) => artImage(l.pic) !== null);
+  if (layers.length === 0) return false;
   const t = c01(a.t);
   const time = Number.isFinite(a.time) ? a.time : 0;
   const pop = 0.9 + 0.1 * spring(Math.min(1, t * 5));
-  const bob = 1 + 0.02 * Math.sin(time / 170);
-  const k = names.length;
-  const box = k === 1 ? 330 : k === 2 ? 270 : 210;
-  names.forEach((n, i) => {
-    drawArt(ctx, n, 500 + (i - (k - 1) / 2) * (box + 10), 360 + Math.sin(time / 260 + i) * 4, box, 300, Math.sin(time / 400 + i) * 0.02, pop * bob, pop / bob);
-  });
+  const mix = smooth(c01(t * 1.4 - 0.1));
+  for (const l of layers) {
+    const alpha = l.fade === 'in' ? mix : l.fade === 'out' ? 1 - mix : 1;
+    if (alpha <= 0.01) continue;
+    const pose = poseOf(l.motion, l.size, time);
+    ctx.save();
+    try {
+      ctx.globalAlpha = alpha;
+      drawArt(ctx, l.pic, l.x + pose.dx, l.y + pose.dy, l.size, l.size, pose.rot, pop * pose.sx, pop * pose.sy, 5);
+    } finally {
+      ctx.restore();
+    }
+  }
+  for (const fx of spec.fx ?? []) drawFx(ctx, fx, time);
   return true;
 }
 
@@ -533,7 +676,7 @@ function drawServedPics(ctx: CanvasRenderingContext2D, art: ArtId, t: number, nR
     const x = cx + (inRow - (rowCount - 1) / 2) * gap;
     const y = cy - 6 + (n > 4 ? (row - 0.5) * size * 0.62 : 0);
     const name = names[i % names.length] as string;
-    drawArt(ctx, artImage(name) ? name : (names[0] as string), x, y, size, size, ([-0.08, 0.06, -0.04, 0.09][i % 4] as number), s, Math.max(0.2, 2 - s));
+    drawArt(ctx, artImage(name) ? name : (names[0] as string), x, y, size, size, ([-0.08, 0.06, -0.04, 0.09][i % 4] as number), s, Math.max(0.2, 2 - s), 4);
   }
   return true;
 }
