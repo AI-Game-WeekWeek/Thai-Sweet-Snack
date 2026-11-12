@@ -458,7 +458,7 @@ export class Game {
       const q = cafe.queue;
       if (!q.waiting().some((c) => c.kind === 'vip')) {
         const dessertId = dessertForGift(cfg.vip.minGiftCoins, this.config.cafe.giftTiers, this.desserts.unlockedIds);
-        if (dessertId) q.enqueue({ viewer: false, kind: 'vip', dessertId });
+        if (dessertId) this.enqueueSpecial({ viewer: false, kind: 'vip', dessertId });
       }
       const tip = Math.min(cfg.tip.max, q.waiting().length * cfg.tip.perCustomer);
       if (tip >= 1 && this.rewards?.addCoins(tip)) {
@@ -467,6 +467,19 @@ export class Game {
         this.fx?.audio.play('coin', this.soundRound(roundId));
       }
     }
+  }
+
+  /** Room for a VIP or phone order: a free place, or an anonymous filler customer to replace (never a paying viewer). */
+  private hasRoomForSpecial(): boolean {
+    const q = this.cafe?.queue;
+    return !!q && (q.waiting().length < this.config.cafe.maxWaiting || q.waiting().some((c) => c.kind === 'normal' && !c.viewer));
+  }
+
+  private enqueueSpecial(n: Parameters<CafeQueue['enqueue']>[0]): boolean {
+    const q = this.cafe?.queue;
+    if (!q) return false;
+    if (q.waiting().length >= this.config.cafe.maxWaiting && !q.displaceAnonymous()) return false;
+    return q.enqueue(n) === 'ok';
   }
 
   /** The phone rings for a few seconds, then a phone-order customer with a deadline joins the line. */
@@ -480,7 +493,7 @@ export class Game {
         this.phoneRingMs = 0;
         const ids = this.desserts.unlockedIds;
         const id = ids[Math.floor((cafe.rng ?? Math.random)() * ids.length)];
-        if (id && cafe.queue.waiting().length < this.config.cafe.maxWaiting) cafe.queue.enqueue({ viewer: false, kind: 'phone', dessertId: id, patienceMs: ph.deadlineMs });
+        if (id) this.enqueueSpecial({ viewer: false, kind: 'phone', dessertId: id, patienceMs: ph.deadlineMs });
       }
       return;
     }
@@ -489,7 +502,7 @@ export class Game {
     const jitter = 1 + ph.jitter * ((cafe.rng ?? Math.random)() * 2 - 1);
     this.phoneTimerMs = Math.max(1000, ph.everyMs * jitter);
     const busy = cafe.queue.current?.kind === 'phone' || cafe.queue.waiting().some((c) => c.kind === 'phone');
-    if (!busy && cafe.queue.waiting().length < this.config.cafe.maxWaiting) {
+    if (!busy && this.hasRoomForSpecial()) {
       this.phoneRingMs = ph.ringMs;
       this.fx?.audio.play('ring', this.soundRound(this.manager.snapshot().roundId));
     }

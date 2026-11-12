@@ -13,7 +13,8 @@ import { MockEventSource } from '../../src/tiktok/MockEventSource';
 import { TikTokEventManager } from '../../src/tiktok/TikTokEventManager';
 
 const ROUNDS = 150;
-const C = cafeConfig.cafe;
+const CFG = { ...cafeConfig, cafe: { ...cafeConfig.cafe, surprise: { ...cafeConfig.cafe.surprise, phone: { ...cafeConfig.cafe.surprise.phone, firstMs: 2000, everyMs: 9000, jitter: 0.5, deadlineMs: 20_000 } } } };
+const C = CFG.cafe;
 const ALL_IDS = ALL_DESSERTS.map((d) => d.id);
 const DEFAULT_IDS = ALL_DESSERTS.filter((d) => 'default' in d.unlock).map((d) => d.id);
 const SECRET_NAME = 'SECRET-VIEWER-NAME';
@@ -42,12 +43,12 @@ describe('café soak', () => {
 
   it(`${ROUNDS} customers under gift spam, duplicates, hostile names and pictures, invalid values, likes spam and flaky storage`, () => {
     const rand = mulberry32(2025);
-    const events = new TikTokEventManager(cafeConfig);
-    const save = new SaveSystem(cafeConfig, new Flaky(mulberry32(5)), DEFAULT_IDS, ALL_IDS);
-    const rewards = new RewardManager(cafeConfig, save.load());
+    const events = new TikTokEventManager(CFG);
+    const save = new SaveSystem(CFG, new Flaky(mulberry32(5)), DEFAULT_IDS, ALL_IDS);
+    const rewards = new RewardManager(CFG, save.load());
     const queue = new CafeQueue({ maxWaiting: C.maxWaiting, patienceMs: C.patienceMs, maxNameLength: C.maxNameLength });
-    const meter = new HeartMeter({ decayPerSec: cafeConfig.vote.heartDecayPerSec, maxBoost: cafeConfig.vote.maxBoost });
-    const game = new Game(cafeConfig, new DessertManager(ALL_DESSERTS, rewards.profile.unlocked, mulberry32(3)), undefined, events, rewards, { progression: new ProgressionManager(ALL_DESSERTS, rewards), save }, undefined, { queue, meter, rng: mulberry32(8) });
+    const meter = new HeartMeter({ decayPerSec: CFG.vote.heartDecayPerSec, maxBoost: CFG.vote.maxBoost });
+    const game = new Game(CFG, new DessertManager(ALL_DESSERTS, rewards.profile.unlocked, mulberry32(3)), undefined, events, rewards, { progression: new ProgressionManager(ALL_DESSERTS, rewards), save }, undefined, { queue, meter, rng: mulberry32(8) });
     const mock = new MockEventSource(mulberry32(6), (e) => game.ingestEvent(e), { cafe: true });
     mock.steady(120, 1e12);
     game.start();
@@ -61,6 +62,9 @@ describe('café soak', () => {
     let prevLost = 0;
     let prevCoins = rewards.profile.coins;
     let cookedChecks = 0;
+    let sawVip = false;
+    let sawPhone = false;
+    let sawCat = false;
     let unlockedBefore = rewards.profile.unlocked.length;
     let served = 0;
     let wasServing = false;
@@ -75,6 +79,8 @@ describe('café soak', () => {
       else if (r < 0.035) raw({ type: 'rose' });
       else if (r < 0.04) raw({ type: 'orangeHeart', count: 3 });
       else if (r < 0.045) for (let i = 0; i < 300; i++) raw({ type: 'gift', giftCoins: 5, displayName: 'Z' }); // flood: the queue is capped, extra gifts become coins
+      else if (r < 0.055) for (let i = 0; i < 500; i++) raw({ type: 'follow' }); // lucky cat spam
+      else if (r < 0.065) for (let i = 0; i < 500; i++) raw({ type: 'orangeHeart' }); // VIP + tip spam
       if (rand() < 0.002) events.setConnection(['connected', 'reconnecting', 'offline'][Math.floor(rand() * 3)] as 'offline');
 
       game.update(16);
@@ -87,7 +93,7 @@ describe('café soak', () => {
       expect(meter.value).toBeLessThanOrEqual(1);
       expect(queue.waiting().length).toBeLessThanOrEqual(C.maxWaiting);
       expect(cafe.waiting.length).toBeLessThanOrEqual(C.visible - 1);
-      expect(events.queueLength).toBeLessThanOrEqual(cafeConfig.events.queueMax);
+      expect(events.queueLength).toBeLessThanOrEqual(CFG.events.queueMax);
       if (s.state !== prev.state) expect(TRANSITIONS[prev.state]).toContain(s.state);
       expect(s.roundId - prev.roundId === 0 || s.roundId - prev.roundId === 1).toBe(true);
       expect(cafe.lost).toBeGreaterThanOrEqual(prevLost);
@@ -97,6 +103,15 @@ describe('café soak', () => {
         expect((c.name ?? '').length).toBeLessThanOrEqual(C.maxNameLength);
         expect(c.name ?? '').not.toMatch(/[\u0000-\u001f​‮]/);
       }
+      // surprises stay bounded: at most one VIP waiting, one phone order in the café, the cat within its cap
+      const all = queue.waiting();
+      expect(all.filter((c) => c.kind === 'vip').length).toBeLessThanOrEqual(1);
+      expect(all.filter((c) => c.kind === 'phone').length + (queue.current?.kind === 'phone' ? 1 : 0)).toBeLessThanOrEqual(1);
+      expect(cafe.luckyCatSec).toBeGreaterThanOrEqual(0);
+      expect(cafe.luckyCatSec).toBeLessThanOrEqual(C.surprise.luckyCat.maxMs / 1000 + 0.001);
+      if (all.some((c) => c.kind === 'vip') || queue.current?.kind === 'vip') sawVip = true;
+      if (all.some((c) => c.kind === 'phone') || queue.current?.kind === 'phone') sawPhone = true;
+      if (cafe.luckyCatSec > 0) sawCat = true;
       // one round = one customer: what is cooked is what the customer at the counter ordered
       if (s.state === 'COOKING' && prev.state === 'PREPARING') {
         expect(cafe.serving).not.toBeNull();
@@ -116,6 +131,10 @@ describe('café soak', () => {
       prev = s;
     }
 
+    // the surprises really happened during the run
+    expect(sawCat, 'lucky cat').toBe(true);
+    expect(sawVip, 'vip').toBe(true);
+    expect(sawPhone, 'phone').toBe(true);
     expect(cookedChecks).toBeGreaterThanOrEqual(ROUNDS);
     expect(rewards.profile.rounds).toBe(ROUNDS);
     expect(served).toBe(ROUNDS); // one paid customer leaves the counter per round, never two
@@ -125,8 +144,8 @@ describe('café soak', () => {
 
   it('with zero viewers the café keeps serving anonymous customers for many rounds', () => {
     const queue = new CafeQueue({ maxWaiting: C.maxWaiting, patienceMs: C.patienceMs, maxNameLength: C.maxNameLength });
-    const meter = new HeartMeter({ decayPerSec: cafeConfig.vote.heartDecayPerSec, maxBoost: cafeConfig.vote.maxBoost });
-    const game = new Game(cafeConfig, new DessertManager(ALL_DESSERTS, DEFAULT_IDS, mulberry32(2)), undefined, undefined, undefined, undefined, undefined, { queue, meter, rng: mulberry32(9) });
+    const meter = new HeartMeter({ decayPerSec: CFG.vote.heartDecayPerSec, maxBoost: CFG.vote.maxBoost });
+    const game = new Game(CFG, new DessertManager(ALL_DESSERTS, DEFAULT_IDS, mulberry32(2)), undefined, undefined, undefined, undefined, undefined, { queue, meter, rng: mulberry32(9) });
     game.start();
     for (let frame = 0; game.snapshot().roundsCompleted < 30; frame++) {
       expect(frame).toBeLessThan(900_000);

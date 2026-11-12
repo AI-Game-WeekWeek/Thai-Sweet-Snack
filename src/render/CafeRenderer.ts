@@ -57,7 +57,9 @@ export class CafeRenderer {
           ctx.restore();
         }
       });
-      this.safely('cat', () => this.drawCat(ctx, 950, 1342));
+      this.safely('phone', () => this.drawPhone(ctx, view.cafe));
+      this.safely('cat', () => this.drawCat(ctx, 950, 1342, view.cafe?.luckyCatSec ?? 0));
+      this.safely('lucky', () => this.drawLuckyPill(ctx, view.cafe));
       this.safely('status', () => this.drawStatus(ctx, view));
       this.safely('queue', () => this.drawQueue(ctx, view.cafe));
       this.safely('hud', () => this.drawHud(ctx, view.cafe));
@@ -204,8 +206,69 @@ export class CafeRenderer {
     });
   }
 
-  private drawCat(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-    const wave = Math.sin(this.timeMs / 260) * 0.35;
+  private drawLuckyPill(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined): void {
+    const sec = cafe?.luckyCatSec;
+    if (sec === undefined || !Number.isFinite(sec) || sec <= 0) return;
+    ctx.fillStyle = 'rgba(60,35,18,0.88)';
+    ctx.beginPath();
+    ctx.roundRect(730, 1196, 300, 54, 27);
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#e8b64c';
+    ctx.stroke();
+    this.text(ctx, `แมวกวัก ×2 · ${Math.ceil(Math.min(999, sec))} วิ`, 880, 1224, 28, '#ffe08a');
+  }
+
+  /** The phone on the counter: decoration normally, shaking with ring arcs and a warning when a call comes in. */
+  private drawPhone(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined): void {
+    const ringing = cafe?.phoneRinging === true;
+    const x = 110;
+    const y = 1452;
+    ctx.save();
+    try {
+      ctx.translate(x + (ringing ? Math.sin(this.timeMs / 35) * 4 : 0), y);
+      ctx.fillStyle = '#2f2f33';
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.roundRect(-48, -16, 96, 44, 12);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = ringing ? '#ff6b6b' : '#d94f4f';
+      ctx.beginPath();
+      ctx.roundRect(-54, -34, 108, 20, 10);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#bdbdc4';
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(-24 + i * 24, 8, 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (ringing) {
+        ctx.strokeStyle = '#ffe08a';
+        ctx.lineWidth = 5;
+        for (let i = 0; i < 2; i++) {
+          ctx.beginPath();
+          ctx.arc(0, -34, 70 + i * 22 + (Math.floor(this.timeMs / 150) % 2) * 6, Math.PI * 1.15, Math.PI * 1.85);
+          ctx.stroke();
+        }
+      }
+    } finally {
+      ctx.restore();
+    }
+    if (ringing) this.text(ctx, 'โทรศัพท์ดัง!', x + 40, y - 96, 36, '#fff', '#b3261e');
+  }
+
+  private drawCat(ctx: CanvasRenderingContext2D, x: number, y: number, luckySec = 0): void {
+    const lucky = Number.isFinite(luckySec) && luckySec > 0;
+    const wave = Math.sin(this.timeMs / (lucky ? 130 : 260)) * 0.35;
+    if (lucky) {
+      ctx.fillStyle = `rgba(255,214,102,${0.22 + 0.12 * Math.sin(this.timeMs / 200)})`;
+      ctx.beginPath();
+      ctx.arc(x, y + 10, 118, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.save();
     try {
       ctx.translate(x, y);
@@ -403,18 +466,49 @@ export class CafeRenderer {
     } finally {
       ctx.restore();
     }
-    ctx.lineWidth = c.viewer ? 8 : 5;
-    ctx.strokeStyle = c.viewer ? '#e8b64c' : '#fff3dc';
+    const special = c.viewer || c.kind === 'vip';
+    ctx.lineWidth = c.kind === 'vip' ? 10 : c.viewer ? 8 : 5;
+    ctx.strokeStyle = special ? '#e8b64c' : '#fff3dc';
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.stroke();
-    // name (viewers only) and patience
-    if (c.viewer && c.name) this.text(ctx, clip(c.name, 12), x, y + r * 2.45, Math.round(r * 0.5), '#fff', INK);
-    if (!c.serving) this.drawPatience(ctx, x, y + r * 2.1 + (c.viewer && c.name ? Math.round(r * 0.5) : 0) + 14, r * 2, c.patience);
+    if (c.kind === 'vip') this.drawCrown(ctx, x, y - r * 0.9, r);
+    if (c.kind === 'phone') {
+      ctx.fillStyle = '#d94f4f';
+      ctx.beginPath();
+      ctx.arc(x + r * 0.9, y - r * 0.78, r * 0.34, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
+      this.text(ctx, 'โทร', x + r * 0.9, y - r * 0.76, Math.round(r * 0.3), '#fff', '#8b1e1e');
+    }
+    // name (viewers), VIP label, and patience
+    if (c.kind === 'vip') this.text(ctx, 'VIP', x, y + r * 2.45, Math.round(r * 0.6), '#ffe08a', INK);
+    else if (c.viewer && c.name) this.text(ctx, clip(c.name, 12), x, y + r * 2.45, Math.round(r * 0.5), '#fff', INK);
+    if (!c.serving) this.drawPatience(ctx, x, y + r * 2.1 + (c.kind === 'vip' || (c.viewer && c.name) ? Math.round(r * 0.5) : 0) + 14, r * 2, c.patience);
     if (!c.serving) {
       ctx.textAlign = 'center';
-      this.text(ctx, clip(c.dessertNameTh, 8), x, y - r - 22, Math.round(r * 0.42), '#fff3dc', INK);
+      this.text(ctx, clip(c.dessertNameTh, 8), x, y - r - 22 - (c.kind === 'vip' ? r * 0.6 : 0), Math.round(r * 0.42), '#fff3dc', INK);
     }
+  }
+
+  private drawCrown(ctx: CanvasRenderingContext2D, x: number, baseY: number, r: number): void {
+    const w = r * 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x - w / 2, baseY);
+    ctx.lineTo(x - w / 2, baseY - r * 0.45);
+    ctx.lineTo(x - w / 4, baseY - r * 0.2);
+    ctx.lineTo(x, baseY - r * 0.6);
+    ctx.lineTo(x + w / 4, baseY - r * 0.2);
+    ctx.lineTo(x + w / 2, baseY - r * 0.45);
+    ctx.lineTo(x + w / 2, baseY);
+    ctx.closePath();
+    ctx.fillStyle = '#f6c244';
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
   }
 
   private drawGeneratedFace(ctx: CanvasRenderingContext2D, bg: string, fg: string, initial: string | null, x: number, y: number, r: number): void {

@@ -125,6 +125,25 @@ describe('café surprise events', () => {
       expect(vips()).toBeLessThanOrEqual(1);
     });
 
+    it('a VIP gets in even when the queue is full of anonymous customers, but never pushes out a viewer', () => {
+      const a = mk({}, { maxWaiting: 3, npcSpawnEveryMs: 1e9 });
+      a.game.start();
+      for (let i = 0; i < 5; i++) a.queue.enqueue({ viewer: false, dessertId: 'khanom-krok' });
+      heart(a.game);
+      a.game.update(16);
+      expect(a.queue.waiting()[0]?.kind).toBe('vip');
+      expect(a.queue.waiting()).toHaveLength(3);
+
+      const b = mk({}, { maxWaiting: 3, npcSpawnEveryMs: 1e9 });
+      b.game.start();
+      while (b.queue.displaceAnonymous()) { /* clear the opening filler customers */ }
+      for (let i = 0; i < 5; i++) b.queue.enqueue({ viewer: true, name: `v${i}`, dessertId: 'khanom-krok' });
+      heart(b.game);
+      b.game.update(16);
+      expect(b.queue.waiting().some((c) => c.kind === 'vip')).toBe(false);
+      expect(b.queue.waiting().every((c) => c.viewer)).toBe(true);
+    });
+
     it('a flood of orange hearts in one tick makes exactly one VIP and one tip rain', () => {
       const { game, rewards } = mk();
       game.start();
@@ -207,12 +226,22 @@ describe('café surprise events', () => {
       runUntil(game, () => game.snapshot().roundsCompleted >= 3);
     });
 
-    it('no call is made while the queue is full', () => {
-      const { game, queue } = mk(fast, { maxWaiting: 2, npcSpawnEveryMs: 1e9 });
-      game.start();
-      for (let i = 0; i < 5; i++) queue.enqueue({ viewer: false, dessertId: 'khanom-krok' });
-      advance(game, 2500);
-      expect(queue.waiting().filter((c) => c.kind === 'phone')).toHaveLength(0);
+    it('with a full queue the call replaces an anonymous customer, and is skipped only when every waiting customer is a paying viewer', () => {
+      const a = mk(fast, { maxWaiting: 3, npcSpawnEveryMs: 1e9 });
+      a.game.start();
+      for (let i = 0; i < 5; i++) a.queue.enqueue({ viewer: false, dessertId: 'khanom-krok' });
+      expect(a.queue.waiting()).toHaveLength(3);
+      advance(a.game, 2500);
+      expect(a.queue.waiting().filter((c) => c.kind === 'phone')).toHaveLength(1);
+      expect(a.queue.waiting().length).toBeLessThanOrEqual(3);
+
+      const b = mk(fast, { maxWaiting: 3, npcSpawnEveryMs: 1e9 });
+      b.game.start();
+      while (b.queue.displaceAnonymous()) { /* clear the opening filler customers */ }
+      for (let i = 0; i < 5; i++) b.queue.enqueue({ viewer: true, name: `v${i}`, dessertId: 'khanom-krok' });
+      advance(b.game, 2500);
+      expect(b.queue.waiting().filter((c) => c.kind === 'phone')).toHaveLength(0);
+      expect(b.queue.waiting()).toHaveLength(3);
     });
 
     it('with no viewers and no events the café still runs rounds (the phone is the only surprise)', () => {

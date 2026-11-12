@@ -33,7 +33,15 @@ const modeParam = params.get('mode');
 const mode = modeParam === 'classic' || modeParam === 'vote' ? modeParam : 'cafe';
 const cafeMode = mode === 'cafe';
 const voteMode = mode === 'vote';
-const cfg = cafeMode ? cafeConfig : voteMode ? voteConfig : liveConfig;
+// ?surprise=1 brings the first phone call forward (to see it without waiting a minute).
+const quickPhone = params.get('surprise') === '1';
+const cfg = cafeMode
+  ? quickPhone
+    ? { ...cafeConfig, cafe: { ...cafeConfig.cafe, surprise: { ...cafeConfig.cafe.surprise, phone: { ...cafeConfig.cafe.surprise.phone, firstMs: 6000, everyMs: 25_000 } } } }
+    : cafeConfig
+  : voteMode
+    ? voteConfig
+    : liveConfig;
 
 const canvas = document.createElement('canvas');
 if (cafeMode) {

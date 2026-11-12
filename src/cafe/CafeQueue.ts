@@ -86,6 +86,18 @@ export class CafeQueue {
     return 'ok';
   }
 
+  /** Removes the last anonymous (filler) customer to make room for a special one. Never touches viewers, VIPs or phone orders. */
+  displaceAnonymous(): boolean {
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      const c = this.list[i] as Customer;
+      if (c.kind === 'normal' && !c.viewer) {
+        this.list.splice(i, 1);
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** Customers who ran out of patience this tick (removed from the queue). `slow` (0..1] slows the loss (lucky cat). */
   tick(dtMs: number, slow = 1): Customer[] {
     if (!Number.isFinite(dtMs) || dtMs <= 0) return [];

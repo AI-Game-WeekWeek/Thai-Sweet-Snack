@@ -179,4 +179,17 @@ describe('CafeQueue', () => {
     q.enqueue(npc()); q.enqueue(npc());
     expect(q.enqueue({ viewer: false, dessertId: 'v', kind: 'vip' })).toBe('full');
   });
+
+  it('displaceAnonymous removes the last anonymous customer, never a viewer, VIP or phone order', () => {
+    const q = mk(10);
+    q.enqueue(npc('a1')); q.enqueue(npc('a2'));
+    q.enqueue(viewer('V', 'v'));
+    q.enqueue({ viewer: false, dessertId: 'vip', kind: 'vip' });
+    q.enqueue({ viewer: false, dessertId: 'ph', kind: 'phone' });
+    expect(q.displaceAnonymous()).toBe(true);
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['vip', 'ph', 'v', 'a1']);
+    expect(q.displaceAnonymous()).toBe(true);
+    expect(q.displaceAnonymous()).toBe(false);
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['vip', 'ph', 'v']);
+  });
 });

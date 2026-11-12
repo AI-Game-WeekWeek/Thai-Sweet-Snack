@@ -130,4 +130,31 @@ describe('CafeRenderer', () => {
     const bubble = f.at.find((a) => a.t === 'บัวลอย' && a.y < 400);
     expect(bubble).toBeDefined();
   });
+
+  it('shows the lucky cat pill with its timer only while it is on', () => {
+    const on = draw(view({ cafe: cafe({ luckyCatSec: 12.4 }) })).texts.join(' | ');
+    expect(on).toContain('แมวกวัก');
+    expect(on).toContain('13'); // seconds, rounded up
+    expect(draw(view({ cafe: cafe({ luckyCatSec: 0 }) })).texts.join(' | ')).not.toContain('แมวกวัก');
+  });
+
+  it('shows a ringing phone warning only while it rings, and the phone is always on the counter', () => {
+    expect(draw(view({ cafe: cafe({ phoneRinging: true }) })).texts.join(' | ')).toContain('โทรศัพท์ดัง');
+    expect(draw(view({ cafe: cafe({ phoneRinging: false }) })).texts.join(' | ')).not.toContain('โทรศัพท์ดัง');
+  });
+
+  it('marks a VIP with a crown label instead of a name, and a phone order with a phone badge', () => {
+    const vip = cust(7, { kind: 'vip', serving: true, patience: 1, dessertNameTh: 'ฝอยทอง' });
+    const t = draw(view({ cafe: cafe({ serving: vip, waiting: [cust(8, { kind: 'phone', patience: 0.4 })] }) })).texts.join(' | ');
+    expect(t).toContain('VIP');
+    expect(t).toContain('โทร');
+  });
+
+  it('hostile surprise values never throw and keep the canvas state balanced', () => {
+    for (const o of [{ luckyCatSec: NaN }, { luckyCatSec: -5 }, { luckyCatSec: 1e12 }, { phoneRinging: true, luckyCatSec: Infinity }]) {
+      const f = fakeCtx();
+      expect(() => new CafeRenderer(4, avatars()).draw(f.ctx, 720, 1280, view({ cafe: cafe(o) }), new ParticleSystem(10, 0), 16)).not.toThrow();
+      expect(f.depth()).toBe(0);
+    }
+  });
 });

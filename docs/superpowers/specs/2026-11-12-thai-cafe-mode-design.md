@@ -141,11 +141,15 @@ Each is one event the audience can trigger, each is visible at a glance, each is
 | Viewer does | What happens (defaults in `cafe.surprise`) |
 |---|---|
 | **Follow** | **Lucky cat (แมวกวัก)** for 20 s per follow (stacks up to 60 s): payouts +100 %, waiting customers lose patience at half speed. The cat glows and a pill "แมวกวัก ×2" with a timer shows at the top. Works in every state. Follows carry no name (privacy: nothing is shown about the follower). |
-| **Orange heart / fan club** (same button) | **VIP customer + tip rain.** An anonymous VIP with a golden crown goes to the **front of the waiting line** and orders a premium dessert (best unlocked tier of 50+ coins); pays +50 %. Every waiting customer throws a tip: a coin shower and 3 coins per waiting customer (max 36). At most one VIP waiting; 30 s cooldown (extra hearts still feed the heart meter). Works in every state. |
-| *(nobody: random, about every 100 s, first after 45 s)* | **Phone call.** The phone on the counter rings for 3 s, then a **phone-order customer** joins right behind the current customer with a **35 s deadline** (their patience) and orders a random unlocked dessert; served in time = payout +200 %, too slow = they hang up (customer lost, nothing else happens). Only one phone customer at a time; no call while the queue is full. |
+| **Orange heart / fan club** (same button) | **VIP customer + tip rain.** An anonymous VIP with a golden crown goes to the **front of the waiting line** and orders the dessert of the 50-coin tier (the best unlocked tier at or below it); pays +50 %. Every waiting customer throws a tip: a coin shower and 3 coins per waiting customer (max 36). At most one VIP waiting; 30 s cooldown (extra hearts still feed the heart meter). Works in every state. |
+| *(nobody: random, about every 100 s, first after 45 s)* | **Phone call.** The phone on the counter rings for 3 s, then a **phone-order customer** joins right behind the current customer with a **35 s deadline** (their patience) and orders a random unlocked dessert; served in time = payout +200 %, too slow = they hang up (customer lost, nothing else happens). Only one phone customer at a time. |
 
 Queue priority (first-come first-served within a rank): VIP, phone order, viewer (gift), anonymous.
 Sounds: new synthesized `ring` and `coin`. Everything is round-tagged and cleaned up; a surprise can never block the loop,
 double-pay a customer, or touch the save (nothing about followers or orange-heart senders is stored or shown).
 Provider dependency: follow and orange-heart events exist only if the event source sends them (not verified); without them
 only the phone call happens, and the café works as before.
+- Round 2 build notes: a VIP or phone order **replaces the last anonymous (filler) customer when the queue is full**; the call or VIP is
+  skipped only when every waiting customer is a paying viewer (found by the soak: gift floods kept the queue full, so the phone never
+  rang). Surprise sounds are tagged with a live round (the next one when fired during NEXT_DESSERT). `?surprise=1` brings the first
+  phone call forward to 6 s for demos and screenshots.
