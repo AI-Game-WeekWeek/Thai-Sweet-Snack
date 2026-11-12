@@ -4,7 +4,7 @@ import type { GameConfig } from './config/gameConfig';
 import { CookingSystem } from './cooking/CookingSystem';
 import { ProgressManager } from './cooking/ProgressManager';
 import { DessertManager } from './dessert/DessertManager';
-import type { AnimId, DessertDef, SoundId } from './dessert/types';
+import type { AnimId, ArtId, DessertDef, SoundId } from './dessert/types';
 import { GameManager } from './core/GameManager';
 import type { GameState } from './core/StateMachine';
 import type { ProgressionManager } from './reward/ProgressionManager';
@@ -116,6 +116,8 @@ export interface GameVoteMode {
   rng?: () => number;
 }
 
+const SERVED_COUNT: Record<string, number> = { parcel: 3, bowl: 3, layered: 8, fruit: 8, syrupBall: 8, flower: 6, thread: 4, crepe: 4 };
+
 /** What the Renderer needs, in world units (WORLD_W x WORLD_H). */
 export interface RenderView {
   state: GameState;
@@ -127,8 +129,10 @@ export interface RenderView {
   presentT: number | null;
   wobble: number;
   piecesCount: number;
-  /** How the finished pieces look on the tray: round pieces, or individually wrapped parcels (ข้าวต้มมัด). */
-  pieceStyle?: 'round' | 'parcel';
+  /** Which dessert-specific scene and served look to draw (null before any dessert is chosen). */
+  art?: ArtId | null;
+  stepIndex?: number;
+  stepCount?: number;
   vote?: VoteView;
   cafe?: CafeView;
   heart: number;
@@ -310,8 +314,10 @@ export class Game {
       stepT: this.stepT,
       presentT: this.presentT,
       wobble: this.wobble,
-      piecesCount: this.current?.presentation.layout === 'parcels' ? 3 : 8,
-      pieceStyle: this.current?.presentation.layout === 'parcels' ? 'parcel' : 'round',
+      piecesCount: this.current ? (SERVED_COUNT[this.current.art] ?? 4) : 4,
+      art: this.current?.art ?? null,
+      stepIndex: this.cooking.snapshot().active ? this.cooking.snapshot().stepIndex : 0,
+      stepCount: this.current?.steps.length ?? 1,
       ...(this.vote ? { vote: this.currentVoteView() } : {}),
       heart: this.vote?.meter.value ?? this.cafe?.meter.value ?? 0,
       ...(this.cafe ? { cafe: this.cafeView() } : {}),

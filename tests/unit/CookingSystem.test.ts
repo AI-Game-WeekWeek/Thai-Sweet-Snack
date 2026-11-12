@@ -8,7 +8,7 @@ function dessert(maxMs = 60_000): DessertDef {
   const step = (id: string, weight: number) => ({
     id, nameTh: id, anim: 'stir' as const, sound: 'stir' as const, weight, maxMs,
   });
-  return {
+  return { art: 'bowl',
     id: 'd', nameTh: 'ทดสอบ', nameEn: 'T', unlock: { default: true },
     ingredients: [{ id: 'i', nameTh: 'i', color: '#fff' }],
     steps: [step('a', 1), step('b', 2), step('c', 1)], // band ends 25 / 75 / 100

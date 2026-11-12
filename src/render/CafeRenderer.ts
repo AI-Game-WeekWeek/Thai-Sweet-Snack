@@ -124,50 +124,77 @@ export class CafeRenderer {
         ctx.fillRect(col * 120 - (row % 2) * 60, 664 + row * 26, 120, 26);
       }
     }
-    // awning with scalloped edge
+    // Thai eave: teal / magenta bands with a row of pointed gold-trimmed pennants (no Chinese red lanterns)
     for (let i = 0; i < 12; i++) {
-      ctx.fillStyle = i % 2 === 0 ? '#d94f4f' : '#fff3dc';
-      ctx.fillRect(i * 90, 0, 90, 112);
+      ctx.fillStyle = i % 2 === 0 ? '#1f8a8a' : '#b8366f';
+      ctx.fillRect(i * 90, 0, 90, 96);
+      ctx.fillStyle = '#e8b64c';
+      ctx.fillRect(i * 90, 0, 4, 96);
+      ctx.fillStyle = i % 2 === 0 ? '#1f8a8a' : '#b8366f';
       ctx.beginPath();
-      ctx.arc(i * 90 + 45, 112, 45, 0, Math.PI);
+      ctx.moveTo(i * 90, 96);
+      ctx.lineTo(i * 90 + 90, 96);
+      ctx.lineTo(i * 90 + 45, 140);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#e8b64c';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      ctx.fillStyle = '#e8b64c';
+      ctx.beginPath();
+      ctx.arc(i * 90 + 45, 60, 10, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.fillStyle = '#e8b64c';
+    ctx.fillRect(0, 90, CAFE_W, 8);
     ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.fillRect(0, 0, CAFE_W, 14);
-    // hanging lanterns
+    ctx.fillRect(0, 0, CAFE_W, 10);
+    // jasmine garlands (พวงมาลัย) hanging and swaying
     const sway = Math.sin(this.timeMs / 900);
-    [[60, 20], [250, 46], [830, 46], [1020, 20]].forEach(([x, len], i) => {
+    [[70, 40], [250, 76], [830, 76], [1010, 40]].forEach(([x, len], i) => {
       const sx = (x as number) + sway * 6 * (i % 2 ? 1 : -1);
-      const ly = 164 + (len as number);
-      ctx.strokeStyle = '#6b3a1c';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(x as number, 112);
-      ctx.lineTo(sx, ly - 38);
-      ctx.stroke();
-      ctx.fillStyle = '#f6c244';
-      ctx.fillRect(sx - 16, ly - 42, 32, 10);
-      ctx.fillStyle = '#e8503a';
-      ctx.beginPath();
-      ctx.ellipse(sx, ly, 28, 36, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255,220,150,0.7)';
+      const ly = 150 + (len as number);
+      ctx.strokeStyle = '#4a7a3a';
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.ellipse(sx, ly, 12, 36, 0, 0, Math.PI * 2);
+      ctx.moveTo(x as number, 140);
+      ctx.lineTo(sx, ly);
       ctx.stroke();
-      ctx.fillStyle = '#f6c244';
-      ctx.fillRect(sx - 16, ly + 32, 32, 10);
+      for (let k = 0; k < 6; k++) {
+        const fy = 150 + ((ly - 150) * k) / 5;
+        const fx = (x as number) + ((sx - (x as number)) * k) / 5;
+        ctx.fillStyle = '#fffdf2';
+        ctx.beginPath();
+        ctx.ellipse(fx, fy, 9, 13, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = k % 2 ? '#f59a23' : '#f6c244';
+        ctx.beginPath();
+        ctx.arc(fx, fy, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#e8503a';
+      ctx.beginPath();
+      ctx.ellipse(sx, ly + 18, 7, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
     });
-    // shop sign
+    // shop sign: gold-framed board with chofa (gable horn) corners
     ctx.fillStyle = '#4a2c17';
     ctx.beginPath();
-    ctx.roundRect(330, 22, 420, 84, 18);
+    ctx.roundRect(330, 38, 420, 84, 14);
     ctx.fill();
     ctx.lineWidth = 5;
     ctx.strokeStyle = '#e8b64c';
     ctx.stroke();
-    this.text(ctx, 'ร้านขนมไทย', CAFE_W / 2, 66, 52, '#ffe9a8');
+    ctx.fillStyle = '#e8b64c';
+    for (const [hx, dir] of [[330, -1], [750, 1]] as const) {
+      ctx.beginPath();
+      ctx.moveTo(hx, 70);
+      ctx.quadraticCurveTo(hx + dir * 38, 62, hx + dir * 34, 24);
+      ctx.quadraticCurveTo(hx + dir * 14, 50, hx, 52);
+      ctx.closePath();
+      ctx.fill();
+    }
+    this.text(ctx, 'ร้านขนมไทย', CAFE_W / 2, 82, 52, '#ffe9a8');
   }
 
   private drawGiftMenu(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined): void {
@@ -196,12 +223,16 @@ export class CafeRenderer {
       ctx.lineWidth = 4;
       ctx.stroke();
       this.text(ctx, String(t.coins), x + 30, y + 24, t.coins >= 100 ? 21 : 26, '#fff', '#7a4f12');
-      ctx.fillStyle = isColor(t.color) ? t.color : '#f5f0e1';
+      // empty picture slot (a dessert picture goes here): rounded frame, kept clear on purpose
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
       ctx.beginPath();
-      ctx.arc(x + 86, y + 22, 10, 0, Math.PI * 2);
+      ctx.roundRect(x + 64, y - 2, 52, 48, 10);
       ctx.fill();
+      ctx.strokeStyle = '#e8b64c';
+      ctx.lineWidth = 2;
+      ctx.stroke();
       ctx.textAlign = 'left';
-      this.text(ctx, clip(t.nameTh, 11), x + 106, y + 24, 32, '#fff', '#1c2e24');
+      this.text(ctx, clip(t.nameTh, 10), x + 128, y + 24, 30, '#fff', '#1c2e24');
       ctx.textAlign = 'center';
     });
   }

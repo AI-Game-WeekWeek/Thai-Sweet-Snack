@@ -1,4 +1,6 @@
 import type { ParticleSystem } from '../anim/ParticleSystem';
+import type { ArtId } from '../dessert/types';
+import { drawArtCooking, drawArtServed } from './dessertArt';
 import { WORLD_H, WORLD_W, type RenderView } from '../Game';
 
 const spring = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : 1 - Math.exp(-5 * t) * Math.cos(12 * t));
@@ -49,6 +51,7 @@ export class Renderer {
 
     const presenting = view.presentT !== null;
     if (presenting) this.drawTray(ctx, view);
+    else if (view.art && view.state === 'COOKING') this.drawCookingArt(ctx, view);
     else this.drawBowl(ctx, view);
 
     particles.forEach((p) => {
@@ -67,62 +70,9 @@ export class Renderer {
     this.timeMs += Number.isFinite(dtMs) ? dtMs : 0;
   }
 
-  /** Individually wrapped banana-leaf parcels (ข้าวต้มมัด): separate pieces, each with its own string. */
-  private drawParcels(ctx: CanvasRenderingContext2D, view: RenderView, cx: number, cy: number): void {
-    const n = Number.isFinite(view.piecesCount) ? Math.min(5, Math.max(0, Math.floor(view.piecesCount))) : 0;
-    const t = view.presentT ?? 0;
-    for (let i = 0; i < n; i++) {
-      const s = spring((t * 1.6 - (i / Math.max(1, n)) * 0.6) / 0.4);
-      if (s <= 0) continue;
-      const x = cx + (i - (n - 1) / 2) * 150;
-      const tilt = [-0.18, 0.1, -0.06, 0.16, -0.12][i % 5] as number;
-      ctx.save();
-      try {
-        ctx.translate(x, cy);
-        ctx.rotate(tilt);
-        ctx.scale(s, Math.max(0.2, 2 - s));
-        // leaf wrapper
-        ctx.fillStyle = '#5f9a45';
-        ctx.strokeStyle = '#2f5f25';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.roundRect(-62, -28, 124, 56, 16);
-        ctx.fill();
-        ctx.stroke();
-        // leaf folds
-        ctx.strokeStyle = '#7ab85a';
-        ctx.lineWidth = 3;
-        for (const fx of [-34, 0, 34]) {
-          ctx.beginPath();
-          ctx.moveTo(fx - 10, -22);
-          ctx.lineTo(fx + 10, 22);
-          ctx.stroke();
-        }
-        // a peek of sticky rice at one end
-        ctx.fillStyle = '#fffaf0';
-        ctx.strokeStyle = '#2f5f25';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.ellipse(62, 0, 9, 17, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        // its own string, tied in a small knot
-        ctx.strokeStyle = '#8a5a2b';
-        ctx.lineWidth = 6;
-        for (const sx of [-26, 26]) {
-          ctx.beginPath();
-          ctx.moveTo(sx, -30);
-          ctx.lineTo(sx, 30);
-          ctx.stroke();
-        }
-        ctx.fillStyle = '#8a5a2b';
-        ctx.beginPath();
-        ctx.arc(26, -30, 7, 0, Math.PI * 2);
-        ctx.fill();
-      } finally {
-        ctx.restore();
-      }
-    }
+  private drawCookingArt(ctx: CanvasRenderingContext2D, view: RenderView): void {
+    // station back plate so every scene sits on the same table
+    drawArtCooking(ctx, view.art as ArtId, { stage: view.stepIndex ?? 0, stages: view.stepCount ?? 1, t: view.stepT, p: view.progress / 100, time: this.timeMs });
   }
 
   private batterColor(view: RenderView): string {
@@ -229,34 +179,6 @@ export class Renderer {
     ctx.roundRect(cx - 245, cy - 56, 490, 112, 18);
     ctx.fill();
 
-    if (view.pieceStyle === 'parcel') {
-      this.drawParcels(ctx, view, cx, cy);
-      return;
-    }
-    const pal = view.palette;
-    const n = view.piecesCount;
-    const cols = 4;
-    const t = view.presentT ?? 0;
-    for (let i = 0; i < n; i++) {
-      const local = (t * 1.6 - (i / n) * 0.6) / 0.4; // staggered pop-in
-      const s = spring(local);
-      if (s <= 0) continue;
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const x = cx - 150 + col * 100;
-      const y = cy - 24 + row * 52;
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.scale(s, Math.max(0.2, 2 - s)); // squash on overshoot, stretch while popping in
-      ctx.fillStyle = pal[i % pal.length] ?? '#f5f0e1';
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 34, 22, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      ctx.beginPath();
-      ctx.ellipse(-8, -8, 12, 6, -0.4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
+    if (view.art) drawArtServed(ctx, view.art, { t: view.presentT ?? 0, n: view.piecesCount, cx, cy });
   }
 }

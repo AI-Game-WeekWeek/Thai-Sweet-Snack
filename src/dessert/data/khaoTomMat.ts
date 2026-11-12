@@ -16,8 +16,9 @@ export const khaoTomMat: DessertDef = {
     { id: 'black-bean', nameTh: 'ถั่วดำ', color: '#3b3b3b' },
     { id: 'banana-leaf', nameTh: 'ใบตอง', color: '#6aa84f' },
   ],
+  art: "parcel",
   steps: [
-    { id: 'mix', nameTh: 'ผสมข้าวเหนียวกับกะทิ', anim: 'knead', sound: 'stir', weight: 2, maxMs: 12000 },
+    { id: 'mix', nameTh: 'ผสมข้าวเหนียวกับกะทิ เกลือ น้ำตาล', anim: 'knead', sound: 'stir', weight: 2, maxMs: 12000 },
     { id: 'fill', nameTh: 'ใส่ไส้กล้วยกับถั่วดำ', anim: 'shape', sound: 'pop', weight: 2, maxMs: 12000 },
     { id: 'wrap', nameTh: 'ห่อใบตองทีละห่อ', anim: 'shape', sound: 'arrange', weight: 2, maxMs: 14000 },
     { id: 'tie', nameTh: 'มัดเชือกแต่ละห่อ', anim: 'shape', sound: 'pop', weight: 2, maxMs: 12000 },

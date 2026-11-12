@@ -1,4 +1,4 @@
-import { ANIM_IDS, SOUND_IDS, type DessertDef } from './types';
+import { ANIM_IDS, ART_IDS, SOUND_IDS, type DessertDef } from './types';
 
 /** Returns a list of errors (empty = valid). Unknown anim/sound ids only warn: Phase 3 falls back at runtime. */
 export function validateDessert(def: DessertDef): string[] {
@@ -8,6 +8,7 @@ export function validateDessert(def: DessertDef): string[] {
   if (!def.nameTh.trim()) errors.push(`${tag}: empty nameTh`);
   if (def.ingredients.length === 0) errors.push(`${tag}: no ingredients`);
   if (def.steps.length === 0) errors.push(`${tag}: no steps`);
+  if (!(ART_IDS as readonly string[]).includes(def.art)) errors.push(`${tag}: unknown art "${def.art}"`);
 
   const seen = new Set<string>();
   for (const st of def.steps) {

@@ -1,0 +1,84 @@
+import { describe, expect, it } from 'vitest';
+import { ART_IDS, type ArtId } from '../../src/dessert/types';
+import { drawArtCooking, drawArtServed } from '../../src/render/dessertArt';
+
+/** A canvas context that accepts every call; records a signature of what was drawn and keeps save/restore balanced. */
+function fakeCtx() {
+  const sig: string[] = [];
+  let depth = 0;
+  const handler: ProxyHandler<object> = {
+    get(_t, prop) {
+      if (prop === 'save') return () => { depth++; };
+      if (prop === 'restore') return () => { depth--; };
+      if (prop === 'createLinearGradient' || prop === 'createRadialGradient') return () => ({ addColorStop() {} });
+      if (prop === 'measureText') return () => ({ width: 10 });
+      return (...args: unknown[]) => { sig.push(`${String(prop)}(${args.map((a) => (typeof a === 'number' ? Math.round(a) : '')).join(',')})`); return proxy; };
+    },
+    set(_t, prop, value) { sig.push(`${String(prop)}=${String(value)}`); return true; },
+  };
+  const proxy: object = new Proxy({}, handler);
+  return { ctx: proxy as unknown as CanvasRenderingContext2D, signature: () => sig.join(';'), depth: () => depth };
+}
+const cooking = (art: ArtId, stage: number, t = 0.5, p = 0.5) => {
+  const f = fakeCtx();
+  drawArtCooking(f.ctx, art, { stage, stages: 6, t, p, time: 1234 });
+  return f;
+};
+
+describe('dessert art', () => {
+  it('every art draws every stage and served look without errors, with a balanced canvas state, for hostile values too', () => {
+    const odd = [0, 0.5, 1, NaN, -1, 2, Infinity];
+    for (const art of ART_IDS) {
+      for (let stage = -1; stage <= 8; stage++) {
+        for (const t of odd) for (const p of [0, 0.5, 1, NaN]) {
+          const f = fakeCtx();
+          expect(() => drawArtCooking(f.ctx, art, { stage, stages: 6, t, p, time: 1234 }), `${art} s${stage} t${t}`).not.toThrow();
+          expect(f.depth()).toBe(0);
+        }
+      }
+      for (const n of [0, 1, 3, 5, 8, 50, NaN, -2]) for (const t of odd) {
+        const f = fakeCtx();
+        expect(() => drawArtServed(f.ctx, art, { t, n, cx: 500, cy: 410 }), `${art} served n${n} t${t}`).not.toThrow();
+        expect(f.depth()).toBe(0);
+      }
+    }
+    const bad = fakeCtx();
+    expect(() => drawArtCooking(bad.ctx, 'nope' as ArtId, { stage: 0, stages: 6, t: 0, p: 0, time: 0 })).not.toThrow();
+  });
+
+  it('within one dessert the stages look different from each other (the process visibly changes)', () => {
+    for (const art of ART_IDS) {
+      const sigs = new Set([0, 1, 2, 3, 4, 5].map((s) => cooking(art, s).signature()));
+      expect(sigs.size, art).toBeGreaterThanOrEqual(4);
+    }
+  });
+
+  it('progress inside a stage changes the picture (things grow, fill, fold)', () => {
+    for (const art of ART_IDS) {
+      let changed = 0;
+      for (const stage of [1, 2, 3]) {
+        if (cooking(art, stage, 0.1).signature() !== cooking(art, stage, 0.9).signature()) changed++;
+      }
+      expect(changed, art).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('different desserts look different at the same stage: no shared base', () => {
+    for (const stage of [0, 1, 2, 3]) {
+      const sigs = new Set(ART_IDS.map((a) => cooking(a, stage).signature()));
+      expect(sigs.size, `stage ${stage}`).toBe(ART_IDS.length);
+    }
+    const served = new Set(ART_IDS.map((a) => { const f = fakeCtx(); drawArtServed(f.ctx, a, { t: 1, n: 6, cx: 500, cy: 410 }); return f.signature(); }));
+    expect(served.size).toBe(ART_IDS.length);
+  });
+
+  it('a served look draws nothing before it pops in, and the item count follows n (within its cap)', () => {
+    for (const art of ART_IDS) {
+      const none = fakeCtx(); drawArtServed(none.ctx, art, { t: 0, n: 5, cx: 500, cy: 410 });
+      const some = fakeCtx(); drawArtServed(some.ctx, art, { t: 1, n: 5, cx: 500, cy: 410 });
+      const zero = fakeCtx(); drawArtServed(zero.ctx, art, { t: 1, n: 0, cx: 500, cy: 410 });
+      expect(some.signature().length, art).toBeGreaterThan(none.signature().length);
+      expect(zero.signature().length, art).toBeLessThan(some.signature().length);
+    }
+  });
+});

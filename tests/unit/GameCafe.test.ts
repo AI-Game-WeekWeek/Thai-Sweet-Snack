@@ -295,12 +295,12 @@ describe('Game in café mode', () => {
     expect(() => runUntil(game, () => game.snapshot().roundsCompleted >= 2)).not.toThrow();
   });
 
-  it('ข้าวต้มมัด is presented as 3 separate wrapped parcels; every other dessert keeps the round pieces', () => {
+  it('ข้าวต้มมัด is presented as 3 separate wrapped parcels; every other dessert has its own look', () => {
     const { game } = mk({ npcSpawnEveryMs: 1e9 });
     game.start();
     runUntil(game, () => game.snapshot().state === 'PRESENTING');
     expect(game.snapshot().dessertNameTh).toBe('ข้าวต้มมัด');
-    expect(game.renderView()).toMatchObject({ pieceStyle: 'parcel', piecesCount: 3 });
+    expect(game.renderView()).toMatchObject({ art: 'parcel', piecesCount: 3 });
 
     const other = mk({ npcSpawnEveryMs: 1e9 });
     other.game.start();
@@ -308,7 +308,7 @@ describe('Game in café mode', () => {
     other.game.update(16);
     runUntil(other.game, () => other.game.snapshot().roundId === 2 && other.game.snapshot().state === 'PRESENTING');
     expect(other.game.snapshot().dessertNameTh).toBe(nameOf('bua-loy'));
-    expect(other.game.renderView()).toMatchObject({ pieceStyle: 'round', piecesCount: 8 });
+    expect(other.game.renderView()).toMatchObject({ art: 'bowl', piecesCount: 3 }); // บัวลอย is served in bowls
   });
 
   it('every gifting viewer is served the dessert they paid for, separately from the other viewers', () => {
@@ -346,5 +346,19 @@ describe('Game in café mode', () => {
     const mine = game.snapshot().cafe!.waiting.filter((c) => c.name === 'ซ้ำ');
     expect(mine.map((c) => c.dessertNameTh)).toEqual([nameOf('khanom-chan'), nameOf('foi-thong')]);
     expect(new Set(mine.map((c) => c.id)).size).toBe(2);
+  });
+
+  it('the view tells the renderer which dessert is being made and which step it is on', () => {
+    const { game } = mk({ npcSpawnEveryMs: 1e9 });
+    game.start();
+    runUntil(game, () => cooking(game));
+    game.update(16);
+    const v0 = game.renderView();
+    expect(v0.art).toBe('parcel'); // ข้าวต้มมัด
+    expect(v0.stepCount).toBe(6);
+    expect(v0.stepIndex).toBe(0);
+    game.debugCompleteStep();
+    game.debugCompleteStep();
+    expect(game.renderView().stepIndex).toBe(2);
   });
 });

@@ -98,7 +98,9 @@ src/Game.ts     composition root
 server/         local bridge (HTTP in, WebSocket out)
 ```
 
-Adding a dessert: add one file in `src/dessert/data/` and one line in `data/index.ts`. Recipes are validated at load.
+Each dessert has its own cooking scene and served look (`art` id in its data file, drawn in `src/render/dessertArt.ts`); recipe steps follow how the dessert is really made. Image prompts for replacing the drawn art: [docs/art-prompts.md](docs/art-prompts.md).
+
+Adding a dessert: add one file in `src/dessert/data/` (with an `art` id) and one line in `data/index.ts`. Recipes are validated at load.
 
 ## Stability rules (what the tests pin down)
 
