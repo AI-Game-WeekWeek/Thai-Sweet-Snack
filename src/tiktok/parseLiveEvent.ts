@@ -14,7 +14,7 @@ export function parseLiveEvent(raw: unknown, maxLikeCount: number): LiveEvent | 
   if (count > maxCount) return null;
   if (typeof o.tsMs !== 'number' || !Number.isFinite(o.tsMs)) return null;
   if (o.giftCoins !== undefined && (typeof o.giftCoins !== 'number' || !Number.isFinite(o.giftCoins) || o.giftCoins < 0)) return null;
-  const giftLike = o.type === 'gift' || o.type === 'rose';
+  const giftLike = o.type === 'gift' || o.type === 'rose' || o.type === 'join';
   const displayName = giftLike && typeof o.displayName === 'string' ? cleanName(o.displayName, 32) : '';
   const avatarUrl = giftLike && typeof o.avatarUrl === 'string' && SAFE_URL.test(o.avatarUrl) && o.avatarUrl.length <= 512 ? o.avatarUrl : '';
   return {

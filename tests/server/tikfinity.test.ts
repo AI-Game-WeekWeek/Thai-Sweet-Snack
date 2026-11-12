@@ -141,3 +141,16 @@ describe('control panel', () => {
     expect((msgs.flat()[0] as { giftCoins: number }).giftCoins).toBe(50);
   });
 });
+
+describe('avatar hosts', () => {
+  it('/monitor lists only the HOST of viewer pictures; live.html carries the allowed hosts from AVATAR_HOSTS', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dist-'));
+    writeFileSync(join(dir, 'index.html'), '<!doctype html><html><head></head><body></body></html>');
+    const { bridge, url } = await boot({ staticDir: dir, avatarHosts: ['p16.example.com'] });
+    bridge.ingestTikFinity({ event: 'gift', data: { giftName: 'Rose', diamondCount: 1, nickname: 'x', profilePictureUrl: 'https://p16.example.com/secret/path.jpg?sig=abc' } });
+    const j = (await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json()) as { avatarHosts: Record<string, number> };
+    expect(j.avatarHosts).toEqual({ 'p16.example.com': 1 });
+    expect(JSON.stringify(j)).not.toContain('secret');
+    expect(await (await fetch(`${url}/live.html`)).text()).toContain('window.__AVATAR_HOSTS__=["p16.example.com"]');
+  });
+});

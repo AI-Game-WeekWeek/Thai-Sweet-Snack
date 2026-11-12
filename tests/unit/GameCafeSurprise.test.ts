@@ -620,3 +620,32 @@ describe('each tap adds a fixed percent', () => {
     expect(game.snapshot().progress - p1).toBeLessThan(20);
   });
 });
+
+describe('viewers who join become named customers', () => {
+  const join = (g: Game, name: string | undefined, extra: Record<string, unknown> = {}) => g.ingestEvent({ id: `j${++n}`, type: 'join', count: 1, tsMs: g.nowMs, ...(name ? { displayName: name } : {}), ...extra });
+  const here = (g: Game) => { const c = g.snapshot().cafe!; return [...c.waiting, ...(c.serving ? [c.serving] : [])]; };
+  it('a join with a name orders the everyday dessert (khao tom mat), once a minute per name; no name or hidden names = nobody', () => {
+    const { game } = mk({}, { npcSpawnEveryMs: 1e9 });
+    game.start();
+    join(game, 'พี่ต้น');
+    join(game, 'พี่ต้น');
+    join(game, undefined);
+    advance(game, 200);
+    const mine = here(game).filter((c) => c.name === 'พี่ต้น');
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ viewer: true, dessertId: 'khao-tom-mat' });
+    expect(here(game).filter((c) => c.viewer)).toHaveLength(1);
+    const hidden = mk({}, { npcSpawnEveryMs: 1e9, anonymousNames: true });
+    hidden.game.start();
+    join(hidden.game, 'ลับ');
+    advance(hidden.game, 200);
+    expect(here(hidden.game).some((c) => c.name === 'ลับ')).toBe(false);
+  });
+  it('a flood of joins is capped per moment and never overfills the line', () => {
+    const { game } = mk({}, { npcSpawnEveryMs: 1e9 });
+    game.start();
+    for (let i = 0; i < 200; i++) join(game, `คน${i}`);
+    advance(game, 500);
+    expect(game.snapshot().cafe!.waitingTotal).toBeLessThanOrEqual(12);
+  });
+});

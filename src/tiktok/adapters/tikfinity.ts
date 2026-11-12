@@ -79,6 +79,16 @@ export class TikFinityAdapter {
         out.push({ id: this.id(d, 'like'), type: 'like', count: c, tsMs: ts });
         return out;
       }
+      case 'join':
+      case 'joined':
+      case 'member':
+      case 'memberjoin': {
+        const nick = str(pick(d, ['nickname', 'displayName', 'uniqueId']), 60);
+        const avatar = str(pick(d, ['profilePictureUrl', 'avatarUrl', 'profilePicture']), 500);
+        if (!nick) return out; // a join with no name cannot become a named customer
+        out.push({ id: this.id(d, 'join'), type: 'join', displayName: nick, ...(avatar ? { avatarUrl: avatar } : {}), tsMs: ts });
+        return out;
+      }
       case 'follow':
       case 'followed':
         out.push({ id: this.id(d, 'follow'), type: 'follow', tsMs: ts });
