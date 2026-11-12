@@ -1,6 +1,6 @@
 import type { ArtId } from '../dessert/types';
 import { artImage, drawArt } from './artImages';
-import { COOK_SCENES, FX_PICS, SERVED_PICS, type Fx, type Motion } from './artManifest';
+import { COOK_SCENES, FX_PICS, SERVED_PICS, type Fx, type Layer, type Motion } from './artManifest';
 
 /**
  * Per-dessert art: each Thai dessert has its own cooking scene (following how it is really made) and its own served
@@ -584,6 +584,12 @@ function drawFx(ctx: CanvasRenderingContext2D, fx: Fx, time: number): void {
 }
 
 /** Watercolor cooking scene for one recipe step; false when none of its pictures is loaded (shapes are drawn instead). */
+/** Transition clock per art: when the current step was first seen, so fades take a fixed, readable time (ms). */
+const OUT_MS = 380; // the previous step's picture fades away first
+const GAP_MS = 120; // a short empty beat, so pictures never stack
+const IN_MS = 520; // then the new step's picture fades in
+let track: { art: ArtId; stage: number; since: number; settled: boolean } | null = null;
+
 function drawCookPics(ctx: CanvasRenderingContext2D, art: ArtId, a: CookingArt): boolean {
   const steps = COOK_SCENES[art];
   if (!steps || steps.length === 0) return false;
@@ -596,30 +602,41 @@ function drawCookPics(ctx: CanvasRenderingContext2D, art: ArtId, a: CookingArt):
   if (layers.length === 0) return false;
   const t = c01(a.t);
   const time = Number.isFinite(a.time) ? a.time : 0;
-  const pop = 0.94 + 0.06 * smooth(c01(t / 0.5));
-  const mix = smooth(c01(t * 1.4 - 0.1));
-  // the new step dissolves in out of the previous step's picture, so things are visibly the same food moving on
-  const prev = stage > 0 ? steps[stage - 1] : undefined;
-  // sequential, not stacked: the old picture fades out first (first 30% of the step), then the new one fades in (25%..65%)
-  const outA = 1 - smooth(c01(t / 0.3));
-  const blend = smooth(c01((t - 0.25) / 0.4));
-  if (prev && outA > 0) {
+
+  // Step changes are timed in real milliseconds (not in cooking progress), so a hearts-boosted fast step still fades readably.
+  if (!track || track.art !== art || track.stage !== stage) {
+    const next = track !== null && track.art === art && stage === track.stage + 1;
+    track = { art, stage, since: time, settled: !next };
+  }
+  const elapsed = track.settled ? Infinity : time - track.since;
+  const prev = !track.settled && stage > 0 ? steps[stage - 1] : undefined;
+  const outA = prev ? 1 - smooth(c01(elapsed / OUT_MS)) : 0;
+  const inA = prev ? smooth(c01((elapsed - OUT_MS - GAP_MS) / IN_MS)) : 1;
+  const pop = 0.97 + 0.03 * inA;
+  // inside one step, a picture that turns into another (leaf -> filled leaf) fades out, a beat, then the next fades in
+  const fadeOut = 1 - smooth(c01((t - 0.25) / 0.2));
+  const fadeIn = smooth(c01((t - 0.5) / 0.25));
+
+  if (prev && outA > 0.01) {
     for (const l of prev.layers) {
-      if (artImage(l.pic) === null) continue;
-      if (layers.some((n) => n.pic === l.pic)) continue; // still on stage: it simply stays
+      if (artImage(l.pic) === null || layers.some((n) => n.pic === l.pic)) continue; // shared pictures simply stay
       const pose = poseOf(l.motion, l.size, time, 1);
       ctx.save();
       try {
-        ctx.globalAlpha = outA;
+        ctx.globalAlpha = outA * (l.fade === 'in' ? 1 : 1);
         drawArt(ctx, l.pic, l.x + pose.dx, l.y + pose.dy, l.size, l.size, pose.rot, pose.sx, pose.sy, 5);
       } finally {
         ctx.restore();
       }
     }
   }
+  const alphaOf = (l: Layer): number => {
+    const shared = prev ? prev.layers.some((p) => p.pic === l.pic) : true;
+    const base = shared ? 1 : inA;
+    return base * (l.fade === 'in' ? fadeIn : l.fade === 'out' ? fadeOut : 1);
+  };
   for (const l of layers) {
-    const base = prev && !prev.layers.some((p) => p.pic === l.pic) ? blend : 1;
-    const alpha = base * (l.fade === 'in' ? mix : l.fade === 'out' ? 1 - mix : 1);
+    const alpha = alphaOf(l);
     if (alpha <= 0.01) continue;
     const pose = poseOf(l.motion, l.size, time, t);
     ctx.save();
@@ -633,9 +650,12 @@ function drawCookPics(ctx: CanvasRenderingContext2D, art: ArtId, a: CookingArt):
   // pictures with a front rim are drawn again below their rim line, so a spoon dipped into a bowl goes behind the rim
   for (const l of layers) {
     if (l.front === undefined || !Number.isFinite(l.front)) continue;
+    const alpha = alphaOf(l);
+    if (alpha <= 0.01) continue;
     const pose = poseOf(l.motion, l.size, time, t);
     ctx.save();
     try {
+      ctx.globalAlpha = alpha;
       ctx.beginPath();
       ctx.rect(0, l.front, 1000, 600);
       ctx.clip();

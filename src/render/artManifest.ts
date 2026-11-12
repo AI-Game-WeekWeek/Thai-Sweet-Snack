@@ -81,7 +81,7 @@ export const COOK_SCENES: Record<ArtId, readonly StageSpec[]> = {
     { layers: [L('thongyipA-4', 500, 405, 290, undefined, undefined, 395), L('ktm-4', 548, 315, 230, orbit(28, 0.16, 1.5))], fx: [{ kind: 'sparkle', x: 500, y: 350, w: 240, n: 3 }] },
     { layers: [L('thongyipA-5', 500, 390, 330, rock(0.01, 2))], fx: [{ kind: 'bubbles', x: 500, y: 360, w: 260, n: 3 }, { kind: 'steam', x: 500, y: 280, w: 220, n: 2 }] },
     { layers: [L('thongyipA-6', 500, 395, 330, rock(0.01, 2))], fx: [{ kind: 'drop', x: 500, y: 260, w: 40, n: 2, color: YOLK }, { kind: 'bubbles', x: 500, y: 360, w: 220, n: 2 }] },
-    { layers: [L('thongyipA-6', 300, 405, 230, rock(0.01, 2), 'out'), L('thongyipA-7', 560, 385, 300, { m: 'squash', k: 0.08, speed: 2 }, 'out'), L('thongyipA-1', 560, 395, 300, undefined, 'in')], fx: [{ kind: 'sparkle', x: 640, y: 380, w: 220, n: 3 }] },
+    { layers: [L('thongyipA-7', 500, 385, 330, { m: 'dip', h: 14, speed: 1.5 })], fx: [{ kind: 'sparkle', x: 440, y: 400, w: 160, n: 3 }] },
     { layers: [L('thongyipA-1', 500, 395, 310, { m: 'pulse', k: 0.03, speed: 1.2 })], fx: [{ kind: 'sparkle', x: 500, y: 360, w: 280, n: 5 }] },
   ],
   syrupBall: [
