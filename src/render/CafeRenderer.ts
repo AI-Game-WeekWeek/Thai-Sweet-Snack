@@ -330,7 +330,8 @@ export class CafeRenderer {
     const q = cafe?.shamanQuota;
     if (q === undefined || !Number.isFinite(q) || q <= 0) return;
     const n = Math.min(99, Math.floor(q));
-    const label = `หมอผี ×${n}`;
+    const max = Number.isFinite(cafe?.shamanQuotaMax) ? Math.max(1, Math.floor(cafe?.shamanQuotaMax as number)) : 0;
+    const label = max > 0 ? `หมอผี ×${Math.min(n, max)} (สูงสุด ${max})` : `หมอผี ×${n}`;
     ctx.font = `700 30px ${FONT}`;
     const icon = artImage(CAFE_PICS.shaman[0] as string) !== null;
     const w = (Number.isFinite(ctx.measureText(label).width) ? ctx.measureText(label).width : 150) + 48 + (icon ? 36 : 0);

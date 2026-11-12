@@ -263,8 +263,8 @@ describe('shaman', () => {
 describe('shaman quota badge', () => {
   it('shows "หมอผี ×N" when there is a quota, nothing when 0, and is safe with hostile values', () => {
     const r = new CafeRenderer(4, avatars());
-    const t = (q: number) => { const f = fakeCtx(); r.draw(f.ctx, 720, 1280, view({ cafe: { ...view().cafe, shamanQuota: q } as never }), new ParticleSystem(10, 0), 16); expect(f.depth()).toBe(0); return f.texts.join(' '); };
-    expect(t(3)).toContain('หมอผี ×3');
+    const t = (q: number) => { const f = fakeCtx(); r.draw(f.ctx, 720, 1280, view({ cafe: { ...view().cafe, shamanQuota: q, shamanQuotaMax: 5 } as never }), new ParticleSystem(10, 0), 16); expect(f.depth()).toBe(0); return f.texts.join(' '); };
+    expect(t(3)).toContain('หมอผี ×3 (สูงสุด 5)');
     expect(t(0)).not.toContain('หมอผี');
     for (const q of [NaN, -2, Infinity, 1e9]) expect(() => t(q)).not.toThrow();
   });

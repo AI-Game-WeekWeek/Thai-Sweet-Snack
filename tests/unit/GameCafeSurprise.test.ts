@@ -444,7 +444,8 @@ describe('shaman quota from shares', () => {
     expect(game.renderView().cafe?.shamanQuota).toBe(1); // no ghost: saved, shaman does not come
     expect(game.renderView().cafe?.shaman ?? 0).toBe(0);
     for (let i = 0; i < 8; i++) share();
-    expect(game.renderView().cafe?.shamanQuota).toBeLessThanOrEqual(5);
+    expect(game.renderView().cafe?.shamanQuota).toBeLessThanOrEqual(5); // at most 5 are saved
+    expect(game.renderView().cafe?.shamanQuotaMax).toBe(5);
     expect(game.callGhostNow()).toBe(true);
     runUntil(game, () => game.renderView().cafe?.ghostCalm === true, 600_000);
     expect(game.renderView().cafe?.shamanQuota).toBeLessThan(5); // one was used

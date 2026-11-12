@@ -119,6 +119,7 @@ export interface CafeView {
   ghostCalm?: boolean;
   /** Shaman visits saved up from shares (each share +1, up to a maximum); one is used when a ghost needs calming. */
   shamanQuota?: number;
+  shamanQuotaMax?: number;
 }
 
 export interface GameCafeMode {
@@ -172,7 +173,7 @@ export const WORLD_H = 600;
 const PRESENT_MS = 900;
 /** The shaman's whole visit: walks in, splashes holy water, walks away. */
 const SHAMAN_MS = 5200;
-/** Shares save up shaman visits, at most this many. */
+/** Shares save up shaman visits, at most this many (shown on screen as "สูงสุด 5"). */
 const SHAMAN_MAX_QUOTA = 5;
 /** The ghost's voice: clearly higher and thinner than a normal customer (normal women 1.35, men 0.85). */
 const GHOST_PITCH = 1.9;
@@ -801,6 +802,7 @@ export class Game {
       shaman: this.shamanMs > 0 ? 1 - this.shamanMs / SHAMAN_MS : 0,
       ghostCalm: this.ghostTamed,
       shamanQuota: this.shamanQuota,
+      shamanQuotaMax: SHAMAN_MAX_QUOTA,
       spooky: this.phoneRingMs > 0 || this.phoneTalkMs > 0 || this.cafe?.queue.current?.kind === 'phone' || (this.cafe?.queue.waiting().some((c) => c.kind === 'phone') ?? false),
     };
   }
