@@ -125,3 +125,11 @@ treated as one event (`orangeHeart` in our event format); whether a given provid
 - The shop opens with a visible queue (anonymous customers are pre-seeded) instead of an empty counter.
 - Large gifts no longer complete a cooking step in café mode: every gift is an order (the old `completeStep` rule applies to classic mode only).
 - A gift with an unknown value counts as 1 coin; a name or picture that fails validation just makes the customer anonymous.
+- After two independent reviews: viewers are served first-come first-served among themselves (a combo of gifts cannot jump the
+  line); gifts over the per-tick cap are deferred, never dropped; a gift that finds the queue full pays a flat 2 coins
+  (`cafe.overflowGiftCoins`) instead of its face value (it inflated the economy); `count` may be omitted on single events; the
+  portrait canvas keeps its 9:16 shape in any window.
+- Known, deferred minors: names are cut by code point (a Thai tone mark can be cut off, ZWJ emoji split); `AvatarCache` ignores the
+  port, does not re-check redirects, needs punycode hosts, and keeps up to 24 picture URLs after their customers leave;
+  neighbouring long names can overlap in the waiting row; the 720x1280 backing canvas looks soft in a 1080x1920 OBS source;
+  small per-frame allocations in `cafeView`; `AvatarCache` could be cut entirely if pictures are never used.
