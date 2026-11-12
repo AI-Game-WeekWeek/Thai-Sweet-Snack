@@ -64,15 +64,16 @@ export class CookingSystem {
     this.advanceSteps();
   }
 
-  addProgress(amount: number): number {
-    if (!this.active) return 0;
+  /** `roundId` is the round the caller (e.g. a live event) was meant for; a stale or future id is ignored. */
+  addProgress(amount: number, roundId: number): number {
+    if (!this.active || roundId !== this.roundId) return 0;
     const applied = this.progress.add(amount, this.roundId);
     this.advanceSteps();
     return applied;
   }
 
-  completeCurrentStep(): boolean {
-    if (!this.active) return false;
+  completeCurrentStep(roundId: number): boolean {
+    if (!this.active || roundId !== this.roundId) return false;
     this.forceCurrentStepDone();
     this.advanceSteps();
     return true;

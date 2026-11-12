@@ -40,6 +40,7 @@ describe('cooking soak (real recipes through Game)', () => {
       expect(s.progress).toBeLessThanOrEqual(100);
       if (s.roundId === prev.roundId) expect(s.progress).toBeGreaterThanOrEqual(prevProgress);
       if (s.state !== prev.state) expect(TRANSITIONS[prev.state]).toContain(s.state);
+      if (!hostile && s.state === 'PRESENTING' && prev.state === 'COOKING') expect(s.progress).toBe(100); // ended by completion, not a watchdog
       expect(s.roundId - prev.roundId === 0 || s.roundId - prev.roundId === 1).toBe(true);
 
       if (s.dessertNameTh) {

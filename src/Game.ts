@@ -35,10 +35,14 @@ export class Game {
     this.manager = new GameManager(config, {
       onEnter: (state, roundId) => {
         if (state === 'PREPARING') {
+          this.current = null; // if next() throws, never replay the previous round's dessert
           this.current = this.desserts.next();
           this.progress.startRound(roundId);
         } else if (state === 'COOKING' && this.current) {
           this.cooking.start(this.current, roundId);
+        } else if (state !== 'COOKING') {
+          // Left COOKING early (e.g. watchdog): stop cooking so no step state lingers into PRESENTING.
+          this.cooking.cancel();
         }
       },
       onTick: (state, dtMs) => {
@@ -73,11 +77,15 @@ export class Game {
 
   /** Test/mock helper: no-op outside COOKING. Phase 4 replaces this with the event system. */
   debugAddProgress(amount: number): number {
-    return this.manager.snapshot().state === 'COOKING' ? this.cooking.addProgress(amount) : 0;
+    return this.isCooking() ? this.cooking.addProgress(amount, this.manager.snapshot().roundId) : 0;
   }
 
   /** Test/mock helper: no-op outside COOKING. */
   debugCompleteStep(): boolean {
-    return this.manager.snapshot().state === 'COOKING' ? this.cooking.completeCurrentStep() : false;
+    return this.isCooking() ? this.cooking.completeCurrentStep(this.manager.snapshot().roundId) : false;
+  }
+
+  private isCooking(): boolean {
+    return this.manager.snapshot().state === 'COOKING';
   }
 }

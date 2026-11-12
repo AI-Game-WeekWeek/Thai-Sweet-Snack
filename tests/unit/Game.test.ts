@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { liveConfig } from '../../src/config/gameConfig';
+import { liveConfig, type GameConfig } from '../../src/config/gameConfig';
 import { Game } from '../../src/Game';
 import { ALL_DESSERTS } from '../../src/dessert/data';
 import { DessertManager } from '../../src/dessert/DessertManager';
+import type { DessertDef } from '../../src/dessert/types';
 
 const IDS = ALL_DESSERTS.map((d) => d.id);
 
@@ -81,5 +82,34 @@ describe('Game', () => {
     expect(g.snapshot().progress).toBe(0);
     g.debugAddProgress(40); // not COOKING: ignored
     expect(g.snapshot().progress).toBe(0);
+  });
+
+  it('when the COOKING watchdog ends the round early, cooking is stopped and no step is shown afterwards', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const short: GameConfig = { ...liveConfig, maxMs: { ...liveConfig.maxMs, cooking: 2000 } };
+    const g = new Game(short, new DessertManager(ALL_DESSERTS, IDS, () => 0.3));
+    g.start();
+    runUntil(g, () => g.snapshot().state === 'PRESENTING');
+    const s = g.snapshot();
+    expect(s.progress).toBeLessThan(100);
+    expect(s.stepNameTh).toBeNull();
+    expect(g.debugAddProgress(50)).toBe(0);
+  });
+
+  it('if picking the next dessert throws, the previous dessert is not replayed', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const def = ALL_DESSERTS[0] as DessertDef;
+    let calls = 0;
+    const flaky = {
+      next: (): DessertDef => {
+        if (++calls === 2) throw new Error('boom');
+        return def;
+      },
+      peekNext: (): DessertDef => def,
+    } as unknown as DessertManager;
+    const g = new Game(liveConfig, flaky);
+    g.start();
+    runUntil(g, () => g.snapshot().roundId === 2);
+    expect(g.snapshot().dessertNameTh).toBeNull();
   });
 });

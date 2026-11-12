@@ -46,11 +46,11 @@ describe('CookingSystem', () => {
 
   it('step bands are proportional to weight', () => {
     const { cooking } = setup(0);
-    cooking.addProgress(24);
+    cooking.addProgress(24, 1);
     expect(cooking.snapshot().stepIndex).toBe(0);
-    cooking.addProgress(2); // 26
+    cooking.addProgress(2, 1); // 26
     expect(cooking.snapshot().stepIndex).toBe(1);
-    cooking.addProgress(50); // 76
+    cooking.addProgress(50, 1); // 76
     expect(cooking.snapshot().stepIndex).toBe(2);
   });
 
@@ -62,8 +62,8 @@ describe('CookingSystem', () => {
 
   it('one huge add completes all steps in order and onComplete fires once', () => {
     const { cooking, log, progress } = setup(0);
-    expect(cooking.addProgress(1e9)).toBe(100);
-    cooking.addProgress(1e9);
+    expect(cooking.addProgress(1e9, 1)).toBe(100);
+    cooking.addProgress(1e9, 1);
     cooking.update(1000);
     expect(progress.value).toBe(100);
     expect(log).toEqual(['start:a', 'done:a', 'start:b', 'done:b', 'start:c', 'done:c', 'complete:1']);
@@ -72,11 +72,11 @@ describe('CookingSystem', () => {
 
   it('completeCurrentStep x3 completes the round; a 4th returns false; onComplete once', () => {
     const { cooking, log } = setup(0);
-    expect(cooking.completeCurrentStep()).toBe(true);
+    expect(cooking.completeCurrentStep(1)).toBe(true);
     expect(cooking.snapshot().progress).toBe(25);
-    expect(cooking.completeCurrentStep()).toBe(true);
-    expect(cooking.completeCurrentStep()).toBe(true);
-    expect(cooking.completeCurrentStep()).toBe(false);
+    expect(cooking.completeCurrentStep(1)).toBe(true);
+    expect(cooking.completeCurrentStep(1)).toBe(true);
+    expect(cooking.completeCurrentStep(1)).toBe(false);
     expect(log.filter((l) => l.startsWith('complete'))).toEqual(['complete:1']);
   });
 
@@ -92,20 +92,21 @@ describe('CookingSystem', () => {
     cooking.cancel();
     const before = [...log];
     cooking.update(5000);
-    expect(cooking.addProgress(50)).toBe(0);
-    expect(cooking.completeCurrentStep()).toBe(false);
+    expect(cooking.addProgress(50, 1)).toBe(0);
+    expect(cooking.completeCurrentStep(1)).toBe(false);
     expect(log).toEqual(before);
     expect(cooking.snapshot().active).toBe(false);
   });
 
   it('start again resets state for the new round', () => {
     const { cooking, progress, log } = setup(0);
-    cooking.addProgress(60);
+    cooking.addProgress(60, 1);
     cooking.start(dessert(), 2);
+    expect(cooking.addProgress(10, 1)).toBe(0); // old round id is stale now
     expect(progress.value).toBe(0);
     expect(progress.roundId).toBe(2);
     expect(cooking.snapshot()).toMatchObject({ active: true, stepIndex: 0 });
-    cooking.addProgress(1e9);
+    cooking.addProgress(1e9, 2);
     expect(log[log.length - 1]).toBe('complete:2');
   });
 
@@ -119,7 +120,7 @@ describe('CookingSystem', () => {
       onComplete: (id) => done.push(id),
     });
     cooking.start(dessert(), 1);
-    cooking.addProgress(1e9);
+    cooking.addProgress(1e9, 1);
     expect(done).toEqual([1]);
   });
 
@@ -132,8 +133,19 @@ describe('CookingSystem', () => {
   it('inactive before start', () => {
     const cooking = new CookingSystem(defaultConfig, new ProgressManager());
     expect(cooking.snapshot().active).toBe(false);
-    expect(cooking.addProgress(10)).toBe(0);
-    expect(cooking.completeCurrentStep()).toBe(false);
+    expect(cooking.addProgress(10, 1)).toBe(0);
+    expect(cooking.completeCurrentStep(1)).toBe(false);
     cooking.update(100);
+  });
+
+  it('rejects a stale or future roundId on addProgress and completeCurrentStep', () => {
+    const { cooking, progress } = setup(0);
+    expect(cooking.addProgress(50, 0)).toBe(0);
+    expect(cooking.addProgress(50, 2)).toBe(0);
+    expect(cooking.completeCurrentStep(0)).toBe(false);
+    expect(cooking.completeCurrentStep(2)).toBe(false);
+    expect(progress.value).toBe(0);
+    expect(cooking.addProgress(50, 1)).toBe(50);
+    expect(cooking.completeCurrentStep(1)).toBe(true);
   });
 });
