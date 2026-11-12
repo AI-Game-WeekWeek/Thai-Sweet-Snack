@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json",
-    "bridge": "tsx server/main.ts"
+    "bridge": "tsx server/main.ts",
+    "live": "tsx server/live.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
@@ -20,5 +21,8 @@
     "vite": "^8.3.8",
     "vitest": "^5.1.0",
     "ws": "^8.22.2"
+  },
+  "dependencies": {
+    "@fontsource/mali": "^5.3.0"
   }
 }

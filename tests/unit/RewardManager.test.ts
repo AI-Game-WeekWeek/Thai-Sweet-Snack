@@ -5,7 +5,7 @@ import { defaultProfile } from '../../src/reward/types';
 import type { DessertDef } from '../../src/dessert/types';
 
 const R = defaultConfig.reward;
-const def = (over: Partial<DessertDef['reward']> = {}): DessertDef => ({
+const def = (over: Partial<DessertDef['reward']> = {}): DessertDef => ({ art: 'bowl',
   id: 'd1', nameTh: 'ท', nameEn: 'T', unlock: { default: true },
   ingredients: [{ id: 'i', nameTh: 'i', color: '#fff' }],
   steps: [{ id: 's', nameTh: 's', anim: 'stir', sound: 'stir', weight: 1, maxMs: 1000 }],

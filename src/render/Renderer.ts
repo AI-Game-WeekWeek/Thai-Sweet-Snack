@@ -1,4 +1,6 @@
 import type { ParticleSystem } from '../anim/ParticleSystem';
+import type { ArtId } from '../dessert/types';
+import { drawArtCooking, drawArtServed } from './dessertArt';
 import { WORLD_H, WORLD_W, type RenderView } from '../Game';
 
 const spring = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : 1 - Math.exp(-5 * t) * Math.cos(12 * t));
@@ -32,26 +34,47 @@ export class Renderer {
       ctx.translate((width - WORLD_W * scale) / 2, (height - WORLD_H * scale) / 2);
       ctx.scale(scale, scale);
 
-      // table
-      ctx.fillStyle = '#c98f5a';
-      ctx.fillRect(0, 470, WORLD_W, 130);
-
-      const presenting = view.presentT !== null;
-      if (presenting) this.drawTray(ctx, view);
-      else this.drawBowl(ctx, view);
-
-      particles.forEach((p) => {
-        const alpha = Math.max(0, 1 - p.ageMs / p.lifeMs);
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = p.color;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-      });
-      ctx.globalAlpha = 1;
+      this.drawScene(ctx, view, particles);
     } finally {
       ctx.restore();
     }
+  }
+
+  /**
+   * The cooking station (table, bowl or tray, step effects, particles) in the 1000x600 world. The caller sets the
+   * transform, so other layouts (portrait café) can place it anywhere. Draws no background.
+   */
+  drawScene(ctx: CanvasRenderingContext2D, view: RenderView, particles: ParticleSystem, table = true, showServed = true): void {
+    // table (skipped when the caller already has a painted counter)
+    if (table) {
+      ctx.fillStyle = '#c98f5a';
+      ctx.fillRect(0, 470, WORLD_W, 130);
+    }
+
+    const presenting = view.presentT !== null;
+    if (presenting) this.drawTray(ctx, view, showServed);
+    else if (view.art && view.state === 'COOKING') this.drawCookingArt(ctx, view);
+    else this.drawBowl(ctx, view);
+
+    particles.forEach((p) => {
+      const alpha = Math.max(0, 1 - p.ageMs / p.lifeMs);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  /** Advances the animation clock used by the step effects (call once per frame). */
+  tick(dtMs: number): void {
+    this.timeMs += Number.isFinite(dtMs) ? dtMs : 0;
+  }
+
+  private drawCookingArt(ctx: CanvasRenderingContext2D, view: RenderView): void {
+    // station back plate so every scene sits on the same table
+    drawArtCooking(ctx, view.art as ArtId, { stage: view.stepIndex ?? 0, stages: view.stepCount ?? 1, t: view.stepT, p: view.progress / 100, time: this.timeMs });
   }
 
   private batterColor(view: RenderView): string {
@@ -146,7 +169,7 @@ export class Renderer {
     ctx.restore();
   }
 
-  private drawTray(ctx: CanvasRenderingContext2D, view: RenderView): void {
+  private drawTray(ctx: CanvasRenderingContext2D, view: RenderView, showServed = true): void {
     const cx = WORLD_W / 2;
     const cy = 410;
     ctx.fillStyle = '#b07a45';
@@ -158,30 +181,6 @@ export class Renderer {
     ctx.roundRect(cx - 245, cy - 56, 490, 112, 18);
     ctx.fill();
 
-    const pal = view.palette;
-    const n = view.piecesCount;
-    const cols = 4;
-    const t = view.presentT ?? 0;
-    for (let i = 0; i < n; i++) {
-      const local = (t * 1.6 - (i / n) * 0.6) / 0.4; // staggered pop-in
-      const s = spring(local);
-      if (s <= 0) continue;
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const x = cx - 150 + col * 100;
-      const y = cy - 24 + row * 52;
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.scale(s, Math.max(0.2, 2 - s)); // squash on overshoot, stretch while popping in
-      ctx.fillStyle = pal[i % pal.length] ?? '#f5f0e1';
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 34, 22, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      ctx.beginPath();
-      ctx.ellipse(-8, -8, 12, 6, -0.4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
+    if (view.art && showServed) drawArtServed(ctx, view.art, { t: view.presentT ?? 0, n: view.piecesCount, cx, cy });
   }
 }

@@ -9,6 +9,8 @@ export interface RoundInfo {
   cooking: boolean;
   /** True during the menu vote window: comments count as votes. */
   voting?: boolean;
+  /** Café mode: gifts and roses are reported in `gifts` in every state (they are not tied to a round). */
+  acceptsGifts?: boolean;
 }
 
 type Ingest = 'queued' | 'duplicate' | 'invalid';
@@ -64,12 +66,18 @@ export class TikTokEventManager {
 
   /** Empties the queue into one coalesced result. Safe to call every tick. */
   drain(round: RoundInfo, nowMs: number): EventEffects {
-    const cfg = this.config.events;
-    const fx: EventEffects = { progressAdd: 0, completeStep: false, roseEffect: false, bigGiftEffect: false, shareBonus: 0, votes: [], likes: 0, follows: 0, hearts: 0, counters: this.counts };
+    const cfg = { ...this.config.events, maxGiftsPerDrain: this.config.cafe.maxGiftsPerDrain };
+    const fx: EventEffects = { progressAdd: 0, completeStep: false, roseEffect: false, bigGiftEffect: false, shareBonus: 0, votes: [], likes: 0, follows: 0, hearts: 0, gifts: [], surprises: { follows: 0, orangeHearts: 0 }, counters: this.counts };
     const batch = this.queue;
     this.queue = [];
+    const deferred: LiveEvent[] = [];
     for (const e of batch) {
       try {
+        // Over the per-drain gift cap: keep the gift for the next drain instead of losing it.
+        if ((e.type === 'gift' || e.type === 'rose') && round.acceptsGifts && fx.gifts.length >= cfg.maxGiftsPerDrain) {
+          deferred.push(e);
+          continue;
+        }
         if (e.type === 'comment') {
           if (round.voting && e.tsMs >= round.startedAtMs && e.vote !== undefined) {
             fx.votes.push({ vote: e.vote, ...(e.userId !== undefined ? { userKey: e.userId } : {}) });
@@ -77,6 +85,18 @@ export class TikTokEventManager {
           continue;
         }
         this.count(e);
+        if ((e.type === 'gift' || e.type === 'rose') && round.acceptsGifts && fx.gifts.length < cfg.maxGiftsPerDrain) {
+          fx.gifts.push({
+            coins: e.giftCoins ?? 1,
+            kind: e.type,
+            ...(e.displayName !== undefined ? { displayName: e.displayName } : {}),
+            ...(e.avatarUrl !== undefined ? { avatarUrl: e.avatarUrl } : {}),
+          });
+        }
+        if (round.acceptsGifts) {
+          if (e.type === 'follow') fx.surprises.follows += 1;
+          else if (e.type === 'orangeHeart') fx.surprises.orangeHearts += 1;
+        }
         if (e.type === 'share') {
           fx.shareBonus += cfg.shareBonusPct;
           continue;
@@ -118,6 +138,7 @@ export class TikTokEventManager {
         console.error('[TikTokEventManager] dropped one event', err);
       }
     }
+    this.queue = deferred;
     fx.counters = { ...this.counts };
     return fx;
   }
@@ -148,7 +169,7 @@ export class TikTokEventManager {
     }
     this.queue = rest;
     while (this.queue.length > max) {
-      const i = this.queue.findIndex((e) => e.type !== 'gift');
+      const i = this.queue.findIndex((e) => e.type !== 'gift' && e.type !== 'rose');
       this.queue.splice(i === -1 ? 0 : i, 1);
     }
   }

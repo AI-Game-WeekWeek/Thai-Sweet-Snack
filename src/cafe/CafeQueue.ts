@@ -1,0 +1,162 @@
+import { cleanName } from '../tiktok/cleanName';
+
+export type CustomerState = 'WAITING' | 'SERVING' | 'PAID' | 'LEFT';
+export type CustomerKind = 'normal' | 'vip' | 'phone';
+
+export interface Customer {
+  id: number;
+  kind: CustomerKind;
+  viewer: boolean;
+  name: string | null;
+  avatarUrl: string | null;
+  /** Stable per customer, used for the generated face and colours. */
+  seed: number;
+  dessertId: string;
+  patienceMs: number;
+  patienceMaxMs: number;
+  state: CustomerState;
+}
+
+export interface NewCustomer {
+  viewer: boolean;
+  /** Default 'normal'. Special customers (VIP, phone order) jump ahead of normal ones. */
+  kind?: CustomerKind;
+  /** Overrides the default patience (a phone order's deadline). */
+  patienceMs?: number;
+  name?: string | null;
+  avatarUrl?: string | null;
+  dessertId: string;
+  /** Fixes the look (outfit / ghost kind) of this customer. Default: derived from the id. */
+  seed?: number;
+  /** Joins even when the line is full (a ghost cuts in line). */
+  force?: boolean;
+}
+
+export interface CafeQueueOptions {
+  maxWaiting: number;
+  patienceMs: number;
+  maxNameLength: number;
+}
+
+/**
+ * Phone orders first (they have a deadline), then viewers who gifted (they paid: a VIP never makes them wait longer), then the
+ * VIP, then anonymous filler customers.
+ */
+const rank = (c: Customer): number => (c.kind === 'phone' ? 0 : c.viewer ? 1 : c.kind === 'vip' ? 2 : 3);
+
+/**
+ * The café queue. Customers are WAITING → SERVING → PAID | LEFT. Only waiting customers lose patience; the one being
+ * served never leaves mid-cooking, so nothing ever has to be cancelled. Payment happens once, in pay().
+ */
+export class CafeQueue {
+  private list: Customer[] = [];
+  private serving: Customer | null = null;
+  private nextId = 1;
+
+  constructor(private readonly opts: CafeQueueOptions) {}
+
+  get current(): Customer | null {
+    return this.serving;
+  }
+
+  /** Removes every WAITING customer of a kind (a banished ghost). Returns how many left. The one being served is not touched. */
+  removeKind(kind: CustomerKind): number {
+    const before = this.list.length;
+    this.list = this.list.filter((c) => c.kind !== kind);
+    return before - this.list.length;
+  }
+
+  waiting(): readonly Customer[] {
+    return this.list;
+  }
+
+  /** Viewers queue right behind the customer being served (in order of arrival); anonymous customers join the back. */
+  enqueue(n: NewCustomer): 'ok' | 'full' {
+    if (this.list.length >= this.opts.maxWaiting && !n.force) return 'full';
+    const name = n.name ? cleanName(n.name, this.opts.maxNameLength) : '';
+    const patience = n.patienceMs !== undefined && Number.isFinite(n.patienceMs) && n.patienceMs > 0 ? n.patienceMs : this.opts.patienceMs;
+    const customer: Customer = {
+      id: this.nextId++,
+      kind: n.kind ?? 'normal',
+      viewer: n.viewer,
+      name: name === '' ? null : name,
+      avatarUrl: n.avatarUrl ?? null,
+      seed: n.seed !== undefined && Number.isFinite(n.seed) ? n.seed : this.nextId,
+      dessertId: n.dessertId,
+      patienceMs: patience,
+      patienceMaxMs: patience,
+      state: 'WAITING',
+    };
+    // Priority rank, first-come first-served within a rank: a combo of gifts cannot jump the line.
+    const r = rank(customer);
+    let at = this.list.length;
+    for (let i = 0; i < this.list.length; i++) {
+      if (rank(this.list[i] as Customer) > r) {
+        at = i;
+        break;
+      }
+    }
+    this.list.splice(at, 0, customer);
+    return 'ok';
+  }
+
+  /** Removes the last anonymous (filler) customer to make room for a special one. Never touches viewers, VIPs or phone orders. */
+  displaceAnonymous(): boolean {
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      const c = this.list[i] as Customer;
+      if (c.kind === 'normal' && !c.viewer) {
+        this.list.splice(i, 1);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Customers who ran out of patience this tick (removed from the queue). `slow` (0..1] slows the loss (lucky cat). */
+  tick(dtMs: number, slow = 1): Customer[] {
+    if (!Number.isFinite(dtMs) || dtMs <= 0) return [];
+    const factor = Number.isFinite(slow) && slow > 0 && slow <= 1 ? slow : 1;
+    const left: Customer[] = [];
+    const stay: Customer[] = [];
+    for (const c of this.list) {
+      c.patienceMs -= c.kind === 'phone' ? dtMs : dtMs * factor; // a phone order's deadline is never stretched
+      if (c.patienceMs <= 0) {
+        c.state = 'LEFT';
+        left.push(c);
+      } else stay.push(c);
+    }
+    if (left.length > 0) this.list = stay;
+    return left;
+  }
+
+  startNext(): Customer | null {
+    if (this.serving || this.list.length === 0) return null;
+    const next = this.list.shift() as Customer;
+    next.state = 'SERVING';
+    this.serving = next;
+    return next;
+  }
+
+  /** Pays the customer being served, exactly once. Happiness = patience left (0..1) when they were called up. */
+  pay(): { customer: Customer; happiness: number } | null {
+    const c = this.serving;
+    if (!c) return null;
+    c.state = 'PAID';
+    this.serving = null;
+    return { customer: c, happiness: Math.min(1, Math.max(0, c.patienceMs / c.patienceMaxMs)) };
+  }
+
+  /** Frees the counter without paying (the round ended some other way). */
+  release(): Customer | null {
+    const c = this.serving;
+    if (!c) return null;
+    c.state = 'LEFT';
+    this.serving = null;
+    return c;
+  }
+
+  reset(): void {
+    this.list = [];
+    this.serving = null;
+  }
+}

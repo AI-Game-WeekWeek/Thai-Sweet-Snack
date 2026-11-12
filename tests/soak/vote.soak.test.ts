@@ -64,7 +64,7 @@ describe('menu-vote soak', () => {
       const r = rand();
       if (r < 0.01) for (let i = 0; i < 300; i++) raw({ type: 'comment', text: '1', userId: 'spammer' });
       else if (r < 0.02) for (let i = 0; i < 400; i++) raw({ type: 'comment', text: String(1 + (i % 3)), userId: `t${i}` }); // forces ties
-      else if (r < 0.03) for (const text of ['0', '4', 'ขนมครก', '1 2', '', '9'.repeat(500), '#3']) raw({ type: 'comment', text, userId: 'x' });
+      else if (r < 0.03) for (const text of ['0', '4', 'ข้าวต้มมัด', '1 2', '', '9'.repeat(500), '#3']) raw({ type: 'comment', text, userId: 'x' });
       else if (r < 0.035) raw({ type: 'comment', text: '2', userId: 'old', tsMs: -1e12 });
       else if (r < 0.04) raw({ type: 'like', count: 1000 });
       else if (r < 0.042) raw({ type: 'gift', count: 1, giftCoins: 999 });

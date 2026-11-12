@@ -36,6 +36,35 @@ export interface GameConfig {
   reward: { speedParMs: number; speedBonusMaxPct: number; xpBase: number; xpGrowth: number };
   save: { key: string; backupKey: string };
   progression: { autoUnlock: boolean };
+  cafe: {
+    maxWaiting: number;
+    /** Customers drawn at once (front one included). */
+    visible: number;
+    patienceMs: number;
+    /** Anonymous customers arrive this often while fewer than npcMinWaiting are waiting. */
+    npcSpawnEveryMs: number;
+    npcMinWaiting: number;
+    maxGiftsPerDrain: number;
+    /** What anonymous customers order. Every other dessert is ordered only by a viewer's gift (or a VIP / phone call). */
+    defaultDessertId: string;
+    /** Coins the café earns from a gift that finds the queue full (a flat thank-you, not the gift's face value). */
+    overflowGiftCoins: number;
+    maxNameLength: number;
+    /** Hide every viewer's name and picture. */
+    anonymousNames: boolean;
+    /** Remote profile pictures are OFF while `hosts` is empty. */
+    avatar: { hosts: string[]; max: number; timeoutMs: number };
+    /** Extra payout (percent) for a customer who did not have to wait at all. */
+    payBonusMaxPct: number;
+    giftTiers: { minCoins: number; dessertId: string }[];
+    surprise: {
+      luckyCat: { durationMs: number; maxMs: number; payBonusPct: number; /** Waiting customers lose patience at this fraction of normal speed. */ patienceSlowdown: number };
+      vip: { cooldownMs: number; payBonusPct: number; /** The VIP orders the best unlocked tier worth at least this many coins. */ minGiftCoins: number };
+      tip: { perCustomer: number; max: number };
+      /** The phone caller is a hungry Thai ghost: squeezeMs = time until it squeezes (if nobody taps), reliefPerLike = how much each tap loosens it, fineCoins = coins lost when squeezed. */
+      phone: { firstMs: number; everyMs: number; jitter: number; ringMs: number; deadlineMs: number; payBonusPct: number; squeezeMs: number; reliefPerLike: number; fineCoins: number; harderPerVisit: number; minSqueezeMs: number; squeezeSlow: number };
+    };
+  };
   vote: {
     candidates: number;
     windowMs: number;
@@ -80,6 +109,36 @@ export const defaultConfig: GameConfig = {
   reward: { speedParMs: 25000, speedBonusMaxPct: 30, xpBase: 100, xpGrowth: 1.25 },
   save: { key: 'thai-dessert-asmr:save', backupKey: 'thai-dessert-asmr:save.corrupt' },
   progression: { autoUnlock: true },
+  cafe: {
+    maxWaiting: 12,
+    visible: 5,
+    patienceMs: 70_000,
+    npcSpawnEveryMs: 7000,
+    npcMinWaiting: 4,
+    maxGiftsPerDrain: 20,
+    overflowGiftCoins: 2,
+    defaultDessertId: 'khao-tom-mat',
+    maxNameLength: 16,
+    anonymousNames: false,
+    avatar: { hosts: [], max: 24, timeoutMs: 5000 },
+    payBonusMaxPct: 50,
+    giftTiers: [
+      { minCoins: 1, dessertId: 'khao-tom-mat' },
+      { minCoins: 5, dessertId: 'bua-loy' },
+      { minCoins: 10, dessertId: 'thong-yod' },
+      { minCoins: 20, dessertId: 'khanom-chan' },
+      { minCoins: 50, dessertId: 'foi-thong' },
+      { minCoins: 99, dessertId: 'thong-yip' },
+      { minCoins: 199, dessertId: 'luk-chup' },
+      { minCoins: 500, dessertId: 'khanom-buang' },
+    ],
+    surprise: {
+      luckyCat: { durationMs: 20_000, maxMs: 60_000, payBonusPct: 50, patienceSlowdown: 0.5 },
+      vip: { cooldownMs: 60_000, payBonusPct: 50, minGiftCoins: 50 },
+      tip: { perCustomer: 1, max: 12 },
+      phone: { firstMs: 45_000, everyMs: 100_000, jitter: 0.3, ringMs: 3000, deadlineMs: 35_000, payBonusPct: 200, squeezeMs: 11_000, reliefPerLike: 0.009, fineCoins: 10, harderPerVisit: 0.12, minSqueezeMs: 5000, squeezeSlow: 0.45 },
+    },
+  },
   vote: { candidates: 3, windowMs: 15_000, maxVoters: 5000, anonVotesPerSec: 50, heartPerLike: 0.012, heartPerFollow: 0.15, heartPerHeart: 0.08, graceMs: 3000, heartDecayPerSec: 0.1, maxBoost: 4, cookRatePerSec: 6 },
 };
 
@@ -96,4 +155,12 @@ export const voteConfig: GameConfig = {
   durationsMs: { ...liveConfig.durationsMs, preparing: liveConfig.vote.windowMs, presenting: 1500, rewarding: 2500 },
   maxMs: { ...liveConfig.maxMs, preparing: liveConfig.vote.windowMs + 5000 },
   cooking: { baseProgressPerSec: liveConfig.vote.cookRatePerSec },
+};
+
+/** Thai café mode: one round = one customer; short serve/pay beats; quicker base cooking (hearts speed it up further). */
+export const cafeConfig: GameConfig = {
+  ...liveConfig,
+  durationsMs: { ...liveConfig.durationsMs, preparing: 1500, presenting: 1200, rewarding: 1800 },
+  maxMs: { ...liveConfig.maxMs, preparing: 4000 },
+  cooking: { baseProgressPerSec: 8 },
 };

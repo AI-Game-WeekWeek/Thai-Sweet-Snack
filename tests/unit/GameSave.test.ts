@@ -65,11 +65,11 @@ describe('Game progression and save', () => {
     const { game } = mk(new MemStorage(), { coins: 100_000 });
     game.start();
     const seen = new Set<string>();
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 24; i++) {
       runUntil(game, () => game.snapshot().roundsCompleted > i);
       seen.add(game.snapshot().dessertNameTh ?? '');
     }
-    expect(seen.size).toBe(8);
+    expect(seen.size).toBe(ALL_DESSERTS.length);
   });
 
   it('saves at each round end and reloads coins, collection and unlocks', () => {

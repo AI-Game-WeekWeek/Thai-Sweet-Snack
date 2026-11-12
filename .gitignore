@@ -165,3 +165,7 @@ Thumbs.db
 
 # Executor scratch
 .superpowers/
+
+# Hosted demo build
+dist-demo/
+.live-token

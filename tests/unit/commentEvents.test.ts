@@ -21,7 +21,7 @@ describe('comment events', () => {
     expect(e.count).toBe(1);
   });
 
-  it.each([['0'], ['4'], ['12'], ['one'], ['ขนมครก'], ['1 2'], [''], ['   '], ['9'.repeat(300)], ['1​'], ['๑']])('"%s" is not a vote', (text) => {
+  it.each([['0'], ['4'], ['12'], ['one'], ['ข้าวต้มมัด'], ['1 2'], [''], ['   '], ['9'.repeat(300)], ['1​'], ['๑']])('"%s" is not a vote', (text) => {
     expect(parseLiveEvent(cm(text), 1000)).toBeNull();
   });
 

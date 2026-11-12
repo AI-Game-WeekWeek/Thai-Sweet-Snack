@@ -11,7 +11,7 @@ function rng(seed: number): () => number {
 const IDS = ALL_DESSERTS.map((d) => d.id);
 
 describe('DessertManager', () => {
-  it('never repeats back to back and uses every dessert (8 unlocked, 100 picks)', () => {
+  it('never repeats back to back and uses every dessert (all unlocked, 100 picks)', () => {
     const m = new DessertManager(ALL_DESSERTS, IDS, rng(1));
     const counts = new Map<string, number>();
     let prev = '';
@@ -21,14 +21,14 @@ describe('DessertManager', () => {
       prev = d.id;
       counts.set(d.id, (counts.get(d.id) ?? 0) + 1);
     }
-    for (const id of IDS) expect(counts.get(id)).toBeGreaterThanOrEqual(12);
+    for (const id of IDS) expect(counts.get(id)).toBeGreaterThanOrEqual(Math.floor(100 / IDS.length) - 2);
   });
 
-  it('each bag of 8 contains all 8', () => {
+  it('each bag contains every unlocked dessert once', () => {
     const m = new DessertManager(ALL_DESSERTS, IDS, rng(7));
     for (let bag = 0; bag < 5; bag++) {
-      const ids = Array.from({ length: 8 }, () => m.next().id);
-      expect(new Set(ids).size).toBe(8);
+      const ids = Array.from({ length: IDS.length }, () => m.next().id);
+      expect(new Set(ids).size).toBe(IDS.length);
     }
   });
 
@@ -62,7 +62,7 @@ describe('DessertManager', () => {
     expect(m.get('zzz')).toBeUndefined();
   });
 
-  it('pickCandidates returns distinct unlocked desserts (100 draws of 3 from 8)', () => {
+  it('pickCandidates returns distinct unlocked desserts (100 draws of 3)', () => {
     const m = new DessertManager(ALL_DESSERTS, IDS, rng(21));
     for (let i = 0; i < 100; i++) {
       const c = m.pickCandidates(3);

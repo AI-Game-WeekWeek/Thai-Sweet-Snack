@@ -1,7 +1,8 @@
 import v8 from 'node:v8';
 import vm from 'node:vm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { liveConfig, voteConfig } from '../../src/config/gameConfig';
+import { cafeConfig, liveConfig, voteConfig } from '../../src/config/gameConfig';
+import { CafeQueue } from '../../src/cafe/CafeQueue';
 import { HeartMeter } from '../../src/cooking/HeartMeter';
 import { VoteManager } from '../../src/vote/VoteManager';
 import { AnimationManager } from '../../src/anim/AnimationManager';
@@ -138,6 +139,51 @@ describe('long-run memory and CPU', () => {
     }
     const growthMb = (heap[heap.length - 1]! - heap[0]!) / 1024 / 1024;
     console.log(`[leak/vote] heap MB per 100 rounds: ${heap.map((h) => (h / 1048576).toFixed(1)).join(', ')} | growth ${growthMb.toFixed(2)} MB | avg frame ${(busyMs / frames).toFixed(4)} ms over ${frames} frames`);
+    expect(growthMb).toBeLessThan(8);
+    expect(busyMs / frames).toBeLessThan(1);
+    expect(audio.live.size).toBeLessThanOrEqual(2);
+    expect(animations.activeCount).toBeLessThanOrEqual(cfg.anim.maxActive);
+  });
+
+  it('café mode: 400 customers with gift spam keep the heap flat and frames cheap', () => {
+    const cfg = cafeConfig;
+    const animations = new AnimationManager(cfg);
+    const particles = new ParticleSystem(cfg.particles.cap, cfg.particles.gravity);
+    const audio = new CountingAudio();
+    const events = new TikTokEventManager(cfg);
+    const save = new SaveSystem(cfg, new Mem(), DEFAULT_IDS, ALL_IDS);
+    const rewards = new RewardManager(cfg, save.load());
+    const queue = new CafeQueue({ maxWaiting: cfg.cafe.maxWaiting, patienceMs: cfg.cafe.patienceMs, maxNameLength: cfg.cafe.maxNameLength });
+    const meter = new HeartMeter({ decayPerSec: cfg.vote.heartDecayPerSec, maxBoost: cfg.vote.maxBoost });
+    const game = new Game(cfg, new DessertManager(ALL_DESSERTS, rewards.profile.unlocked, mulberry32(3)), { animations, audio, particles }, events, rewards, { progression: new ProgressionManager(ALL_DESSERTS, rewards), save }, undefined, { queue, meter, rng: mulberry32(4) });
+    const rand = mulberry32(29);
+    const mock = new MockEventSource(mulberry32(4), (e) => game.ingestEvent(e), { cafe: true });
+    mock.steady(150, 1e12);
+    game.start();
+
+    const heap: number[] = [];
+    let frames = 0;
+    let busyMs = 0;
+    let nextSample = 100;
+    const TARGET = 400;
+    while (game.snapshot().roundsCompleted < TARGET) {
+      const t0 = performance.now();
+      mock.tick(16, game.nowMs);
+      if (rand() < 0.01) mock.burst('gift', 200, game.nowMs);
+      if (rand() < 0.002) mock.burst('like', 1500, game.nowMs);
+      game.update(16);
+      busyMs += performance.now() - t0;
+      frames++;
+      expect(queue.waiting().length).toBeLessThanOrEqual(cfg.cafe.maxWaiting + 1); // a ghost may cut in line
+      expect(events.queueLength).toBeLessThanOrEqual(cfg.events.queueMax);
+      if (game.snapshot().roundsCompleted >= nextSample) {
+        gc();
+        heap.push(process.memoryUsage().heapUsed);
+        nextSample += 100;
+      }
+    }
+    const growthMb = (heap[heap.length - 1]! - heap[0]!) / 1024 / 1024;
+    console.log(`[leak/cafe] heap MB per 100 rounds: ${heap.map((h) => (h / 1048576).toFixed(1)).join(', ')} | growth ${growthMb.toFixed(2)} MB | avg frame ${(busyMs / frames).toFixed(4)} ms over ${frames} frames`);
     expect(growthMb).toBeLessThan(8);
     expect(busyMs / frames).toBeLessThan(1);
     expect(audio.live.size).toBeLessThanOrEqual(2);
