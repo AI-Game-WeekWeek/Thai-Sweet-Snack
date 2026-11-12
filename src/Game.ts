@@ -10,6 +10,8 @@ import type { GameState } from './core/StateMachine';
 import type { ProgressionManager } from './reward/ProgressionManager';
 import type { RewardManager } from './reward/RewardManager';
 import type { SaveSystem } from './save/SaveSystem';
+import { dessertForGift } from './cafe/giftMenu';
+import type { CafeQueue, Customer } from './cafe/CafeQueue';
 import type { HeartMeter } from './cooking/HeartMeter';
 import type { VoteManager } from './vote/VoteManager';
 import type { RewardResult } from './reward/types';
@@ -53,8 +55,10 @@ export interface GameSnapshot {
   toast: string | null;
   /** Menu-vote mode only. */
   vote?: VoteView;
-  /** Heart meter 0..1 (vote mode; 0 otherwise). */
+  /** Heart meter 0..1 (vote and café mode; 0 otherwise). */
   heart: number;
+  /** Café mode only. */
+  cafe?: CafeView;
 }
 
 export interface VoteView {
@@ -64,6 +68,38 @@ export interface VoteView {
   remainingMs: number;
   /** Index of the winning candidate once voting has closed. */
   winner: number | null;
+}
+
+export interface CustomerView {
+  id: number;
+  name: string | null;
+  viewer: boolean;
+  seed: number;
+  avatarUrl: string | null;
+  dessertId: string;
+  dessertNameTh: string;
+  color: string;
+  /** Patience left, 0..1 (1 for the customer being served). */
+  patience: number;
+  serving: boolean;
+}
+
+export interface CafeView {
+  serving: CustomerView | null;
+  /** The next customers in line (at most `cafe.visible - 1`). */
+  waiting: CustomerView[];
+  waitingTotal: number;
+  /** Customers who ran out of patience since the game started. */
+  lost: number;
+  giftMenu: { coins: number; nameTh: string; color: string }[];
+  coins: number;
+}
+
+export interface GameCafeMode {
+  queue: CafeQueue;
+  meter: HeartMeter;
+  /** Randomness for anonymous customers' orders (default Math.random). */
+  rng?: () => number;
 }
 
 export interface GameVoteMode {
@@ -85,6 +121,7 @@ export interface RenderView {
   wobble: number;
   piecesCount: number;
   vote?: VoteView;
+  cafe?: CafeView;
   heart: number;
   dessertNameTh: string | null;
   stepNameTh: string | null;
@@ -122,6 +159,9 @@ export class Game {
   private voteStart = 0;
   private winnerIdx: number | null = null;
   private lastCookedId: string | null = null;
+  private lostCustomers = 0;
+  private npcTimer = 0;
+  private giftMenuView: CafeView['giftMenu'] = [];
   private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
 
   constructor(
@@ -132,6 +172,7 @@ export class Game {
     private readonly rewards?: RewardManager,
     private readonly persistence?: GamePersistence,
     private readonly vote?: GameVoteMode,
+    private readonly cafe?: GameCafeMode,
   ) {
     this.cooking = new CookingSystem(config, this.progress, {
       onStepStart: (step, index, roundId) => this.startStepFx(step.anim, step.sound, step.maxMs, index, roundId),
@@ -141,14 +182,23 @@ export class Game {
       onEnter: (state, roundId) => this.onEnter(state, roundId),
       onTick: (state, dtMs) => {
         if (state !== 'COOKING') return;
-        if (this.vote) {
-          this.vote.meter.update(dtMs);
-          this.cooking.setRateMultiplier(this.vote.meter.multiplier);
+        const meter = this.vote?.meter ?? this.cafe?.meter;
+        if (meter) {
+          meter.update(dtMs);
+          this.cooking.setRateMultiplier(meter.multiplier);
         }
         this.cooking.update(dtMs);
       },
       onCleanupRound: (roundId) => this.cleanupRound(roundId),
     });
+    if (cafe) {
+      this.giftMenuView = [...config.cafe.giftTiers]
+        .sort((a, b) => a.minCoins - b.minCoins)
+        .map((t) => {
+          const d = desserts.get(t.dessertId);
+          return { coins: t.minCoins, nameTh: d?.nameTh ?? t.dessertId, color: d?.palette[0] ?? '#f5f0e1' };
+        });
+    }
   }
 
   start(): boolean {
@@ -177,6 +227,7 @@ export class Game {
     this.fx?.animations.update(dt);
     this.fx?.particles?.update(dt);
     this.wobble = Math.max(0, this.wobble - dt / 700);
+    if (this.cafe) this.tickCafe(dt);
     if (this.stepKind && this.manager.snapshot().state === 'COOKING') this.emitParticles(this.stepKind, dt);
     this.applyEvents();
   }
@@ -215,7 +266,8 @@ export class Game {
       },
       toast: this.toastText,
       ...(this.vote ? { vote: this.currentVoteView() } : {}),
-      heart: this.vote?.meter.value ?? 0,
+      heart: this.vote?.meter.value ?? this.cafe?.meter.value ?? 0,
+      ...(this.cafe ? { cafe: this.cafeView() } : {}),
     };
   }
 
@@ -243,7 +295,8 @@ export class Game {
       wobble: this.wobble,
       piecesCount: 8,
       ...(this.vote ? { vote: this.currentVoteView() } : {}),
-      heart: this.vote?.meter.value ?? 0,
+      heart: this.vote?.meter.value ?? this.cafe?.meter.value ?? 0,
+      ...(this.cafe ? { cafe: this.cafeView() } : {}),
       dessertNameTh: this.current?.nameTh ?? null,
       stepNameTh: this.cooking.snapshot().active ? (this.current?.steps[this.cooking.snapshot().stepIndex]?.nameTh ?? null) : null,
       toast: this.toastText,
@@ -279,6 +332,7 @@ export class Game {
     if (state === 'PREPARING') {
       this.current = null; // if next() throws, never replay the previous round's dessert
       if (this.vote) this.openVote(roundId);
+      else if (this.cafe) this.openCustomer();
       else this.current = this.desserts.next();
       this.progress.startRound(roundId);
       this.bonusPct = 0;
@@ -330,6 +384,86 @@ export class Game {
     if (this.current) this.lastCookedId = this.current.id;
   }
 
+  /** Café: the customer at the counter orders; anonymous customers keep the queue full when nobody is gifting. */
+  private openCustomer(): void {
+    const cafe = this.cafe;
+    if (!cafe) return;
+    cafe.queue.release();
+    if (cafe.queue.waiting().length === 0) this.spawnNpc();
+    const c = cafe.queue.startNext();
+    this.current = (c && this.desserts.get(c.dessertId)) || this.desserts.next();
+    if (this.current) this.lastCookedId = this.current.id;
+  }
+
+  private spawnNpc(): void {
+    const cafe = this.cafe;
+    if (!cafe) return;
+    const ids = this.desserts.unlockedIds;
+    if (ids.length === 0) return;
+    const id = ids[Math.floor((cafe.rng ?? Math.random)() * ids.length)] ?? ids[0];
+    if (id) cafe.queue.enqueue({ viewer: false, dessertId: id });
+  }
+
+  private tickCafe(dt: number): void {
+    const cafe = this.cafe;
+    if (!cafe) return;
+    const left = cafe.queue.tick(dt);
+    if (left.length > 0) {
+      this.lostCustomers += left.length;
+      for (let i = 0; i < left.length * 5; i++) this.fx?.particles?.spawn({ x: WORLD_W / 2 + (i % 5) * 30 - 60, y: 400, vx: (i % 5) * 20 - 40, vy: -80, lifeMs: 700, size: 6, color: 'rgba(120,120,120,0.7)', g: -0.2 });
+    }
+    const c = this.config.cafe;
+    if (cafe.queue.waiting().length >= c.npcMinWaiting) this.npcTimer = 0;
+    else {
+      this.npcTimer += dt;
+      if (this.npcTimer >= c.npcSpawnEveryMs) {
+        this.npcTimer = 0;
+        this.spawnNpc();
+      }
+    }
+  }
+
+  /** A gift puts that viewer in the queue ordering what the gift value maps to; a full queue still pays the café. */
+  private enqueueGifts(gifts: readonly { coins: number; displayName?: string; avatarUrl?: string }[]): void {
+    const cafe = this.cafe;
+    if (!cafe) return;
+    const anon = this.config.cafe.anonymousNames;
+    for (const g of gifts) {
+      const dessertId = dessertForGift(g.coins, this.config.cafe.giftTiers, this.desserts.unlockedIds);
+      if (!dessertId) continue;
+      const r = cafe.queue.enqueue({ viewer: true, name: anon ? null : (g.displayName ?? null), avatarUrl: anon ? null : (g.avatarUrl ?? null), dessertId });
+      if (r === 'full') this.rewards?.addCoins(Math.min(g.coins, 500));
+    }
+  }
+
+  private cafeView(): CafeView {
+    const cafe = this.cafe as GameCafeMode;
+    const toView = (c: Customer, serving: boolean): CustomerView => {
+      const d = this.desserts.get(c.dessertId);
+      return {
+        id: c.id,
+        name: c.name,
+        viewer: c.viewer,
+        seed: c.seed,
+        avatarUrl: c.avatarUrl,
+        dessertId: c.dessertId,
+        dessertNameTh: d?.nameTh ?? c.dessertId,
+        color: d?.palette[0] ?? '#f5f0e1',
+        patience: serving ? 1 : Math.min(1, Math.max(0, c.patienceMs / c.patienceMaxMs)),
+        serving,
+      };
+    };
+    const waiting = cafe.queue.waiting();
+    return {
+      serving: cafe.queue.current ? toView(cafe.queue.current, true) : null,
+      waiting: waiting.slice(0, Math.max(0, this.config.cafe.visible - 1)).map((c) => toView(c, false)),
+      waitingTotal: waiting.length,
+      lost: this.lostCustomers,
+      giftMenu: this.giftMenuView,
+      coins: this.rewards?.profile.coins ?? 0,
+    };
+  }
+
   /** After the reward: auto-unlock (coins only) and save. Never allowed to disturb the loop. */
   private settleRound(): void {
     const p = this.persistence;
@@ -349,9 +483,18 @@ export class Game {
   }
 
   private awardRound(roundId: number): void {
+    // Café: the customer pays exactly once, here; a customer who barely waited pays a bonus.
+    let who = '';
+    if (this.cafe) {
+      const paid = this.cafe.queue.pay();
+      if (paid) {
+        this.bonusPct += paid.happiness * this.config.cafe.payBonusMaxPct;
+        who = paid.customer.name ? `${paid.customer.name} ` : '';
+      }
+    }
     if (!this.rewards || !this.current) return;
     const r = this.rewards.award(this.current, { roundId, bonusPct: this.bonusPct, cookMs: this.clockMs - this.roundStart });
-    if (r) this.toastText = `+${r.score} คะแนน +${r.coins} เหรียญ${r.levelUp ? ' • เลเวลอัป!' : ''}`;
+    if (r) this.toastText = `${who}+${r.score} คะแนน +${r.coins} เหรียญ${r.levelUp ? ' • เลเวลอัป!' : ''}`;
   }
 
   private startStepFx(anim: AnimId, sound: SoundId, stepMaxMs: number, index: number, roundId: number): void {
@@ -439,6 +582,8 @@ export class Game {
     this.fx?.particles?.clear();
     this.vote?.manager.cancel();
     this.vote?.meter.reset();
+    this.cafe?.meter.reset();
+    this.cafe?.queue.release(); // the counter is never left occupied, whatever ended the round
     this.cooking.setRateMultiplier(1);
   }
 
@@ -449,13 +594,16 @@ export class Game {
     try {
       const m = this.manager.snapshot();
       const voting = this.vote !== undefined && m.state === 'PREPARING';
-      const fx = events.drain({ roundId: m.roundId, startedAtMs: voting ? this.voteStart : this.roundStart, cooking: m.state === 'COOKING', voting }, this.clockMs);
+      const fx = events.drain({ roundId: m.roundId, startedAtMs: voting ? this.voteStart : this.roundStart, cooking: m.state === 'COOKING', voting, acceptsGifts: this.cafe !== undefined }, this.clockMs);
       if (this.vote) {
         for (const v of fx.votes) this.vote.manager.cast(v.vote, v.userKey, m.roundId, this.clockMs);
         // Hearts feed the meter (which speeds cooking up) instead of adding progress directly.
         this.vote.meter.add(fx.likes * this.config.vote.heartPerLike + fx.follows * this.config.vote.heartPerFollow + fx.hearts * this.config.vote.heartPerHeart);
+      } else if (this.cafe) {
+        this.enqueueGifts(fx.gifts);
+        this.cafe.meter.add(fx.likes * this.config.vote.heartPerLike + fx.follows * this.config.vote.heartPerFollow + fx.hearts * this.config.vote.heartPerHeart);
       } else if (fx.progressAdd > 0) this.cooking.addProgress(fx.progressAdd, m.roundId);
-      if (fx.completeStep) this.cooking.completeCurrentStep(m.roundId);
+      if (fx.completeStep && !this.cafe) this.cooking.completeCurrentStep(m.roundId);
       if (fx.roseEffect) this.burst(18, 160);
       if (fx.bigGiftEffect) {
         this.burst(48, 300);
