@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2022"
+    ],
+    "noEmit": true
+  },
+  "include": [
+    "server",
+    "tests/server",
+    "src/tiktok/parseLiveEvent.ts",
+    "src/tiktok/types.ts"
+  ],
+  "exclude": []
+}
