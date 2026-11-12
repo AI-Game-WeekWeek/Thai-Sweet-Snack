@@ -1,8 +1,8 @@
 # Thai Dessert ASMR
 
-An endless Thai-dessert cooking game for TikTok Live. The streamer's screen shows satisfying cooking animation and
-synthesized ASMR sound; viewers' likes, follows, gifts and shares push the cooking forward. No viewer has to control
-anything, and the game never ends: dessert after dessert, forever.
+A small, endless Thai-dessert cooking game for TikTok Live. **Viewers pick the next dessert by commenting 1, 2 or 3,
+then tap hearts (likes) to make it cook faster.** The finished dessert is served and sold automatically, and the next
+vote opens. Nobody has to learn anything: two things to do, both visible on screen.
 
 Web game: TypeScript, Canvas 2D, Web Audio, Vite. 8 Thai desserts (ขนมชั้น, ลูกชุบ, ฝอยทอง, ทองหยิบ, ทองหยอด, ขนมครก, บัวลอย, ขนมเบื้อง).
 
@@ -19,7 +19,9 @@ Capture the page in OBS (browser source) or TikTok LIVE Studio. Click the page o
 
 | URL flag | Effect |
 |---|---|
-| `?mock=1` (`&rate=N`) | simulated viewers (steady likes/follows/gifts plus bursts); no TikTok needed |
+| `?mode=classic` | the older mode: one dessert at a time, no voting, with a DOM HUD |
+| `?mock=1` (`&rate=N`, max 500) | simulated viewers (likes, follows, gifts, comments "1/2/3"); no TikTok needed |
+| `?debug=1` | exposes `window.__snapshot()` for automated browser checks |
 | `?bridge=ws://127.0.0.1:8787&token=...` | real events through the local bridge, see [docs/tiktok-integration.md](docs/tiktok-integration.md) |
 | `?speed=N` | N game updates per frame (testing aid) |
 
@@ -29,22 +31,26 @@ No official public TikTok API for reading LIVE events was found. The game theref
 and ships a small authenticated local bridge; it bundles **no** reverse-engineered connector. You choose a source you
 are entitled to use and check TikTok's and the provider's terms. Details and limits: [docs/tiktok-integration.md](docs/tiktok-integration.md).
 
-## How it plays
+## How it plays (default mode)
 
-Select dessert → prepare → cook (steps with animation + sound) → present on a tray → reward → next dessert, automatically.
-Progress rises on its own (so it works with zero viewers) and faster with viewer events:
+Every round (about 25–40 s):
 
-| Event | Effect (all values in `src/config/gameConfig.ts`) |
-|---|---|
-| Like | + progress per like |
-| Follow | + progress |
-| Orange Heart | + larger progress |
-| Rose | special visual effect (with cooldown) |
-| Large gift (≥ `largeGiftCoins`) | completes the current step |
-| Share | + bonus % on the round's reward |
+1. **Vote (15 s):** a menu board shows 3 desserts and live vote bars. Viewers comment `1`, `2` or `3` (also `#2`).
+   Most votes wins, a tie is random, **no votes = the first dessert**, so the show never waits.
+2. **Cook:** the winner is cooked step by step with animation and ASMR sound. Progress also rises on its own, so it
+   works with zero viewers.
+3. **Hearts:** every like fills the heart meter (up to ×4 cooking speed); it drains over time. A follow adds a chunk;
+   a large gift completes the current step; a share adds a reward bonus.
+4. **Served and sold:** the dessert goes on the tray, the screen shows `+score +coins`, then the next vote starts.
 
-Rewards (score, coins, xp, collection) never need real money or gifts. Coins unlock new desserts automatically
-(cheapest affordable first). Progress is saved in the browser (`localStorage`).
+All numbers are in `src/config/gameConfig.ts` (`vote`, `events`, `reward`). Coins unlock the other desserts automatically
+(cheapest affordable first); nothing requires real money or gifts. Progress is saved in the browser (`localStorage`).
+
+**Privacy:** a comment is only ever turned into a vote number. The text and nicknames are never stored, shown or relayed;
+an opaque viewer key is used only to allow one vote per viewer per round.
+
+**Provider dependency:** votes need an event source that delivers comments (and ideally a user key). If yours does not,
+the menu simply rotates by itself; likes, follows and gifts still work. See [docs/tiktok-integration.md](docs/tiktok-integration.md).
 
 ## Architecture
 
@@ -55,8 +61,9 @@ src/dessert/    types, validation, data/*.ts (one file per dessert), DessertMana
 src/cooking/    ProgressManager (the only place progress changes, clamped 0..100), CookingSystem (steps, bands, watchdog)
 src/anim/       AnimationManager (cancelable, round-tagged tweens), ParticleSystem (capped)
 src/audio/      AudioManager (synthesized sounds, voice cap, silent when unavailable)
-src/render/     Renderer (Canvas 2D scene)
+src/render/     Renderer (Canvas 2D scene), VoteRenderer (the whole vote-mode UI on one canvas)
 src/tiktok/     TikTokEventManager (validate, dedupe, bounded queue, coalesce, cooldowns), MockEventSource, WebSocketSource
+src/vote/       VoteManager (menu vote tally); src/cooking/HeartMeter.ts (likes -> cooking speed)
 src/reward/     RewardManager, ProgressionManager
 src/save/       SaveSystem (versioned, validated, never throws)
 src/ui/         UIManager (six-element HUD)
@@ -77,9 +84,10 @@ Adding a dessert: add one file in `src/dessert/data/` and one line in `data/inde
 
 ## Tests
 
-`npm test` runs ~245 tests, including: 120–150 round soaks (loop, cooking, fx leaks, event chaos, progression with flaky
-storage), a 600-round memory/CPU check, bridge security/limits tests, and WebSocket reconnect tests.
-Browser checks (Playwright) were run by hand for the visuals, HUD, save/reload, mock mode and a bridge kill/restart.
+`npm test` runs ~320 tests, including: 120–150 round soaks (loop, cooking, fx leaks, event chaos, progression with flaky
+storage, **vote spam / ties / malformed comments**), 400–600 round memory/CPU checks, bridge security/limits tests, and
+WebSocket reconnect tests. Browser checks (Playwright) were run by hand: a full round with mock viewers, votes through the
+real bridge, a bridge kill/restart, save/reload.
 
 ## Known limits
 

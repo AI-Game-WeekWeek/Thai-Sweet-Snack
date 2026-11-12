@@ -21,6 +21,11 @@ small local bridge. Any source you are entitled to use only has to POST events i
 - `id`: unique per event (duplicates are dropped). `tsMs`: source time in ms, advisory only: the game stamps the receive time, never trusts a future time, and treats nothing as older than `events.maxSourceLagMs` (3 s), so provider clock skew costs at most the first 3 s of a dessert. Events that are genuinely late (from an earlier dessert) are ignored.
 - `count`: batch size (likes 1–1000), otherwise 1. `giftCoins`: value of a gift; at or above `events.largeGiftCoins` (default 100) it completes the current step.
 - Event types your provider cannot supply simply never arrive; the game does not depend on any of them.
+- **Menu votes** use `{"id":"c1","type":"comment","text":"2","userId":"opaque-viewer-key","tsMs":...}`. Only comments that are exactly
+  `1`, `2` or `3` (or `#1`..`#3`) count; anything else is rejected (the bridge answers 400 for a request that contains only
+  chatter). The bridge reduces a comment to `{"type":"comment","vote":2,"userId":...}` and **drops the text**, so it never
+  reaches the game. `userId` should be an opaque key (not a nickname) and is used only for one vote per viewer per round.
+  Without `userId`, votes are capped per second.
 
 Suggested mapping (verify against your provider's docs): like → `like`, follow → `follow`, "Orange Heart"/small heart → `orangeHeart`, Rose gift → `rose`, other gifts → `gift` with `giftCoins`, share → `share`.
 
