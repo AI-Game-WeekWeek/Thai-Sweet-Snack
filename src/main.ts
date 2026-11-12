@@ -18,6 +18,8 @@ import { MockEventSource } from './tiktok/MockEventSource';
 import { WebSocketSource } from './tiktok/WebSocketSource';
 import { TikTokEventManager } from './tiktok/TikTokEventManager';
 
+declare const __DEMO__: boolean;
+
 const app = document.getElementById('app');
 if (!app) throw new Error('#app not found');
 
@@ -69,7 +71,9 @@ const game = new Game(
 
 // ?mock=1 feeds simulated viewers (no TikTok needed): likes/follows/gifts, plus comments "1/2/3" in vote mode.
 // ?rate=N is capped so a typo cannot freeze the page.
-const mock = params.get('mock') === '1' ? new MockEventSource(Math.random, (e) => game.ingestEvent(e), { comments: voteMode }) : null;
+// The hosted demo build turns simulated viewers on by default (?mock=0 turns them off).
+const mockOn = params.get('mock') === '1' || (__DEMO__ && params.get('mock') !== '0');
+const mock = mockOn ? new MockEventSource(Math.random, (e) => game.ingestEvent(e), { comments: voteMode }) : null;
 if (mock) {
   events.setConnection('connected');
   mock.steady(Math.min(500, Math.max(1, Number(params.get('rate')) || 20)), 24 * 3600 * 1000);
