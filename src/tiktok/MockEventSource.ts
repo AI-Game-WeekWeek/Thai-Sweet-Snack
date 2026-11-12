@@ -77,10 +77,12 @@ export class MockEventSource {
     if (this.opts.comments && this.rng() < 0.3) return 'comment';
     const r = this.rng();
     if (this.opts.cafe) {
-      if (r < 0.7) return 'like';
-      if (r < 0.82) return 'gift';
-      if (r < 0.92) return 'follow';
-      if (r < 0.97) return 'orangeHeart';
+      // a realistic trickle: mostly likes, some gifts, and follows / hearts / shares only now and then
+      // (at 20 events a second the old mix sent a share every 2 seconds)
+      if (r < 0.9) return 'like';
+      if (r < 0.985) return 'gift';
+      if (r < 0.993) return 'follow';
+      if (r < 0.997) return 'orangeHeart';
       return 'share';
     }
     if (r < 0.8) return 'like';

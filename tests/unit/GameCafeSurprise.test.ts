@@ -563,3 +563,16 @@ describe('cooking waits for taps (idleCookRate 0)', () => {
     expect(normal.needsTaps).toBe(false);
   });
 });
+
+describe('one share = one shaman visit', () => {
+  it('each share adds exactly one (also when several arrive together) and never five at once', () => {
+    const { game } = mk({}, { npcSpawnEveryMs: 1e9 });
+    game.start();
+    game.ingestEvent({ id: `o${++n}`, type: 'share', count: 1, tsMs: game.nowMs });
+    advance(game, 200);
+    expect(game.renderView().cafe?.shamanQuota).toBe(1);
+    for (let i = 0; i < 3; i++) game.ingestEvent({ id: `o${++n}`, type: 'share', count: 1, tsMs: game.nowMs });
+    advance(game, 200);
+    expect(game.renderView().cafe?.shamanQuota).toBe(4);
+  });
+});

@@ -1063,7 +1063,10 @@ export class Game {
           this.squeeze = Math.max(0, this.squeeze - (Number.isFinite(relief) ? relief : 0));
         }
         if (fx.shareBonus > 0) {
-          this.shamanQuota = Math.min(SHAMAN_MAX_QUOTA, this.shamanQuota + 1);
+          // exactly one saved visit per share, even when several shares arrive in the same moment
+          const per = this.config.events.shareBonusPct > 0 ? this.config.events.shareBonusPct : fx.shareBonus;
+          const shares = Math.max(1, Math.round(fx.shareBonus / per));
+          this.shamanQuota = Math.min(SHAMAN_MAX_QUOTA, this.shamanQuota + shares);
           this.toastText = `แชร์! โควตาหมอผี ${this.shamanQuota} ครั้ง`;
         }
         this.cafe.meter.add(fx.likes * this.config.vote.heartPerLike + fx.follows * this.config.vote.heartPerFollow + fx.hearts * this.config.vote.heartPerHeart);
