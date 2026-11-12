@@ -52,6 +52,15 @@ export class TikFinityAdapter {
     return m ? `tf-${kind}-${m}` : `tf-${kind}-${this.now()}-${++this.seq}`;
   }
 
+  /** Status messages the game has no use for (not an error, so the monitor does not count them as dropped). */
+  static isStatus(message: unknown): boolean {
+    if (typeof message !== 'object' || message === null) return false;
+    const m = message as Record<string, unknown>;
+    const raw = m.event ?? m.type ?? m.eventName ?? m.action;
+    const name = typeof raw === 'string' ? raw.toLowerCase().replace(/[^a-z]/g, '') : '';
+    return ['config', 'livestatuschange', 'roomuser', 'ping', 'pong', 'streamend', 'roomstats'].includes(name);
+  }
+
   /** One incoming message -> zero or more LiveEvents (raw objects; the bridge validates them again). Never throws. */
   convert(message: unknown): Obj[] {
     try {

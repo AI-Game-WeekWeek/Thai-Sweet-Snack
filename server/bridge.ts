@@ -85,7 +85,7 @@ const MONITOR_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport"
 <script>const q=new URLSearchParams(location.search).get('token')||'';
 async function tick(){try{const r=await fetch('/monitor.json?token='+encodeURIComponent(q));if(!r.ok)throw 0;const j=await r.json();
 document.getElementById('s').innerHTML='เกมต่ออยู่ <b class="'+(j.clients>0?'ok':'no')+'">'+j.clients+'</b> หน้า · แหล่งอีเวนต์: <b>'+j.source+'</b> · ทิ้งข้อมูลที่ไม่เข้าใจ '+j.dropped+' ครั้ง';
-const kinds=['gift','rose','like','follow','share','orangeHeart','comment'];
+const kinds=['gift','rose','like','follow','share','orangeHeart','comment','join'];
 document.getElementById('c').innerHTML=kinds.map(k=>'<tr><td>'+k+'</td><td class="'+(j.received[k]?'ok':'no')+'">'+(j.received[k]||0)+'</td></tr>').join('');
 document.getElementById('l').innerHTML=j.lastEvents.slice().reverse().map(e=>'<tr><td>'+new Date(e.atMs).toLocaleTimeString()+'</td><td>'+e.type+'</td><td>'+(e.count||'')+'</td><td>'+(e.giftCoins??'')+'</td></tr>').join('');
 document.getElementById('h').innerHTML=Object.entries(j.avatarHosts||{}).map(([k,v])=>'<tr><td><code>'+k+'</code></td><td>'+v+'</td></tr>').join('')||'<tr><td>ยังไม่มีรูปส่งมา</td></tr>';
@@ -308,7 +308,7 @@ export function createBridge(opts: BridgeOptions): Bridge {
       if (e) valid.push(e);
       else stats.dropped++;
     }
-    if (converted.length === 0) stats.dropped++;
+    if (converted.length === 0 && !TikFinityAdapter.isStatus(message)) stats.dropped++;
     if (valid.length > 0) {
       note(valid);
       broadcast(JSON.stringify(valid));

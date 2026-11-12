@@ -154,3 +154,15 @@ describe('avatar hosts', () => {
     expect(await (await fetch(`${url}/live.html`)).text()).toContain('window.__AVATAR_HOSTS__=["p16.example.com"]');
   });
 });
+
+describe('monitor counts', () => {
+  it('status messages are not counted as dropped; a member message becomes a join with a name', async () => {
+    const { bridge, url } = await boot();
+    for (const m of [{ event: 'config', data: { events: [] } }, { event: 'roomUser', data: { viewerCount: 3 } }, { event: 'liveStatusChange', data: { isLive: true } }]) bridge.ingestTikFinity(m);
+    bridge.ingestTikFinity({ event: 'member', data: { nickname: 'พี่ต้น', profilePictureUrl: 'https://p.example.com/a.jpg', userId: '1' } });
+    bridge.ingestTikFinity({ event: 'mystery', data: {} });
+    const j = (await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json()) as { dropped: number; received: Record<string, number> };
+    expect(j.received.join).toBe(1);
+    expect(j.dropped).toBe(1); // only the mystery message
+  });
+});
