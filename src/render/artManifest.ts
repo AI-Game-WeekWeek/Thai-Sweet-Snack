@@ -18,6 +18,8 @@ export interface Layer {
   size: number;
   motion?: Motion;
   fade?: 'in' | 'out';
+  /** After everything else, draw this picture again below this world y, so things (a spoon) dip behind its front rim. */
+  front?: number;
 }
 /** Moving effects drawn over the scene (steam, bubbles, sparkles, falling drops). */
 export interface Fx {
@@ -35,7 +37,7 @@ export interface StageSpec {
 
 export const FX_PICS = { steam: ['fx-1', 'fx-2', 'fx-3'], bubbles: ['fx-4', 'fx-5'], sparkle: ['fx-6', 'fx-7'] } as const;
 
-const L = (pic: string, x: number, y: number, size: number, motion?: Motion, fade?: 'in' | 'out'): Layer => ({ pic, x, y, size, ...(motion ? { motion } : {}), ...(fade ? { fade } : {}) });
+const L = (pic: string, x: number, y: number, size: number, motion?: Motion, fade?: 'in' | 'out', front?: number): Layer => ({ pic, x, y, size, ...(motion ? { motion } : {}), ...(fade ? { fade } : {}), ...(front !== undefined ? { front } : {}) });
 const YOLK = '#f6b21b';
 const rock = (a: number, speed = 1): Motion => ({ m: 'rock', a, speed });
 const orbit = (r: number, tilt = 0.12, speed = 1): Motion => ({ m: 'orbit', r, tilt, speed });
@@ -43,7 +45,7 @@ const orbit = (r: number, tilt = 0.12, speed = 1): Motion => ({ m: 'orbit', r, t
 /** Cooking scenes per recipe step, in the 1000x600 station world. A step without loaded pictures keeps the shapes. */
 export const COOK_SCENES: Record<ArtId, readonly StageSpec[]> = {
   parcel: [
-    { layers: [L('ktm-3', 410, 385, 280, rock(0.03)), L('ktm-4', 520, 300, 260, orbit(34, 0.22, 1.3))], fx: [{ kind: 'sparkle', x: 410, y: 330, w: 200, n: 3 }] },
+    { layers: [L('ktm-3', 410, 385, 280, undefined, undefined, 385), L('ktm-4', 458, 300, 250, orbit(30, 0.16, 1.4))], fx: [{ kind: 'sparkle', x: 410, y: 330, w: 200, n: 3 }] },
     { layers: [L('ktm-5', 270, 400, 230, { m: 'dip', h: 18, speed: 1.2 }), L('ktm-6', 740, 400, 230, { m: 'dip', h: 18, speed: 1.2 }), L('ktm-7', 500, 405, 300, undefined, 'out'), L('ktm-8', 500, 405, 300, undefined, 'in')], fx: [{ kind: 'drop', x: 500, y: 250, w: 160, n: 2, color: '#2b2430' }, { kind: 'drop', x: 520, y: 250, w: 140, n: 2, color: '#f4d35e' }] },
     { layers: [L('ktm-8', 500, 395, 300, { m: 'squash', k: 0.05, speed: 1.4 }, 'out'), L('ktm-9', 500, 395, 320, { m: 'squash', k: 0.06, speed: 1.4 }, 'in')] },
     { layers: [L('ktm-9', 500, 395, 320, rock(0.05, 1.6), 'out'), L('ktm-10', 500, 385, 310, rock(0.05, 1.6), 'in')], fx: [{ kind: 'sparkle', x: 500, y: 350, w: 220, n: 3 }] },

@@ -606,6 +606,20 @@ function drawCookPics(ctx: CanvasRenderingContext2D, art: ArtId, a: CookingArt):
       ctx.restore();
     }
   }
+  // pictures with a front rim are drawn again below their rim line, so a spoon dipped into a bowl goes behind the rim
+  for (const l of layers) {
+    if (l.front === undefined || !Number.isFinite(l.front)) continue;
+    const pose = poseOf(l.motion, l.size, time);
+    ctx.save();
+    try {
+      ctx.beginPath();
+      ctx.rect(0, l.front, 1000, 600);
+      ctx.clip();
+      drawArt(ctx, l.pic, l.x + pose.dx, l.y + pose.dy, l.size, l.size, pose.rot, pop * pose.sx, pop * pose.sy, 5);
+    } finally {
+      ctx.restore();
+    }
+  }
   for (const fx of spec.fx ?? []) drawFx(ctx, fx, time);
   return true;
 }
