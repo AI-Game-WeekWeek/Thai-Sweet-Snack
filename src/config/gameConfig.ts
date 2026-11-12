@@ -19,6 +19,18 @@ export interface GameConfig {
   anim: { maxActive: number; stepAnimMaxMs: number };
   particles: { cap: number; gravity: number };
   audio: { maxVoices: number; master: number };
+  events: {
+    likeProgress: number;
+    followProgress: number;
+    heartProgress: number;
+    largeGiftCoins: number;
+    roseCooldownMs: number;
+    bigGiftCooldownMs: number;
+    dedupeCapacity: number;
+    queueMax: number;
+    maxLikeCountPerEvent: number;
+    shareBonusPct: number;
+  };
 }
 
 export const defaultConfig: GameConfig = {
@@ -30,6 +42,18 @@ export const defaultConfig: GameConfig = {
   anim: { maxActive: 64, stepAnimMaxMs: 2500 },
   particles: { cap: 600, gravity: 900 },
   audio: { maxVoices: 8, master: 0.6 },
+  events: {
+    likeProgress: 0.02,
+    followProgress: 1.5,
+    heartProgress: 4,
+    largeGiftCoins: 100,
+    roseCooldownMs: 1500,
+    bigGiftCooldownMs: 2500,
+    dedupeCapacity: 2000,
+    queueMax: 500,
+    maxLikeCountPerEvent: 1000,
+    shareBonusPct: 10,
+  },
 };
 
 /** Real game: CookingSystem drives COOKING; the global watchdog sits above any recipe length. */
