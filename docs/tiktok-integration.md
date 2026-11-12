@@ -25,6 +25,9 @@ small local bridge. Any source you are entitled to use only has to POST events i
   `giftCoins` picks the dessert (missing = 1 coin; `count` may be omitted for single events and defaults to 1; treat `giftCoins` as the value of one gift); `displayName` (cleaned, max 16 characters shown) and `avatarUrl` (https only) are
   kept **only on gift and rose events**, shown while that customer is on screen, never saved. The bridge relays them, so use a
   provider you trust with viewer names. Pictures are not loaded unless you allow their host in `cafe.avatar.hosts`.
+- **Follow** `{"id":"f1","type":"follow","tsMs":...}` switches the lucky cat on; **orange heart / fan club** `{"id":"o1","type":"orangeHeart","tsMs":...}`
+  (one event for both) sends a VIP customer and a tip rain. Both are counted in every game state; **any name or picture sent on
+  them is discarded** (nothing about followers or fans is shown, relayed to the game or saved). Whether a provider sends these events is not verified.
 - **Menu votes** (vote mode) use `{"id":"c1","type":"comment","text":"2","userId":"opaque-viewer-key","tsMs":...}`. Only comments that are exactly
   `1`, `2` or `3` (or `#1`..`#3`) count; ordinary chat is accepted and ignored (the bridge answers 202 with `ignored` > 0, so a provider never sees an error for
   chatter; 400 is only for requests where nothing is understood). The bridge reduces a comment to `{"type":"comment","vote":2,"userId":...}` and **drops the text**, so it never

@@ -62,6 +62,17 @@ pass through the bridge when a provider sends them.
 value a gift counts as 1 coin; without a name or picture the customer is anonymous. If gifts do not arrive at all, anonymous
 customers keep the café running.
 
+### Surprise events (café mode)
+
+| Viewer does | What happens (numbers in `cafe.surprise`) |
+|---|---|
+| **Follow** | **Lucky cat (แมวกวัก):** 20 s per follow (stacks to 60 s): payouts +100 %, waiting customers lose patience at half speed. |
+| **Orange heart / fan club** (one button) | **VIP customer + tip rain:** an anonymous VIP with a golden crown goes to the front of the waiting line (orders the 50-coin dessert, pays +50 %); every waiting customer tips (3 coins each, max 36). One VIP at a time, 30 s cooldown. |
+| *(nobody: about every 100 s)* | **Phone call:** the phone rings, then a phone-order customer joins right behind the current customer with a 35 s deadline; served in time = +200 %, too slow = they hang up. |
+
+VIP and phone orders replace the last anonymous (filler) customer when the line is full; they never push out a paying viewer.
+Nothing about who followed or sent an orange heart is shown or stored. `?surprise=1` brings the first phone call forward to 6 s.
+
 ### Vote mode (`?mode=vote`)
 Viewers comment `1`, `2` or `3` to choose among 3 desserts for 15 s (the last 3 s still count for stream delay); most votes
 wins, a tie is random, no votes = the first one. Comments are only ever turned into a vote number.
