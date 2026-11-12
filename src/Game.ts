@@ -103,6 +103,14 @@ export interface CafeView {
   luckyCatBonusPct: number;
   /** The phone on the counter is ringing. */
   phoneRinging: boolean;
+  /** A Thai ghost is about to visit or is at the counter: the café gets spooky. */
+  spooky?: boolean;
+  /** The ghost on the phone is talking (we picked up): "ฮือๆ ช่วยด้วย ผีอยากกินขนม". */
+  phoneTalking?: boolean;
+  /** 0..1 while the hungry ghost squeezes (tap hearts to loosen it); 0 when no ghost is being served. */
+  squeeze?: number;
+  /** True for a moment right after the ghost squeezed (screen shake). */
+  squeezedNow?: boolean;
 }
 
 export interface GameCafeMode {
@@ -154,6 +162,8 @@ export interface GamePersistence {
 export const WORLD_W = 1000;
 export const WORLD_H = 600;
 const PRESENT_MS = 900;
+/** The ghost's voice: clearly higher and thinner than a normal customer (normal women 1.35, men 0.85). */
+const GHOST_PITCH = 1.9;
 const PHONE_RETRY_MS = 3000;
 
 /** Composition root: wires dessert picking, cooking, animation and sound into GameManager's hooks. */
@@ -191,6 +201,10 @@ export class Game {
   private vipCooldownMs = 0;
   private phoneTimerMs = 0;
   private phoneRingMs = 0;
+  private phoneTalkMs = 0;
+  private squeeze = 0;
+  private squeezed = false;
+  private squeezeFlashMs = 0;
   private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
 
   constructor(
@@ -261,6 +275,7 @@ export class Game {
     this.rewardMs = this.manager.snapshot().state === 'REWARDING' ? this.rewardMs + dt : 0;
     if (this.cafe) {
       this.tickCafe(dt);
+      this.tickSqueeze(dt);
       this.tickOrderSpeak(dt);
     }
     if (this.stepKind && this.manager.snapshot().state === 'COOKING') {
@@ -426,6 +441,35 @@ export class Game {
     if (this.current) this.lastCookedId = this.current.id;
   }
 
+  private ghostCooking(): boolean {
+    return !!this.cafe && this.manager.snapshot().state === 'COOKING' && this.cafe.queue.current?.kind === 'phone';
+  }
+
+  /** The hungry ghost squeezes if the dessert is not made quickly: tapping hearts loosens it; if it wins, the bonus is lost and a fine is paid. */
+  private tickSqueeze(dt: number): void {
+    if (this.squeezeFlashMs > 0) this.squeezeFlashMs = Math.max(0, this.squeezeFlashMs - dt);
+    if (!this.ghostCooking()) {
+      if (this.cafe?.queue.current?.kind !== 'phone') {
+        this.squeeze = 0;
+        this.squeezed = false;
+      }
+      return;
+    }
+    const ph = this.config.cafe.surprise.phone;
+    const fill = Number.isFinite(ph.squeezeMs) && ph.squeezeMs > 0 ? ph.squeezeMs : 16_000;
+    this.squeeze = Math.min(1, this.squeeze + dt / fill);
+    if (this.squeeze >= 1 && !this.squeezed) {
+      this.squeezed = true;
+      this.squeezeFlashMs = 1800;
+      this.squeeze = 0.5; // the ghost loosens its grip for a moment
+      const fine = Number.isFinite(ph.fineCoins) ? Math.max(0, Math.floor(ph.fineCoins)) : 0;
+      const coins = this.rewards?.profile.coins ?? 0;
+      if (fine > 0 && coins > 0) this.rewards?.spend(Math.min(fine, coins));
+      this.toastText = 'ผีบีบ! เสียเหรียญ ไม่ได้โบนัส';
+      this.fx?.audio.play('ghost', this.soundRound(this.manager.snapshot().roundId));
+    }
+  }
+
   private tickOrderSpeak(dt: number): void {
     const o = this.orderSpeak;
     if (!o) return;
@@ -452,7 +496,8 @@ export class Game {
     if (c && this.current) {
       // the customer says their order once they have walked up to the counter (a moment after they become the next one)
       const g = genderForSeed(c.seed);
-      this.orderSpeak = { text: `เอา… ${this.current.nameTh}… ${politeEnding(g)}`, pitch: g === 'male' ? 0.85 : 1.35, roundId: this.manager.snapshot().roundId, ms: 1100, gender: g };
+      const ghost = c.kind === 'phone';
+      this.orderSpeak = { text: ghost ? `ขอ… ${this.current.nameTh}… หน่อย… จ้ะ` : `เอา… ${this.current.nameTh}… ${politeEnding(g)}`, pitch: ghost ? GHOST_PITCH : g === 'male' ? 0.85 : 1.35, roundId: this.manager.snapshot().roundId, ms: 1100, gender: g };
     }
   }
 
@@ -535,6 +580,7 @@ export class Game {
     const cafe = this.cafe;
     if (!cafe) return;
     const ph = this.config.cafe.surprise.phone;
+    if (this.phoneTalkMs > 0) this.phoneTalkMs = Math.max(0, this.phoneTalkMs - dt);
     if (this.phoneRingMs > 0) {
       this.phoneRingMs -= dt;
       if (this.phoneRingMs <= 0) {
@@ -545,6 +591,13 @@ export class Game {
         const preferred = this.config.cafe.defaultDessertId;
         const id = ids.includes(preferred) ? preferred : ids[Math.floor((cafe.rng ?? Math.random)() * ids.length)];
         if (id) placed = this.enqueueSpecial({ viewer: false, kind: 'phone', dessertId: id, patienceMs: ph.deadlineMs });
+        if (placed) {
+          // we pick up: a Thai ghost sobs that it wants a dessert, and then turns up at the counter
+          this.phoneTalkMs = 3400;
+          const sr = this.soundRound(this.manager.snapshot().roundId);
+          this.fx?.audio.play('ghost', sr);
+          this.fx?.audio.speak?.('ฮือ ๆ… ช่วยด้วย… ผีอยากกินขนม…', sr, GHOST_PITCH, 0.62, 'female');
+        }
         // The line filled up with paying viewers during the ring: try again soon instead of waiting a whole interval.
         if (!placed) this.phoneTimerMs = Math.min(this.phoneTimerMs, PHONE_RETRY_MS);
       }
@@ -629,6 +682,10 @@ export class Game {
       luckyCatSec: this.luckyCatMs / 1000,
       luckyCatBonusPct: this.config.cafe.surprise.luckyCat.payBonusPct,
       phoneRinging: this.phoneRingMs > 0,
+      phoneTalking: this.phoneTalkMs > 0,
+      squeeze: this.ghostCooking() ? this.squeeze : 0,
+      squeezedNow: this.squeezeFlashMs > 0,
+      spooky: this.phoneRingMs > 0 || this.phoneTalkMs > 0 || this.cafe?.queue.current?.kind === 'phone' || (this.cafe?.queue.waiting().some((c) => c.kind === 'phone') ?? false),
     };
   }
 
@@ -659,8 +716,8 @@ export class Game {
       if (paid) {
         this.bonusPct += paid.happiness * this.config.cafe.payBonusMaxPct;
         if (paid.customer.kind === 'vip') this.bonusPct += sur.vip.payBonusPct;
-        if (paid.customer.kind === 'phone') this.bonusPct += sur.phone.payBonusPct;
-        who = paid.customer.kind === 'vip' ? 'VIP ' : paid.customer.kind === 'phone' ? 'โทรสั่งส่งทัน! ' : paid.customer.name ? `${paid.customer.name} ` : '';
+        if (paid.customer.kind === 'phone' && !this.squeezed) this.bonusPct += sur.phone.payBonusPct;
+        who = paid.customer.kind === 'vip' ? 'VIP ' : paid.customer.kind === 'phone' ? (this.squeezed ? 'ผีบีบ! ' : 'ผีพอใจ! ') : paid.customer.name ? `${paid.customer.name} ` : '';
       }
       if (this.luckyCatMs > 0) this.bonusPct += sur.luckyCat.payBonusPct;
     }
@@ -808,6 +865,11 @@ export class Game {
       } else if (this.cafe) {
         this.enqueueGifts(fx.gifts);
         if (this.manager.running) this.applySurprises(fx.surprises, m.roundId);
+        if (this.ghostCooking() && !this.squeezed) {
+          const rl = this.config.cafe.surprise.phone.reliefPerLike;
+          const relief = (Number.isFinite(rl) ? rl : 0.012) * (fx.likes + fx.hearts * 3);
+          this.squeeze = Math.max(0, this.squeeze - (Number.isFinite(relief) ? relief : 0));
+        }
         this.cafe.meter.add(fx.likes * this.config.vote.heartPerLike + fx.follows * this.config.vote.heartPerFollow + fx.hearts * this.config.vote.heartPerHeart);
       } else if (fx.progressAdd > 0) this.cooking.addProgress(fx.progressAdd, m.roundId);
       if (fx.completeStep && !this.cafe) this.cooking.completeCurrentStep(m.roundId);

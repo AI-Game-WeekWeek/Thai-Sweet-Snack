@@ -58,10 +58,26 @@ export class CafeRenderer {
       ctx.fillRect(0, 0, width, height);
       ctx.translate((width - CAFE_W * scale) / 2, (height - CAFE_H * scale) / 2);
       ctx.scale(scale, scale);
+      // the hungry ghost squeezes: the whole café is pressed in from the sides and shakes
+      const sq = Number.isFinite(view.cafe?.squeeze) ? Math.min(1, Math.max(0, view.cafe?.squeeze as number)) : 0;
+      if (sq > 0.05) {
+        const shake = Math.sin(this.timeMs / 45) * (2 + 6 * sq) * (view.cafe?.squeezedNow ? 2 : 1);
+        const sx = 1 - 0.07 * sq - (view.cafe?.squeezedNow ? 0.03 : 0);
+        ctx.translate(CAFE_W / 2 + shake, CAFE_H / 2);
+        ctx.scale(sx, 1);
+        ctx.translate(-CAFE_W / 2, -CAFE_H / 2);
+      }
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.lineJoin = 'round';
       this.safely('backdrop', () => this.drawBackdrop(ctx));
+      this.safely('spooky', () => {
+        // the lights dim and flicker while the ghost is calling or at the counter
+        if (!view.cafe?.spooky) return;
+        const f = 0.3 + 0.1 * Math.sin(this.timeMs / 90) * Math.sin(this.timeMs / 370);
+        ctx.fillStyle = `rgba(20,28,70,${Math.max(0.15, f).toFixed(3)})`;
+        ctx.fillRect(0, 0, CAFE_W, CAFE_H);
+      });
       this.safely('menu', () => this.drawGiftMenu(ctx, view.cafe));
       this.safely('station', () => {
         ctx.save();
@@ -100,6 +116,7 @@ export class CafeRenderer {
       this.holdLeaving = view.serveOutT !== undefined && Number.isFinite(view.serveOutT) && view.serveOutT > 0 && view.serveOutT < 1;
       this.safely('queue', () => this.drawQueue(ctx, view.cafe, dt));
       this.safely('serve', () => this.drawServeOut(ctx, view));
+      this.safely('squeeze', () => this.drawSqueeze(ctx, view.cafe, sq));
       this.safely('hud', () => this.drawHud(ctx, view.cafe));
     } finally {
       ctx.restore();
@@ -162,6 +179,34 @@ export class CafeRenderer {
     this.mutedKey = key;
     this.mutedCanvas = out;
     return out;
+  }
+
+  /** Warning while the ghost squeezes: dark red edges closing in, a danger bar and a call to tap. */
+  private drawSqueeze(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined, sq: number): void {
+    if (!cafe || sq <= 0.05) return;
+    const g = ctx.createRadialGradient(CAFE_W / 2, CAFE_H / 2, CAFE_H * (0.62 - 0.22 * sq), CAFE_W / 2, CAFE_H / 2, CAFE_H * 0.8);
+    g.addColorStop(0, 'rgba(120,0,40,0)');
+    g.addColorStop(1, `rgba(120,0,40,${(0.25 + 0.5 * sq).toFixed(3)})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, CAFE_W, CAFE_H);
+    const cx = CAFE_W / 2;
+    const y = 1000;
+    ctx.fillStyle = 'rgba(40,10,30,0.8)';
+    ctx.beginPath();
+    ctx.roundRect(cx - 330, y - 52, 660, 104, 28);
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#ff6b8b';
+    ctx.stroke();
+    this.text(ctx, cafe.squeezedNow ? 'ผีบีบแล้ว!' : 'ผีหิวมาก! กดหัวใจรัวๆ!', cx, y - 22, 36, '#fff', '#8b1e1e');
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath();
+    ctx.roundRect(cx - 280, y + 12, 560, 22, 11);
+    ctx.fill();
+    ctx.fillStyle = sq > 0.7 ? '#ff4d6d' : '#ffb84d';
+    ctx.beginPath();
+    ctx.roundRect(cx - 280, y + 12, Math.max(22, 560 * sq), 22, 11);
+    ctx.fill();
   }
 
   private zoom = 1;
@@ -368,7 +413,7 @@ export class CafeRenderer {
     const pic = ringing ? CAFE_PICS.phoneRing : CAFE_PICS.phoneStill;
     if (artImage(pic)) {
       drawArt(ctx, pic, x + 14 + (ringing ? Math.sin(this.timeMs / 35) * 5 : 0), y - 28, 220, 190, 0, 1, 1, 4);
-      if (ringing) this.ringLabel(ctx, x + 70, y - 138);
+      this.phoneLabel(ctx, cafe, x + 70, y - 138);
       return;
     }
     ctx.save();
@@ -404,13 +449,18 @@ export class CafeRenderer {
     } finally {
       ctx.restore();
     }
-    if (ringing) this.ringLabel(ctx, x + 70, y - 138);
+    this.phoneLabel(ctx, cafe, x + 70, y - 138);
   }
 
   /** The "phone is ringing" label on a solid pill so nothing behind it can hide it. */
-  private ringLabel(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
-    ctx.font = `700 38px ${FONT}`;
-    const w = (Number.isFinite(ctx.measureText('โทรศัพท์ดัง!').width) ? ctx.measureText('โทรศัพท์ดัง!').width : 240) + 44;
+  private phoneLabel(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined, cx: number, cy: number): void {
+    if (cafe?.phoneTalking) return this.ringLabel(ctx, CAFE_W / 2, cy - 20, 'ฮือๆ ช่วยด้วย ผีอยากกินขนม', 32);
+    if (cafe?.phoneRinging) this.ringLabel(ctx, cx, cy);
+  }
+
+  private ringLabel(ctx: CanvasRenderingContext2D, cx: number, cy: number, label = 'โทรศัพท์ดัง!', size = 38): void {
+    ctx.font = `700 ${size}px ${FONT}`;
+    const w = (Number.isFinite(ctx.measureText(label).width) ? ctx.measureText(label).width : 240) + 44;
     ctx.fillStyle = '#d94f4f';
     ctx.beginPath();
     ctx.roundRect(cx - w / 2, cy - 30, w, 60, 30);
@@ -418,7 +468,7 @@ export class CafeRenderer {
     ctx.lineWidth = 4;
     ctx.strokeStyle = '#fff3dc';
     ctx.stroke();
-    this.text(ctx, 'โทรศัพท์ดัง!', cx, cy + 2, 38, '#fff', '#8b1e1e');
+    this.text(ctx, label, cx, cy + 2, size, '#fff', '#8b1e1e');
   }
 
   private drawCat(ctx: CanvasRenderingContext2D, x: number, y: number, luckySec = 0): void {
@@ -721,7 +771,96 @@ export class CafeRenderer {
     ctx.textAlign = 'center';
   }
 
+  /** A friendly Thai ghost (the phone caller): กระสือ (a glowing floating head with a wisp tail) or แม่นาค (white sheet, long black hair). */
+  private drawGhost(ctx: CanvasRenderingContext2D, c: CustomerView, x: number, baseY: number, r: number): void {
+    const t = this.timeMs / 600;
+    const float = Math.sin(t + c.id) * 8;
+    const y = baseY - 14 + float;
+    const krasue = outfitIndex(c.seed) % 2 === 0;
+    ctx.save();
+    try {
+      // glow
+      const g = ctx.createRadialGradient(x, y, r * 0.3, x, y, r * 2.2);
+      g.addColorStop(0, krasue ? 'rgba(200,255,150,0.65)' : 'rgba(190,220,255,0.55)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.9;
+      if (krasue) {
+        // wispy tail
+        for (let i = 0; i < 4; i++) {
+          ctx.strokeStyle = `rgba(210,255,170,${0.55 - i * 0.1})`;
+          ctx.lineWidth = r * (0.5 - i * 0.09);
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(x, y + r * 0.7);
+          ctx.quadraticCurveTo(x + Math.sin(t * 1.3 + i) * r * 0.9, y + r * (1.6 + i * 0.3), x + Math.sin(t + i * 1.7) * r * 0.6, y + r * (2.3 + i * 0.35));
+          ctx.stroke();
+        }
+      } else {
+        // white sheet with a wavy hem, and long black hair behind the face
+        ctx.fillStyle = '#fbfbff';
+        ctx.beginPath();
+        ctx.moveTo(x - r * 1.05, y + r * 0.6);
+        ctx.quadraticCurveTo(x - r * 1.25, y + r * 2.3, x - r * 0.9, y + r * 2.5);
+        for (let i = 0; i < 5; i++) {
+          const px = x - r * 0.9 + (i + 0.5) * (r * 1.8 / 5);
+          ctx.quadraticCurveTo(px - r * 0.1, y + r * (2.5 + (i % 2 ? 0.25 : -0.05) + Math.sin(t * 2 + i) * 0.08), px + r * 0.2, y + r * 2.5);
+        }
+        ctx.quadraticCurveTo(x + r * 1.25, y + r * 2.3, x + r * 1.05, y + r * 0.6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#7a86a8';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.fillStyle = '#1c1722';
+        ctx.beginPath();
+        ctx.ellipse(x, y + r * 0.5, r * 1.12, r * 1.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      // head
+      ctx.fillStyle = krasue ? '#f4ffd6' : '#fff7ee';
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.95, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = krasue ? '#9ac04a' : '#7a86a8';
+      ctx.stroke();
+      // face: big sad-cute eyes, blush, small "oo" mouth
+      ctx.fillStyle = '#2b2230';
+      for (const sx of [-1, 1]) {
+        ctx.beginPath();
+        ctx.ellipse(x + sx * r * 0.34, y - r * 0.1, r * 0.13, r * 0.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(255,140,160,0.55)';
+      for (const sx of [-1, 1]) {
+        ctx.beginPath();
+        ctx.arc(x + sx * r * 0.58, y + r * 0.22, r * 0.14, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#2b2230';
+      ctx.beginPath();
+      ctx.ellipse(x, y + r * 0.42, r * 0.12, r * 0.16, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } finally {
+      ctx.restore();
+    }
+    this.text(ctx, 'ผีน้อย', x, y + r * (krasue ? 2.6 : 2.85), Math.round(r * 0.5), '#e6f2ff', INK);
+    if (!c.serving) {
+      this.drawPatience(ctx, x, y + r * 3.1, r * 2, c.patience);
+      this.text(ctx, clip(c.dessertNameTh, 11), x, y - r - 22, Math.round(r * 0.36), '#fff3dc', INK);
+    }
+  }
+
   private drawCustomer(ctx: CanvasRenderingContext2D, c: CustomerView, x: number, baseY: number, r: number): void {
+    if (c.kind === 'phone') {
+      this.drawGhost(ctx, c, x, baseY, r);
+      return;
+    }
     const spec = avatarSpec(c.seed, c.name);
     const bob = Math.sin(this.timeMs / 420 + (Number.isFinite(c.seed) ? c.seed : 0)) * 4;
     const y = baseY + bob;
@@ -773,16 +912,6 @@ export class CafeRenderer {
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.stroke();
     if (c.kind === 'vip') this.drawCrown(ctx, x, y - r * 0.9, r);
-    if (c.kind === 'phone') {
-      ctx.fillStyle = '#d94f4f';
-      ctx.beginPath();
-      ctx.arc(x + r * 0.9, y - r * 0.78, r * 0.34, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = '#fff';
-      ctx.stroke();
-      this.text(ctx, 'โทร', x + r * 0.9, y - r * 0.76, Math.round(r * 0.3), '#fff', '#8b1e1e');
-    }
     // name (viewers), VIP label, and patience
     if (c.kind === 'vip') this.text(ctx, 'VIP', x, y + r * 2.45, Math.round(r * 0.6), '#ffe08a', INK);
     else if (c.viewer && c.name) this.text(ctx, clip(c.name, 12), x, y + r * 2.45, Math.round(r * 0.5), '#fff', INK);

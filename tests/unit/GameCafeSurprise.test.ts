@@ -236,6 +236,34 @@ describe('café surprise events', () => {
       expect(b.game.snapshot().cafe!.waiting.some((c) => c.kind === 'phone')).toBe(false);
     });
 
+    it('the ghost on the phone squeezes if the dessert is slow (fine, no bonus); tapping hearts loosens it', () => {
+      const slow = { cooking: { baseProgressPerSec: 0.4 } };
+      const ph = { ...fast.phone, deadlineMs: 600_000, squeezeMs: 4000, fineCoins: 5, reliefPerLike: 0.05 };
+      // no taps: the squeeze fills, a fine is paid, and the ghost's bonus is lost
+      const a = mk({ phone: ph, vip: {} }, { npcSpawnEveryMs: 1e9 }, slow);
+      a.game.start();
+      runUntil(a.game, () => a.game.snapshot().cafe!.serving?.kind === 'phone');
+      a.rewards.addCoins(50);
+      const coinsBefore = a.rewards.profile.coins;
+      runUntil(a.game, () => (a.game.renderView().cafe?.squeezedNow ?? false) === true, 400_000);
+      expect(a.rewards.profile.coins).toBeLessThan(coinsBefore);
+      runUntil(a.game, () => a.game.snapshot().reward.last?.score !== undefined && a.game.snapshot().cafe!.serving?.kind !== 'phone');
+      const base = ALL_DESSERTS.find((d) => d.id === a.game.snapshot().reward.last!.dessertId)!.reward.baseScore;
+      expect(a.game.snapshot().reward.last!.score).toBeLessThan(base * 2.5);
+      // with taps the squeeze stays low and the bonus is kept
+      const b = mk({ phone: ph, vip: {} }, { npcSpawnEveryMs: 1e9 }, slow);
+      b.game.start();
+      runUntil(b.game, () => b.game.snapshot().cafe!.serving?.kind === 'phone');
+      let max = 0;
+      for (let i = 0; i < 3000 && b.game.snapshot().cafe!.serving?.kind === 'phone'; i++) {
+        if (i % 10 === 0) b.game.ingestEvent({ id: `lk${++n}`, type: 'like', count: 8, tsMs: b.game.nowMs });
+        b.game.update(16);
+        max = Math.max(max, b.game.renderView().cafe?.squeeze ?? 0);
+      }
+      expect(max).toBeLessThan(1);
+      expect(b.game.renderView().cafe?.squeezedNow ?? false).toBe(false);
+    });
+
     it('only one phone customer at a time, and calls repeat after the interval', () => {
       const { game } = mk({ phone: { ...fast.phone, everyMs: 1500, deadlineMs: 60_000 } }, { npcSpawnEveryMs: 1e9 }, { cooking: { baseProgressPerSec: 1 } });
       game.start();

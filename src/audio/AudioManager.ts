@@ -32,6 +32,8 @@ const RECIPES: Record<SoundId, Recipe> = {
   bubble: { durationSec: 0.12, peak: 0.3, attackSec: 0.005, tone: { type: 'sine', from: 320, to: 760, level: 1 } },
   // Prize jingle: a bright rising run (C5 E5 G5 C6 E6) with a sparkle on top.
   reward: { durationSec: 1.1, peak: 0.42, attackSec: 0.01, arp: [523, 659, 784, 1047, 1319], noise: { filter: 'highpass', freq: 6500, q: 0.5 } },
+  // A friendly Thai ghost arrives: a high, thin wavering wail with a breath of wind.
+  ghost: { durationSec: 1.9, peak: 0.4, attackSec: 0.4, tone: { type: 'sine', from: 780, to: 420, level: 1 }, noise: { filter: 'bandpass', freq: 1800, freqTo: 900, q: 3 }, lfo: { hz: 5.5, depth: 0.7 } },
   coin: { durationSec: 0.35, peak: 0.4, attackSec: 0.005, tone: { type: 'sine', from: 1400, to: 2100, level: 1 } },
 };
 

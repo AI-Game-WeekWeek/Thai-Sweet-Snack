@@ -145,11 +145,11 @@ describe('CafeRenderer', () => {
     expect(draw(view({ cafe: cafe({ phoneRinging: false }) })).texts.join(' | ')).not.toContain('โทรศัพท์ดัง');
   });
 
-  it('marks a VIP with a crown label instead of a name, and a phone order with a phone badge', () => {
+  it('marks a VIP with a crown label instead of a name, and a phone call as a ghost', () => {
     const vip = cust(7, { kind: 'vip', serving: true, patience: 1, dessertNameTh: 'ฝอยทอง' });
     const t = draw(view({ cafe: cafe({ serving: vip, waiting: [cust(8, { kind: 'phone', patience: 0.4 })] }) })).texts.join(' | ');
     expect(t).toContain('VIP');
-    expect(t).toContain('โทร');
+    expect(t).toContain('ผีน้อย');
   });
 
   it('hostile surprise values never throw and keep the canvas state balanced', () => {
