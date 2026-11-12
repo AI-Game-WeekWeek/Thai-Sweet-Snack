@@ -216,7 +216,8 @@ export class CafeRenderer {
     ctx.lineWidth = 4;
     ctx.strokeStyle = '#e8b64c';
     ctx.stroke();
-    this.text(ctx, `แมวกวัก ×2 · ${Math.ceil(Math.min(999, sec))} วิ`, 880, 1224, 28, '#ffe08a');
+    const pct = Number.isFinite(cafe?.luckyCatBonusPct) ? Math.round(cafe?.luckyCatBonusPct as number) : 0;
+    this.text(ctx, `แมวกวัก +${pct}% · ${Math.ceil(Math.min(999, sec))} วิ`, 880, 1224, 28, '#ffe08a');
   }
 
   /** The phone on the counter: decoration normally, shaking with ring arcs and a warning when a call comes in. */

@@ -67,9 +67,9 @@ customers keep the café running.
 
 | Viewer does | What happens (numbers in `cafe.surprise`) |
 |---|---|
-| **Follow** | **Lucky cat (แมวกวัก):** 20 s per follow (stacks to 60 s): payouts +100 %, waiting customers lose patience at half speed. |
-| **Orange heart / fan club** (one button) | **VIP customer + tip rain:** an anonymous VIP with a golden crown goes to the front of the waiting line (orders the 50-coin dessert, pays +50 %); every waiting customer tips (3 coins each, max 36). One VIP at a time, 30 s cooldown. |
-| *(nobody: about every 100 s)* | **Phone call:** the phone rings, then a phone-order customer joins right behind the current customer with a 35 s deadline; served in time = +200 %, too slow = they hang up. |
+| **Follow** | **Lucky cat (แมวกวัก):** 20 s per follow (stacks to 60 s): payouts +50 %, waiting customers lose patience at half speed (a phone order's deadline is not stretched). The pill next to the cat shows the bonus and the time left. |
+| **Orange heart / fan club** (one button) | **VIP customer + tip rain:** an anonymous VIP with a golden crown (orders the 50-coin dessert, or the best unlocked one below it; pays +50 %) is called **after any gifting viewer** and before filler customers, so it never makes a paying viewer wait longer; every waiting customer tips 1 coin (max 12). One VIP at a time, 60 s cooldown. |
+| *(nobody: about every 100 s)* | **Phone call:** the phone rings, then a phone-order customer (asks for ข้าวต้มมัด) joins right behind the current customer with a 35 s deadline; reaching the counter in time pays +200 %, too slow = they hang up. If the line is full of paying viewers when the ring ends, it retries in a few seconds. |
 
 VIP and phone orders replace the last anonymous (filler) customer when the line is full; they never push out a paying viewer.
 Nothing about who followed or sent an orange heart is shown or stored. `?surprise=1` brings the first phone call forward to 6 s.

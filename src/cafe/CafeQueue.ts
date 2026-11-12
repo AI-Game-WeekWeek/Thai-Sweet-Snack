@@ -34,8 +34,11 @@ export interface CafeQueueOptions {
   maxNameLength: number;
 }
 
-/** VIP first, then phone orders, then viewers (gifts), then anonymous customers. */
-const rank = (c: Customer): number => (c.kind === 'vip' ? 0 : c.kind === 'phone' ? 1 : c.viewer ? 2 : 3);
+/**
+ * Phone orders first (they have a deadline), then viewers who gifted (they paid: a VIP never makes them wait longer), then the
+ * VIP, then anonymous filler customers.
+ */
+const rank = (c: Customer): number => (c.kind === 'phone' ? 0 : c.viewer ? 1 : c.kind === 'vip' ? 2 : 3);
 
 /**
  * The café queue. Customers are WAITING → SERVING → PAID | LEFT. Only waiting customers lose patience; the one being
@@ -101,11 +104,11 @@ export class CafeQueue {
   /** Customers who ran out of patience this tick (removed from the queue). `slow` (0..1] slows the loss (lucky cat). */
   tick(dtMs: number, slow = 1): Customer[] {
     if (!Number.isFinite(dtMs) || dtMs <= 0) return [];
-    const dt = dtMs * (Number.isFinite(slow) && slow > 0 && slow <= 1 ? slow : 1);
+    const factor = Number.isFinite(slow) && slow > 0 && slow <= 1 ? slow : 1;
     const left: Customer[] = [];
     const stay: Customer[] = [];
     for (const c of this.list) {
-      c.patienceMs -= dt;
+      c.patienceMs -= c.kind === 'phone' ? dtMs : dtMs * factor; // a phone order's deadline is never stretched
       if (c.patienceMs <= 0) {
         c.state = 'LEFT';
         left.push(c);

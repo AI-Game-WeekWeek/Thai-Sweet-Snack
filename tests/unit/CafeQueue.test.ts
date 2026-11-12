@@ -129,7 +129,7 @@ describe('CafeQueue', () => {
     expect(q.waiting()[0]?.dessertId).toBe('f');
   });
 
-  it('priority: vip, then phone order, then viewers, then anonymous; first-come first-served within a rank', () => {
+  it('priority: phone order, then viewers (gifts), then VIP, then anonymous; first-come first-served within a rank', () => {
     const q = mk(20);
     q.enqueue(npc('anon1')); q.enqueue(npc('anon2'));
     q.enqueue(viewer('V1', 'viewer1'));
@@ -138,7 +138,7 @@ describe('CafeQueue', () => {
     q.enqueue(viewer('V2', 'viewer2'));
     q.enqueue({ viewer: false, dessertId: 'phone2', kind: 'phone' });
     q.enqueue({ viewer: false, dessertId: 'vip2', kind: 'vip' });
-    expect(q.waiting().map((c) => c.dessertId)).toEqual(['vip1', 'vip2', 'phone1', 'phone2', 'viewer1', 'viewer2', 'anon1', 'anon2']);
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['phone1', 'phone2', 'viewer1', 'viewer2', 'vip1', 'vip2', 'anon1', 'anon2']);
   });
 
   it('customers carry their kind; normal is the default; a special customer can have its own patience', () => {
@@ -187,9 +187,28 @@ describe('CafeQueue', () => {
     q.enqueue({ viewer: false, dessertId: 'vip', kind: 'vip' });
     q.enqueue({ viewer: false, dessertId: 'ph', kind: 'phone' });
     expect(q.displaceAnonymous()).toBe(true);
-    expect(q.waiting().map((c) => c.dessertId)).toEqual(['vip', 'ph', 'v', 'a1']);
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['ph', 'v', 'vip', 'a1']);
     expect(q.displaceAnonymous()).toBe(true);
     expect(q.displaceAnonymous()).toBe(false);
-    expect(q.waiting().map((c) => c.dessertId)).toEqual(['vip', 'ph', 'v']);
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['ph', 'v', 'vip']);
+  });
+
+  it('a VIP never makes a paying viewer wait longer: viewers who gifted are called before a VIP who came later or earlier', () => {
+    const q = mk(20);
+    q.enqueue(npc('a')); q.startNext();
+    q.enqueue({ viewer: false, dessertId: 'vip', kind: 'vip' });
+    q.enqueue(viewer('V', 'viewer'));
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['viewer', 'vip']);
+  });
+
+  it('the lucky-cat slowdown does not stretch a phone order\'s deadline', () => {
+    const q = mk(5, 10_000);
+    q.enqueue(npc('a')); q.startNext();
+    q.enqueue({ viewer: false, dessertId: 'ph', kind: 'phone', patienceMs: 4000 });
+    q.enqueue(npc('b'));
+    q.tick(1000, 0.5);
+    const [ph, b] = q.waiting();
+    expect(ph?.patienceMs).toBe(3000); // full speed: a deadline is a deadline
+    expect(b?.patienceMs).toBe(9500); // everyone else is slowed
   });
 });

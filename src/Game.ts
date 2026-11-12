@@ -96,6 +96,8 @@ export interface CafeView {
   coins: number;
   /** Seconds of lucky-cat time left (0 = off). */
   luckyCatSec: number;
+  /** The payout bonus (percent) the lucky cat gives, for the on-screen pill. */
+  luckyCatBonusPct: number;
   /** The phone on the counter is ringing. */
   phoneRinging: boolean;
 }
@@ -143,6 +145,7 @@ export interface GamePersistence {
 export const WORLD_W = 1000;
 export const WORLD_H = 600;
 const PRESENT_MS = 900;
+const PHONE_RETRY_MS = 3000;
 
 /** Composition root: wires dessert picking, cooking, animation and sound into GameManager's hooks. */
 export class Game {
@@ -204,7 +207,8 @@ export class Game {
       onCleanupRound: (roundId) => this.cleanupRound(roundId),
     });
     if (cafe) {
-      this.phoneTimerMs = config.cafe.surprise.phone.firstMs;
+      const first = config.cafe.surprise.phone.firstMs;
+      this.phoneTimerMs = Number.isFinite(first) ? Math.max(0, first) : 45_000;
       this.giftMenuView = [...config.cafe.giftTiers]
         .sort((a, b) => a.minCoins - b.minCoins)
         .map((t) => {
@@ -426,7 +430,7 @@ export class Game {
 
   private tickCafe(dt: number): void {
     const cafe = this.cafe;
-    if (!cafe) return;
+    if (!cafe || !this.manager.running) return;
     const sur = this.config.cafe.surprise;
     this.luckyCatMs = Math.max(0, this.luckyCatMs - dt);
     this.vipCooldownMs = Math.max(0, this.vipCooldownMs - dt);
@@ -496,21 +500,26 @@ export class Game {
       this.phoneRingMs -= dt;
       if (this.phoneRingMs <= 0) {
         this.phoneRingMs = 0;
+        let placed = false;
         // A phone order is not a gift, so it asks for the everyday dessert too.
         const ids = this.desserts.unlockedIds;
         const preferred = this.config.cafe.defaultDessertId;
         const id = ids.includes(preferred) ? preferred : ids[Math.floor((cafe.rng ?? Math.random)() * ids.length)];
-        if (id) this.enqueueSpecial({ viewer: false, kind: 'phone', dessertId: id, patienceMs: ph.deadlineMs });
+        if (id) placed = this.enqueueSpecial({ viewer: false, kind: 'phone', dessertId: id, patienceMs: ph.deadlineMs });
+        // The line filled up with paying viewers during the ring: try again soon instead of waiting a whole interval.
+        if (!placed) this.phoneTimerMs = Math.min(this.phoneTimerMs, PHONE_RETRY_MS);
       }
       return;
     }
     this.phoneTimerMs -= dt;
     if (this.phoneTimerMs > 0) return;
-    const jitter = 1 + ph.jitter * ((cafe.rng ?? Math.random)() * 2 - 1);
-    this.phoneTimerMs = Math.max(1000, ph.everyMs * jitter);
+    // Hostile settings must not disable the phone or make it fire every frame.
+    const every = Number.isFinite(ph.everyMs) && ph.everyMs > 0 ? ph.everyMs : 100_000;
+    const spread = Number.isFinite(ph.jitter) ? Math.min(0.9, Math.max(0, ph.jitter)) : 0.3;
+    this.phoneTimerMs = Math.max(1000, every * (1 + spread * ((cafe.rng ?? Math.random)() * 2 - 1)));
     const busy = cafe.queue.current?.kind === 'phone' || cafe.queue.waiting().some((c) => c.kind === 'phone');
     if (!busy && this.hasRoomForSpecial()) {
-      this.phoneRingMs = ph.ringMs;
+      this.phoneRingMs = Number.isFinite(ph.ringMs) ? Math.max(1, ph.ringMs) : 3000;
       this.fx?.audio.play('ring', this.soundRound(this.manager.snapshot().roundId));
     }
   }
@@ -579,6 +588,7 @@ export class Game {
       giftMenu: this.giftMenuView,
       coins: this.rewards?.profile.coins ?? 0,
       luckyCatSec: this.luckyCatMs / 1000,
+      luckyCatBonusPct: this.config.cafe.surprise.luckyCat.payBonusPct,
       phoneRinging: this.phoneRingMs > 0,
     };
   }
@@ -724,7 +734,7 @@ export class Game {
         this.vote.meter.add(fx.likes * this.config.vote.heartPerLike + fx.follows * this.config.vote.heartPerFollow + fx.hearts * this.config.vote.heartPerHeart);
       } else if (this.cafe) {
         this.enqueueGifts(fx.gifts);
-        this.applySurprises(fx.surprises, m.roundId);
+        if (this.manager.running) this.applySurprises(fx.surprises, m.roundId);
         this.cafe.meter.add(fx.likes * this.config.vote.heartPerLike + fx.follows * this.config.vote.heartPerFollow + fx.hearts * this.config.vote.heartPerHeart);
       } else if (fx.progressAdd > 0) this.cooking.addProgress(fx.progressAdd, m.roundId);
       if (fx.completeStep && !this.cafe) this.cooking.completeCurrentStep(m.roundId);

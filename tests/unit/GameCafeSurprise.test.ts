@@ -61,7 +61,8 @@ describe('café surprise events', () => {
         const before = game.snapshot().cafe!.luckyCatSec;
         follow(game);
         game.update(16);
-        expect(game.snapshot().cafe!.luckyCatSec, st).toBeGreaterThan(before - 1);
+        const expected = Math.min(S0.luckyCat.maxMs / 1000, before + S0.luckyCat.durationMs / 1000);
+        expect(game.snapshot().cafe!.luckyCatSec, st).toBeGreaterThan(expected - 1); // a follow really adds its time, in every state
       }
       follow(game, 10_000);
       for (let i = 0; i < 60; i++) game.update(16); // the event queue is bounded, the cat is capped
@@ -76,7 +77,7 @@ describe('café surprise events', () => {
         runUntil(game, () => game.snapshot().state === 'REWARDING');
         return game.snapshot().reward.last!.score;
       };
-      expect(score(true)).toBeGreaterThan(score(false) * 1.3);
+      expect(score(true)).toBeGreaterThan(score(false) * 1.2);
     });
 
     it('makes waiting customers lose patience more slowly, but never the served one', () => {
@@ -92,7 +93,7 @@ describe('café surprise events', () => {
   });
 
   describe('VIP + tip rain (orange heart / fan club)', () => {
-    it('an orange heart sends a VIP to the front of the waiting line with the premium dessert, and tips rain', () => {
+    it('an orange heart sends a VIP with the 50-coin dessert, behind any gifting viewer but ahead of filler customers, and tips rain', () => {
       const { game, rewards } = mk();
       game.start();
       gift(game, 5, 'ผู้ชม');
@@ -102,8 +103,29 @@ describe('café surprise events', () => {
       heart(game);
       game.update(16);
       const v = game.snapshot().cafe!;
-      expect(v.waiting[0]).toMatchObject({ kind: 'vip', viewer: false, name: null, dessertNameTh: nameOf('foi-thong') });
+      expect(v.waiting[0]).toMatchObject({ viewer: true, name: 'ผู้ชม' }); // the paying viewer keeps their turn
+      expect(v.waiting[1]).toMatchObject({ kind: 'vip', viewer: false, name: null, dessertNameTh: nameOf('foi-thong') });
       expect(rewards.profile.coins - coins).toBe(Math.min(S0.tip.max, (waiting + 1) * S0.tip.perCustomer));
+    });
+
+    it('with no viewers waiting the VIP is first in line', () => {
+      const { game } = mk();
+      game.start();
+      heart(game);
+      game.update(16);
+      expect(game.snapshot().cafe!.waiting[0]).toMatchObject({ kind: 'vip' });
+    });
+
+    it('a second VIP arrives once the cooldown is over and the first VIP is gone', () => {
+      const { game } = mk({ vip: { cooldownMs: 2000 } }, { npcSpawnEveryMs: 1e9 });
+      game.start();
+      heart(game);
+      game.update(16);
+      runUntil(game, () => game.snapshot().state === 'REWARDING' && game.snapshot().reward.last?.dessertId === 'foi-thong');
+      advance(game, 2500);
+      heart(game);
+      game.update(16);
+      expect(game.snapshot().cafe!.waiting.some((c) => c.kind === 'vip') || game.snapshot().cafe!.serving?.kind === 'vip').toBe(true);
     });
 
     it('works in every state, has a cooldown, and never queues two VIPs at once', () => {
@@ -242,6 +264,47 @@ describe('café surprise events', () => {
       advance(b.game, 2500);
       expect(b.queue.waiting().filter((c) => c.kind === 'phone')).toHaveLength(0);
       expect(b.queue.waiting()).toHaveLength(3);
+    });
+
+    it('a ring that finds the queue full of paying viewers when it ends is retried soon, not forgotten for minutes', () => {
+      const { game, queue } = mk({ phone: { ...fast.phone, firstMs: 500, ringMs: 1500, everyMs: 90_000 } }, { maxWaiting: 3, npcSpawnEveryMs: 1e9 });
+      game.start();
+      advance(game, 700); // ringing
+      expect(game.snapshot().cafe!.phoneRinging).toBe(true);
+      while (queue.displaceAnonymous()) { /* viewers fill the line during the ring */ }
+      for (let i = 0; i < 3; i++) queue.enqueue({ viewer: true, name: `v${i}`, dessertId: 'bua-loy' });
+      advance(game, 1500);
+      expect(queue.waiting().filter((c) => c.kind === 'phone')).toHaveLength(0); // no room: the call is dropped...
+      while (queue.waiting().length > 0) { queue.startNext(); queue.pay(); } // ...and room appears
+      advance(game, 6500);
+      expect(queue.waiting().some((c) => c.kind === 'phone') || queue.current?.kind === 'phone').toBe(true); // retried within seconds
+    });
+
+    it('hostile phone settings cannot disable the phone or make it fire every frame', () => {
+      const a = mk({ phone: { ...fast.phone, ringMs: 0 } }, { npcSpawnEveryMs: 1e9 });
+      a.game.start();
+      runUntil(a.game, () => a.game.snapshot().cafe!.waiting.some((c) => c.kind === 'phone') || a.game.snapshot().cafe!.serving?.kind === 'phone');
+
+      const b = mk({ phone: { ...fast.phone, firstMs: 500, everyMs: NaN } }, { npcSpawnEveryMs: 1e9 });
+      b.game.start();
+      let rings = 0;
+      let was = false;
+      for (let i = 0; i < 1500; i++) {
+        b.game.update(16);
+        const r = b.game.snapshot().cafe!.phoneRinging;
+        if (r && !was) rings++;
+        was = r;
+      }
+      expect(rings).toBeLessThanOrEqual(6); // 24 s of play: a few calls at most, not one per frame
+    });
+
+    it('surprises do nothing before the game has started', () => {
+      const { game } = mk();
+      follow(game);
+      heart(game);
+      for (let i = 0; i < 10; i++) game.update(16);
+      expect(game.snapshot().cafe!.luckyCatSec).toBe(0);
+      expect(game.snapshot().cafe!.waitingTotal).toBe(0);
     });
 
     it('with no viewers and no events the café still runs rounds (the phone is the only surprise)', () => {

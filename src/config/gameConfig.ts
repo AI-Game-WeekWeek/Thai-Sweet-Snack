@@ -132,9 +132,9 @@ export const defaultConfig: GameConfig = {
       { minCoins: 500, dessertId: 'khanom-buang' },
     ],
     surprise: {
-      luckyCat: { durationMs: 20_000, maxMs: 60_000, payBonusPct: 100, patienceSlowdown: 0.5 },
-      vip: { cooldownMs: 30_000, payBonusPct: 50, minGiftCoins: 50 },
-      tip: { perCustomer: 3, max: 36 },
+      luckyCat: { durationMs: 20_000, maxMs: 60_000, payBonusPct: 50, patienceSlowdown: 0.5 },
+      vip: { cooldownMs: 60_000, payBonusPct: 50, minGiftCoins: 50 },
+      tip: { perCustomer: 1, max: 12 },
       phone: { firstMs: 45_000, everyMs: 100_000, jitter: 0.3, ringMs: 3000, deadlineMs: 35_000, payBonusPct: 200 },
     },
   },

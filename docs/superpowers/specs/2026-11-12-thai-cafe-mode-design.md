@@ -159,3 +159,11 @@ only the phone call happens, and the café works as before.
 - **Menu change (user request):** ขนมครก was removed from the game; **ข้าวต้มมัด** (black-bean and banana filling) is the first menu item and the
   1-coin gift tier. There are 8 desserts. Old saves that list ขนมครก simply drop it. Each gift is its own customer, so a gifting viewer is
   served the dessert they paid for, separately from other viewers (guarded by tests).
+- **Round 2 review outcome (changed from §13):** lucky cat pays +50 % (not +100 %); tip rain is 1 coin per waiting customer (max 12); VIP cooldown
+  is 60 s; **a VIP is called after gifting viewers** (rank: phone order, viewer, VIP, filler) because a VIP every 30 s starved paying viewers
+  and the surprises together doubled coin income; the lucky cat does not slow a phone order's deadline; a ring that cannot place its
+  customer retries after 3 s; the phone ignores nonsense settings (ring 0, NaN interval); surprises do nothing before `start()`; the cat pill
+  shows the real bonus and sits beside the cat (not at the top of the screen); the phone orders ข้าวต้มมัด (not a random dessert).
+  Known, deferred minors: the tip-rain message is only visible in some states (it can be replaced by the payout text) and its coins are
+  cleared with the particles at round end; a replaced filler customer vanishes without counting as lost; the "in time" phone bonus means
+  "reached the counter in time" (cooking time is not part of the deadline).

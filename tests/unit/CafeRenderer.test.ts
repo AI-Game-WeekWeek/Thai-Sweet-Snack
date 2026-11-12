@@ -33,7 +33,7 @@ const cust = (id: number, over: Partial<CustomerView> = {}): CustomerView => ({
 const cafe = (over: Partial<CafeView> = {}): CafeView => ({
   serving: cust(1, { serving: true, patience: 1, viewer: true, name: 'มะลิ', dessertNameTh: 'บัวลอย' }),
   waiting: [cust(2, { viewer: true, name: 'น้ำฝน' }), cust(3), cust(4, { patience: 0.1 }), cust(5)],
-  waitingTotal: 7, lost: 2, coins: 345, luckyCatSec: 0, phoneRinging: false,
+  waitingTotal: 7, lost: 2, coins: 345, luckyCatSec: 0, luckyCatBonusPct: 50, phoneRinging: false,
   giftMenu: [{ coins: 1, nameTh: 'ข้าวต้มมัด', color: '#fdf5e6' }, { coins: 5, nameTh: 'บัวลอย', color: '#b4a7d6' }, { coins: 500, nameTh: 'ขนมเบื้อง', color: '#fff' }],
   ...over,
 });
@@ -132,8 +132,10 @@ describe('CafeRenderer', () => {
   });
 
   it('shows the lucky cat pill with its timer only while it is on', () => {
-    const on = draw(view({ cafe: cafe({ luckyCatSec: 12.4 }) })).texts.join(' | ');
+    const on = draw(view({ cafe: cafe({ luckyCatSec: 12.4, luckyCatBonusPct: 50 }) })).texts.join(' | ');
     expect(on).toContain('แมวกวัก');
+    expect(on).toContain('+50%'); // the real bonus, not a made-up multiplier
+    expect(draw(view({ cafe: cafe({ luckyCatSec: 5, luckyCatBonusPct: 100 }) })).texts.join(' | ')).toContain('+100%');
     expect(on).toContain('13'); // seconds, rounded up
     expect(draw(view({ cafe: cafe({ luckyCatSec: 0 }) })).texts.join(' | ')).not.toContain('แมวกวัก');
   });
