@@ -45,7 +45,7 @@ const orbit = (r: number, tilt = 0.12, speed = 1): Motion => ({ m: 'orbit', r, t
 /** Cooking scenes per recipe step, in the 1000x600 station world. A step without loaded pictures keeps the shapes. */
 export const COOK_SCENES: Record<ArtId, readonly StageSpec[]> = {
   parcel: [
-    { layers: [L('ktm-3', 410, 385, 280, undefined, undefined, 385), L('ktm-4', 458, 300, 250, orbit(30, 0.16, 1.4))], fx: [{ kind: 'sparkle', x: 410, y: 330, w: 200, n: 3 }] },
+    { layers: [L('ktm-3', 500, 385, 280, undefined, undefined, 385), L('ktm-4', 548, 300, 250, orbit(30, 0.16, 1.4))], fx: [{ kind: 'sparkle', x: 410, y: 330, w: 200, n: 3 }] },
     { layers: [L('ktm-5', 270, 400, 230, { m: 'dip', h: 18, speed: 1.2 }), L('ktm-6', 740, 400, 230, { m: 'dip', h: 18, speed: 1.2 }), L('ktm-7', 500, 405, 300, undefined, 'out'), L('ktm-8', 500, 405, 300, undefined, 'in')], fx: [{ kind: 'drop', x: 500, y: 250, w: 160, n: 2, color: '#2b2430' }, { kind: 'drop', x: 520, y: 250, w: 140, n: 2, color: '#f4d35e' }] },
     { layers: [L('ktm-8', 500, 395, 300, { m: 'squash', k: 0.05, speed: 1.4 }, 'out'), L('ktm-9', 500, 395, 320, { m: 'squash', k: 0.06, speed: 1.4 }, 'in')] },
     { layers: [L('ktm-9', 500, 395, 320, rock(0.05, 1.6), 'out'), L('ktm-10', 500, 385, 310, rock(0.05, 1.6), 'in')], fx: [{ kind: 'sparkle', x: 500, y: 350, w: 220, n: 3 }] },
@@ -63,7 +63,7 @@ export const COOK_SCENES: Record<ArtId, readonly StageSpec[]> = {
   fruit: [
     { layers: [L('lukchup-9', 500, 385, 300, rock(0.05, 1.8))], fx: [{ kind: 'steam', x: 500, y: 260, w: 200, n: 2 }, { kind: 'bubbles', x: 500, y: 350, w: 180, n: 2 }] },
     { layers: [L('lukchup-10', 500, 400, 320, { m: 'pulse', k: 0.04, speed: 1.6 })], fx: [{ kind: 'sparkle', x: 500, y: 370, w: 300, n: 4 }] },
-    { layers: [L('lukchup-10', 430, 420, 280), L('lukchup-12', 790, 400, 210), L('lukchup-11', 600, 300, 250, { m: 'slide', dx: 120, dy: 18, speed: 1.8 })] },
+    { layers: [L('lukchup-10', 370, 420, 280), L('lukchup-12', 720, 400, 210), L('lukchup-11', 540, 300, 250, { m: 'slide', dx: 120, dy: 18, speed: 1.8 })] },
     { layers: [L('lukchup-13', 500, 370, 300, { m: 'dip', h: 46, speed: 1.4 })], fx: [{ kind: 'drop', x: 500, y: 330, w: 120, n: 3, color: '#f4c24a' }] },
     { layers: [L('lukchup-14', 500, 390, 350, rock(0.015, 1.2))], fx: [{ kind: 'sparkle', x: 500, y: 360, w: 300, n: 4 }] },
     { layers: [L('lukchup-15', 500, 390, 340, { m: 'pulse', k: 0.03, speed: 1.3 })], fx: [{ kind: 'sparkle', x: 500, y: 350, w: 320, n: 5 }] },

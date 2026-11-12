@@ -578,10 +578,14 @@ export class CafeRenderer {
       }
       a.c = w.c;
       a.leaving = false;
-      const nx = a.x + (w.x - a.x) * k;
+      // walk at a steady pace (like feet on the floor), easing only at the very end; never a floaty slow glide
+      const dx = w.x - a.x;
+      const dist = Math.abs(dx);
+      const stepX = dist <= 1 ? dist : Math.min(dist, Math.max(dist * k, 0.16 * dt), 0.5 * dt);
+      const nx = a.x + Math.sign(dx) * stepX;
       const ny = a.y + (w.y - a.y) * k;
       const nr = a.r + (w.r - a.r) * k;
-      a.speed = Math.hypot(nx - a.x, ny - a.y) / Math.max(1, dt);
+      a.speed = stepX / Math.max(1, dt);
       a.x = nx;
       a.y = ny;
       a.r = nr;
@@ -593,7 +597,7 @@ export class CafeRenderer {
         a.c = { ...a.c, serving: true }; // no patience bar or order label while walking away
       }
       const dir = a.x < CAFE_W / 2 ? -1 : 1;
-      const step = 0.42 * Math.max(0, dt);
+      const step = 0.34 * Math.max(0, dt);
       a.x += dir * step;
       a.speed = 0.42;
       a.r += (54 - a.r) * k;
@@ -612,8 +616,26 @@ export class CafeRenderer {
     const list = [...this.actors.values()].sort((p, q) => p.r - q.r);
     for (const a of list) {
       const walking = a.speed > 0.03;
-      const hop = walking ? Math.abs(Math.sin(this.timeMs / 105)) * 14 : 0;
-      this.drawCustomer(ctx, a.c, a.x, a.y - hop, a.r);
+      const feetY = a.y + a.r * 2.8; // the floor line under this customer
+      // a soft shadow keeps the feet on the floor
+      ctx.fillStyle = 'rgba(40,22,10,0.28)';
+      ctx.beginPath();
+      ctx.ellipse(a.x, feetY, a.r * 1.0, a.r * 0.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.save();
+      try {
+        if (walking) {
+          // waddle: sway side to side and squash with each step, pivoting at the feet (no lifting off the floor)
+          const ph = this.timeMs / 130 + a.c.id;
+          ctx.translate(a.x, feetY);
+          ctx.rotate(Math.sin(ph) * 0.07);
+          ctx.scale(1 + Math.abs(Math.sin(ph)) * 0.025, 1 - Math.abs(Math.sin(ph)) * 0.035);
+          ctx.translate(-a.x, -feetY);
+        }
+        this.drawCustomer(ctx, a.c, a.x, a.y, a.r);
+      } finally {
+        ctx.restore();
+      }
     }
     if (cafe?.serving) {
       this.drawOrderBubbleIfThere(ctx, cafe.serving);
