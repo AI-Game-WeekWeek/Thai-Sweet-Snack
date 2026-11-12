@@ -91,7 +91,7 @@ describe('café soak', () => {
       expect(s.progress).toBeLessThanOrEqual(100);
       expect(meter.value).toBeGreaterThanOrEqual(0);
       expect(meter.value).toBeLessThanOrEqual(1);
-      expect(queue.waiting().length).toBeLessThanOrEqual(C.maxWaiting);
+      expect(queue.waiting().length).toBeLessThanOrEqual(C.maxWaiting + 1); // a ghost may cut in line (at most one at a time)
       expect(cafe.waiting.length).toBeLessThanOrEqual(C.visible - 1);
       expect(events.queueLength).toBeLessThanOrEqual(CFG.events.queueMax);
       if (s.state !== prev.state) expect(TRANSITIONS[prev.state]).toContain(s.state);

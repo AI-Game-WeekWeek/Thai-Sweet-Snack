@@ -15,6 +15,7 @@ interface Actor {
   r: number;
   leaving: boolean;
   speed: number;
+  fadeMs?: number;
 }
 
 /** Portrait world (9:16). The cooking station from the landscape scene is placed inside it as a 1000x600 window. */
@@ -212,7 +213,8 @@ export class CafeRenderer {
     ctx.fill();
     const pic = CAFE_PICS.shaman[phase === 'walk' ? (Math.floor(this.timeMs / 220) % 2 === 0 ? 0 : 2) : 1] as string;
     if (artImage(pic)) {
-      drawArt(ctx, pic, x, cy, 260, 330, Math.sin(this.timeMs / 130) * (phase === 'walk' ? 0.04 : 0), dir, 1, 4);
+      // the pictures face left, so he is mirrored while walking in and splashing (towards the ghost on the right)
+      drawArt(ctx, pic, x, cy, 280, 340, Math.sin(this.timeMs / 130) * (phase === 'walk' ? 0.04 : 0), -dir, 1, 4);
     } else {
       ctx.save();
       try {
@@ -290,8 +292,8 @@ export class CafeRenderer {
     // holy water arcing from the bowl to the ghost
     if (t >= 0.42 && t <= 0.72) {
       const k = (t - 0.42) / 0.3;
-      const sx = x + 86;
-      const sy = cy + 10;
+      const sx = x + (artImage(CAFE_PICS.shaman[1] as string) ? 105 : 86);
+      const sy = cy + (artImage(CAFE_PICS.shaman[1] as string) ? -30 : 10);
       const tx = CAFE_W / 2;
       const ty = 520;
       for (let i = 0; i < 14; i++) {
@@ -299,7 +301,7 @@ export class CafeRenderer {
         if (p <= 0) continue;
         const px = sx + (tx - sx) * p + Math.sin(i * 7.3) * 14;
         const py = sy + (ty - sy) * p - Math.sin(Math.PI * p) * 130 + Math.cos(i * 4.1) * 10;
-        if (!drawArt(ctx, CAFE_PICS.holyWater, px, py, 54 + (i % 3) * 14, 54 + (i % 3) * 14, i)) {
+        if (!drawArt(ctx, i % 2 ? CAFE_PICS.holyWater : CAFE_PICS.holyWaterDrop, px, py, 40 + (i % 3) * 12, 40 + (i % 3) * 12, i)) {
           ctx.fillStyle = i % 2 ? 'rgba(180,225,255,0.95)' : 'rgba(255,255,255,0.95)';
           ctx.beginPath();
           ctx.arc(px, py, 7 + (i % 3) * 3, 0, Math.PI * 2);
@@ -310,6 +312,11 @@ export class CafeRenderer {
     // the splash lands: a glowing ring on the ghost
     if (t > 0.58 && t < 0.78) {
       const k = (t - 0.58) / 0.2;
+      ctx.save();
+      ctx.globalAlpha = 1 - k;
+      const painted = drawArt(ctx, CAFE_PICS.splashRing, CAFE_W / 2, 560, 380 + 160 * k, 240 + 100 * k) || drawArt(ctx, CAFE_PICS.calmBurst, CAFE_W / 2, 520, 300 + 150 * k, 300 + 150 * k);
+      ctx.restore();
+      if (painted) return;
       ctx.strokeStyle = `rgba(190,235,255,${(1 - k).toFixed(3)})`;
       ctx.lineWidth = 8;
       ctx.beginPath();
@@ -325,7 +332,8 @@ export class CafeRenderer {
     const n = Math.min(99, Math.floor(q));
     const label = `หมอผี ×${n}`;
     ctx.font = `700 30px ${FONT}`;
-    const w = (Number.isFinite(ctx.measureText(label).width) ? ctx.measureText(label).width : 150) + 48;
+    const icon = artImage(CAFE_PICS.shaman[0] as string) !== null;
+    const w = (Number.isFinite(ctx.measureText(label).width) ? ctx.measureText(label).width : 150) + 48 + (icon ? 36 : 0);
     ctx.fillStyle = 'rgba(40,28,60,0.85)';
     ctx.beginPath();
     ctx.roundRect(16, 84, w, 46, 23);
@@ -333,7 +341,8 @@ export class CafeRenderer {
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#bfe6ff';
     ctx.stroke();
-    this.text(ctx, label, 16 + w / 2, 109, 28, '#e6f6ff', '#1c1233');
+    if (icon) drawArt(ctx, CAFE_PICS.shaman[0] as string, 40, 100, 40, 62, 0, 1, 1, 2);
+    this.text(ctx, label, 16 + (icon ? 36 : 0) + (w - (icon ? 36 : 0)) / 2, 109, 28, '#e6f6ff', '#1c1233');
   }
 
   /** Warning while the ghost squeezes: dark red edges closing in, a danger bar and a call to tap. */
@@ -845,6 +854,15 @@ export class CafeRenderer {
     this.stepActors(cafe, dt);
     const list = [...this.actors.values()].sort((p, q) => p.r - q.r);
     for (const a of list) {
+      // a banished ghost fades up and away, then is not drawn at all
+      let fade = 1;
+      if (a.c.banished) {
+        a.fadeMs = (a.fadeMs ?? 0) + dt;
+        fade = 1 - Math.min(1, a.fadeMs / 600);
+        if (fade <= 0) continue;
+      }
+      ctx.save();
+      ctx.globalAlpha = fade;
       const walking = a.speed > 0.03;
       const feetY = a.y + a.r * 2.8; // the floor line under this customer
       // a soft shadow keeps the feet on the floor
@@ -852,7 +870,6 @@ export class CafeRenderer {
       ctx.beginPath();
       ctx.ellipse(a.x, feetY, a.r * 1.0, a.r * 0.2, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.save();
       try {
         if (walking) {
           // waddle: sway side to side and squash with each step, pivoting at the feet (no lifting off the floor)
@@ -867,7 +884,7 @@ export class CafeRenderer {
         ctx.restore();
       }
     }
-    if (cafe?.serving) {
+    if (cafe?.serving && !cafe.serving.banished) {
       this.drawOrderBubbleIfThere(ctx, cafe.serving);
     } else {
       this.text(ctx, 'รอลูกค้า…', CAFE_W / 2, 318, 48, '#fff3dc');

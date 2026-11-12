@@ -86,6 +86,8 @@ export interface CustomerView {
   /** Patience left, 0..1 (1 for the customer being served). */
   patience: number;
   serving: boolean;
+  /** The shaman banished this ghost: it fades away (the order in progress still finishes). */
+  banished?: boolean;
 }
 
 export interface CafeView {
@@ -221,6 +223,7 @@ export class Game {
   private shamanMs = 0;
   private shamanSplashed = false;
   private shamanQuota = 0;
+  private shamanFromQuota = false;
   private ghostTamed = false;
   private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
 
@@ -466,7 +469,7 @@ export class Game {
     const cafe = this.cafe;
     if (!cafe) return false;
     const busy = this.phoneRingMs > 0 || this.phoneTalkMs > 0 || cafe.queue.current?.kind === 'phone' || cafe.queue.waiting().some((c) => c.kind === 'phone');
-    if (busy || !this.hasRoomForSpecial()) return false;
+    if (busy) return false;
     const ph = this.config.cafe.surprise.phone;
     this.phoneRingMs = Number.isFinite(ph.ringMs) ? Math.max(1, ph.ringMs) : 3000;
     this.forceGhostType = type !== undefined && Number.isFinite(type) ? Math.abs(Math.floor(type)) % 5 : null;
@@ -489,9 +492,10 @@ export class Game {
     return true;
   }
 
+  /** A ghost is actually in the café (in the line or at the counter), not just calling on the phone. */
   private ghostPresent(): boolean {
     const q = this.cafe?.queue;
-    return !!q && (this.phoneRingMs > 0 || this.phoneTalkMs > 0 || q.current?.kind === 'phone' || q.waiting().some((c) => c.kind === 'phone'));
+    return !!q && (q.current?.kind === 'phone' || q.waiting().some((c) => c.kind === 'phone'));
   }
 
   /** A share calls the Isan shaman (หมอผี) when a ghost is around: he walks in, splashes holy water and calms it. False when nothing to do. */
@@ -507,18 +511,28 @@ export class Game {
 
   private tickShaman(dt: number): void {
     // a saved visit is used as soon as a ghost needs calming
-    if (this.shamanMs <= 0 && this.shamanQuota > 0 && !this.ghostTamed && this.ghostPresent() && this.callShaman()) this.shamanQuota -= 1;
+    if (this.shamanMs <= 0 && this.shamanQuota > 0 && !this.ghostTamed && this.ghostPresent() && this.callShaman()) {
+      this.shamanQuota -= 1;
+      this.shamanFromQuota = true;
+    }
     if (this.shamanMs <= 0) return;
     this.shamanMs = Math.max(0, this.shamanMs - dt);
     const t = 1 - this.shamanMs / SHAMAN_MS;
     if (!this.shamanSplashed && t >= 0.5) {
       this.shamanSplashed = true;
       if (this.ghostPresent()) {
+        // banished: ghosts waiting in line vanish, the one at the counter fades away (its order still finishes)
+        this.cafe?.queue.removeKind('phone');
         this.ghostTamed = true;
         this.squeeze = 0;
         this.squeezed = false;
-        this.toastText = 'หมอผีสาดน้ำมนต์! ผีสงบแล้ว';
-      } else this.toastText = 'หมอผีสาดน้ำมนต์!';
+        this.toastText = 'หมอผีปราบผีแล้ว! ผีหายไป';
+        if (this.rewards?.addCoins(15)) this.coinShower();
+      } else {
+        this.toastText = 'หมอผีสาดน้ำมนต์!';
+        if (this.shamanFromQuota) this.shamanQuota = Math.min(SHAMAN_MAX_QUOTA, this.shamanQuota + 1); // no ghost to banish: the visit is not used up
+      }
+      this.shamanFromQuota = false;
       this.fx?.audio.play('splash', this.soundRound(this.manager.snapshot().roundId));
       this.burst(26, 220);
     }
@@ -667,6 +681,8 @@ export class Game {
   private enqueueSpecial(n: Parameters<CafeQueue['enqueue']>[0]): boolean {
     const q = this.cafe?.queue;
     if (!q) return false;
+    // a ghost cuts in line: it always gets in, even when the line is full of paying viewers
+    if (n.kind === 'phone') return q.enqueue({ ...n, force: true }) === 'ok';
     if (q.waiting().length >= this.config.cafe.maxWaiting && !q.displaceAnonymous()) return false;
     return q.enqueue(n) === 'ok';
   }
@@ -707,7 +723,7 @@ export class Game {
     const spread = Number.isFinite(ph.jitter) ? Math.min(0.9, Math.max(0, ph.jitter)) : 0.3;
     this.phoneTimerMs = Math.max(1000, every * (1 + spread * ((cafe.rng ?? Math.random)() * 2 - 1)));
     const busy = cafe.queue.current?.kind === 'phone' || cafe.queue.waiting().some((c) => c.kind === 'phone');
-    if (!busy && this.hasRoomForSpecial()) {
+    if (!busy) {
       this.phoneRingMs = Number.isFinite(ph.ringMs) ? Math.max(1, ph.ringMs) : 3000;
       this.fx?.audio.play('ring', this.soundRound(this.manager.snapshot().roundId));
     }
@@ -766,6 +782,7 @@ export class Game {
         color: d?.palette[0] ?? '#f5f0e1',
         patience: serving ? 1 : Math.min(1, Math.max(0, c.patienceMs / c.patienceMaxMs)),
         serving,
+        ...(c.kind === 'phone' && this.ghostTamed ? { banished: true } : {}),
       };
     };
     const waiting = cafe.queue.waiting();
@@ -816,8 +833,8 @@ export class Game {
       if (paid) {
         this.bonusPct += paid.happiness * this.config.cafe.payBonusMaxPct;
         if (paid.customer.kind === 'vip') this.bonusPct += sur.vip.payBonusPct;
-        if (paid.customer.kind === 'phone' && !this.squeezed) this.bonusPct += sur.phone.payBonusPct;
-        who = paid.customer.kind === 'vip' ? 'VIP ' : paid.customer.kind === 'phone' ? (this.squeezed ? 'ผีบีบ! ' : this.ghostTamed ? 'ผีสงบ! ' : 'ผีพอใจ! ') : paid.customer.name ? `${paid.customer.name} ` : '';
+        if (paid.customer.kind === 'phone' && !this.squeezed && !this.ghostTamed) this.bonusPct += sur.phone.payBonusPct;
+        who = paid.customer.kind === 'vip' ? 'VIP ' : paid.customer.kind === 'phone' ? (this.squeezed ? 'ผีบีบ! ' : this.ghostTamed ? 'ผีหายไปแล้ว! ' : 'ผีพอใจ! ') : paid.customer.name ? `${paid.customer.name} ` : '';
       }
       if (this.luckyCatMs > 0) this.bonusPct += sur.luckyCat.payBonusPct;
     }

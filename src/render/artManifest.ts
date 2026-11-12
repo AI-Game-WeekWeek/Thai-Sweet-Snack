@@ -152,7 +152,10 @@ export const CAFE_PICS = {
   mist: 'halo-2',
   frame: 'halo-8',
   shaman: ['shaman-1', 'shaman-2', 'shaman-3'],
-  holyWater: 'holywater-1',
+  holyWater: 'holywater-3',
+  holyWaterDrop: 'holywater-1',
+  splashRing: 'holywater-4',
+  calmBurst: 'holywater-5',
 } as const;
 
 function allNames(): string[] {

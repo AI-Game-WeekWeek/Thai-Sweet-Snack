@@ -296,36 +296,22 @@ describe('café surprise events', () => {
       runUntil(game, () => game.snapshot().roundsCompleted >= 3);
     });
 
-    it('with a full queue the call replaces an anonymous customer, and is skipped only when every waiting customer is a paying viewer', () => {
+    it('the ghost cuts in line: it comes even when the line is full, even of paying viewers, and never more than one at a time', () => {
       const a = mk(fast, { maxWaiting: 3, npcSpawnEveryMs: 1e9 });
       a.game.start();
       for (let i = 0; i < 5; i++) a.queue.enqueue({ viewer: false, dessertId: 'khao-tom-mat' });
-      expect(a.queue.waiting()).toHaveLength(3);
       advance(a.game, 2500);
       expect(a.queue.waiting().filter((c) => c.kind === 'phone')).toHaveLength(1);
-      expect(a.queue.waiting().length).toBeLessThanOrEqual(3);
 
       const b = mk(fast, { maxWaiting: 3, npcSpawnEveryMs: 1e9 });
       b.game.start();
       while (b.queue.displaceAnonymous()) { /* clear the opening filler customers */ }
       for (let i = 0; i < 5; i++) b.queue.enqueue({ viewer: true, name: `v${i}`, dessertId: 'khao-tom-mat' });
       advance(b.game, 2500);
-      expect(b.queue.waiting().filter((c) => c.kind === 'phone')).toHaveLength(0);
-      expect(b.queue.waiting()).toHaveLength(3);
-    });
-
-    it('a ring that finds the queue full of paying viewers when it ends is retried soon, not forgotten for minutes', () => {
-      const { game, queue } = mk({ phone: { ...fast.phone, firstMs: 500, ringMs: 1500, everyMs: 90_000 } }, { maxWaiting: 3, npcSpawnEveryMs: 1e9 });
-      game.start();
-      advance(game, 700); // ringing
-      expect(game.snapshot().cafe!.phoneRinging).toBe(true);
-      while (queue.displaceAnonymous()) { /* viewers fill the line during the ring */ }
-      for (let i = 0; i < 3; i++) queue.enqueue({ viewer: true, name: `v${i}`, dessertId: 'bua-loy' });
-      advance(game, 1500);
-      expect(queue.waiting().filter((c) => c.kind === 'phone')).toHaveLength(0); // no room: the call is dropped...
-      while (queue.waiting().length > 0) { queue.startNext(); queue.pay(); } // ...and room appears
-      advance(game, 6500);
-      expect(queue.waiting().some((c) => c.kind === 'phone') || queue.current?.kind === 'phone').toBe(true); // retried within seconds
+      const ghosts = b.queue.waiting().filter((c) => c.kind === 'phone');
+      expect(ghosts).toHaveLength(1); // got in although all 3 places were paying viewers
+      expect(b.queue.waiting()).toHaveLength(4); // one above the usual maximum
+      expect(b.queue.waiting()[0]!.kind).toBe('phone'); // and it is first in line
     });
 
     it('hostile phone settings cannot disable the phone or make it fire every frame', () => {
@@ -462,5 +448,25 @@ describe('shaman quota from shares', () => {
     expect(game.callGhostNow()).toBe(true);
     runUntil(game, () => game.renderView().cafe?.ghostCalm === true, 600_000);
     expect(game.renderView().cafe?.shamanQuota).toBeLessThan(5); // one was used
+  });
+});
+
+describe('shaman only banishes a ghost that is really there', () => {
+  it('does not come while the ghost is only calling; when the ghost is in line he banishes it (it leaves the line), and the visit is refunded if nobody was there', () => {
+    const ph = { firstMs: 1e12, everyMs: 1e12, jitter: 0, ringMs: 2500, deadlineMs: 600_000, squeezeMs: 60_000, fineCoins: 0, reliefPerLike: 0, harderPerVisit: 0, minSqueezeMs: 1000, squeezeSlow: 0 };
+    const { game, queue } = mk({ phone: ph, vip: {} }, { npcSpawnEveryMs: 1e9 });
+    game.start();
+    game.ingestEvent({ id: `sx${++n}`, type: 'share', count: 1, tsMs: game.nowMs });
+    advance(game, 100);
+    expect(game.renderView().cafe?.shamanQuota).toBe(1);
+    expect(game.callGhostNow()).toBe(true); // ringing: the ghost is not in the café yet
+    advance(game, 1200);
+    expect(game.renderView().cafe?.phoneRinging).toBe(true);
+    expect(game.renderView().cafe?.shaman ?? 0).toBe(0); // he waits
+    expect(game.renderView().cafe?.shamanQuota).toBe(1);
+    runUntil(game, () => queue.waiting().some((c) => c.kind === 'phone') || queue.current?.kind === 'phone');
+    runUntil(game, () => game.renderView().cafe?.ghostCalm === true, 600_000);
+    expect(queue.waiting().some((c) => c.kind === 'phone')).toBe(false); // banished from the line
+    expect(game.renderView().cafe?.shamanQuota).toBe(0);
   });
 });

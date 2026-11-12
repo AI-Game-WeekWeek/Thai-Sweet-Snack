@@ -28,6 +28,8 @@ export interface NewCustomer {
   dessertId: string;
   /** Fixes the look (outfit / ghost kind) of this customer. Default: derived from the id. */
   seed?: number;
+  /** Joins even when the line is full (a ghost cuts in line). */
+  force?: boolean;
 }
 
 export interface CafeQueueOptions {
@@ -57,13 +59,20 @@ export class CafeQueue {
     return this.serving;
   }
 
+  /** Removes every WAITING customer of a kind (a banished ghost). Returns how many left. The one being served is not touched. */
+  removeKind(kind: CustomerKind): number {
+    const before = this.list.length;
+    this.list = this.list.filter((c) => c.kind !== kind);
+    return before - this.list.length;
+  }
+
   waiting(): readonly Customer[] {
     return this.list;
   }
 
   /** Viewers queue right behind the customer being served (in order of arrival); anonymous customers join the back. */
   enqueue(n: NewCustomer): 'ok' | 'full' {
-    if (this.list.length >= this.opts.maxWaiting) return 'full';
+    if (this.list.length >= this.opts.maxWaiting && !n.force) return 'full';
     const name = n.name ? cleanName(n.name, this.opts.maxNameLength) : '';
     const patience = n.patienceMs !== undefined && Number.isFinite(n.patienceMs) && n.patienceMs > 0 ? n.patienceMs : this.opts.patienceMs;
     const customer: Customer = {
