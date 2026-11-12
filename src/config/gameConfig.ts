@@ -16,6 +16,9 @@ export interface GameConfig {
   /** true = Phase 1 timer auto-completes COOKING at durationsMs.cooking; false = CookingSystem decides. */
   placeholderCooking: boolean;
   cooking: { baseProgressPerSec: number };
+  anim: { maxActive: number; stepAnimMaxMs: number };
+  particles: { cap: number; gravity: number };
+  audio: { maxVoices: number; master: number };
 }
 
 export const defaultConfig: GameConfig = {
@@ -24,6 +27,9 @@ export const defaultConfig: GameConfig = {
   maxMs: { preparing: 2000, cooking: 10000, presenting: 3000, rewarding: 3000, nextDessert: 1000 },
   placeholderCooking: true,
   cooking: { baseProgressPerSec: 3.5 },
+  anim: { maxActive: 64, stepAnimMaxMs: 2500 },
+  particles: { cap: 600, gravity: 900 },
+  audio: { maxVoices: 8, master: 0.6 },
 };
 
 /** Real game: CookingSystem drives COOKING; the global watchdog sits above any recipe length. */
