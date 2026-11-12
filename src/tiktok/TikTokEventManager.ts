@@ -67,7 +67,7 @@ export class TikTokEventManager {
   /** Empties the queue into one coalesced result. Safe to call every tick. */
   drain(round: RoundInfo, nowMs: number): EventEffects {
     const cfg = { ...this.config.events, maxGiftsPerDrain: this.config.cafe.maxGiftsPerDrain };
-    const fx: EventEffects = { progressAdd: 0, completeStep: false, roseEffect: false, bigGiftEffect: false, shareBonus: 0, votes: [], likes: 0, follows: 0, hearts: 0, gifts: [], counters: this.counts };
+    const fx: EventEffects = { progressAdd: 0, completeStep: false, roseEffect: false, bigGiftEffect: false, shareBonus: 0, votes: [], likes: 0, follows: 0, hearts: 0, gifts: [], surprises: { follows: 0, orangeHearts: 0 }, counters: this.counts };
     const batch = this.queue;
     this.queue = [];
     const deferred: LiveEvent[] = [];
@@ -92,6 +92,10 @@ export class TikTokEventManager {
             ...(e.displayName !== undefined ? { displayName: e.displayName } : {}),
             ...(e.avatarUrl !== undefined ? { avatarUrl: e.avatarUrl } : {}),
           });
+        }
+        if (round.acceptsGifts) {
+          if (e.type === 'follow') fx.surprises.follows += 1;
+          else if (e.type === 'orangeHeart') fx.surprises.orangeHearts += 1;
         }
         if (e.type === 'share') {
           fx.shareBonus += cfg.shareBonusPct;

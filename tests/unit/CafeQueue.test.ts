@@ -128,4 +128,55 @@ describe('CafeQueue', () => {
     for (let i = 0; i < 5; i++) q.enqueue(viewer('combo', `c${i}`));
     expect(q.waiting()[0]?.dessertId).toBe('f');
   });
+
+  it('priority: vip, then phone order, then viewers, then anonymous; first-come first-served within a rank', () => {
+    const q = mk(20);
+    q.enqueue(npc('anon1')); q.enqueue(npc('anon2'));
+    q.enqueue(viewer('V1', 'viewer1'));
+    q.enqueue({ viewer: false, dessertId: 'phone1', kind: 'phone' });
+    q.enqueue({ viewer: false, dessertId: 'vip1', kind: 'vip' });
+    q.enqueue(viewer('V2', 'viewer2'));
+    q.enqueue({ viewer: false, dessertId: 'phone2', kind: 'phone' });
+    q.enqueue({ viewer: false, dessertId: 'vip2', kind: 'vip' });
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['vip1', 'vip2', 'phone1', 'phone2', 'viewer1', 'viewer2', 'anon1', 'anon2']);
+  });
+
+  it('customers carry their kind; normal is the default; a special customer can have its own patience', () => {
+    const q = mk(5, 10_000);
+    q.enqueue(npc('a'));
+    q.enqueue({ viewer: false, dessertId: 'p', kind: 'phone', patienceMs: 3000 });
+    const [p, a] = q.waiting();
+    expect(p).toMatchObject({ kind: 'phone', patienceMs: 3000, patienceMaxMs: 3000 });
+    expect(a).toMatchObject({ kind: 'normal', patienceMs: 10_000 });
+    q.startNext();
+    expect(q.pay()?.customer.kind).toBe('phone');
+  });
+
+  it('tick can slow patience loss (lucky cat); a bad slowdown value falls back to normal speed; the served customer is unaffected', () => {
+    const q = mk(5, 1000);
+    q.enqueue(npc('a')); q.enqueue(npc('b'));
+    q.startNext();
+    q.tick(400, 0.5);
+    expect(q.waiting()[0]?.patienceMs).toBe(800);
+    for (const bad of [NaN, -1, 0, Infinity, 5]) q.tick(100, bad);
+    expect(q.waiting()[0]?.patienceMs).toBe(800 - 500);
+    expect(q.current?.patienceMs).toBe(1000);
+  });
+
+  it('a phone order whose deadline passes while waiting leaves; everyone else keeps waiting', () => {
+    const q = mk(5, 10_000);
+    q.enqueue(npc('a')); q.startNext();
+    q.enqueue({ viewer: false, dessertId: 'p', kind: 'phone', patienceMs: 1000 });
+    q.enqueue(npc('b'));
+    const left = q.tick(1500);
+    expect(left.map((c) => c.dessertId)).toEqual(['p']);
+    expect(left[0]?.kind).toBe('phone');
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['b']);
+  });
+
+  it('special customers respect the waiting cap too', () => {
+    const q = mk(2);
+    q.enqueue(npc()); q.enqueue(npc());
+    expect(q.enqueue({ viewer: false, dessertId: 'v', kind: 'vip' })).toBe('full');
+  });
 });

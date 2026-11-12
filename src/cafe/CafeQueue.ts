@@ -1,9 +1,11 @@
 import { cleanName } from '../tiktok/cleanName';
 
 export type CustomerState = 'WAITING' | 'SERVING' | 'PAID' | 'LEFT';
+export type CustomerKind = 'normal' | 'vip' | 'phone';
 
 export interface Customer {
   id: number;
+  kind: CustomerKind;
   viewer: boolean;
   name: string | null;
   avatarUrl: string | null;
@@ -17,6 +19,10 @@ export interface Customer {
 
 export interface NewCustomer {
   viewer: boolean;
+  /** Default 'normal'. Special customers (VIP, phone order) jump ahead of normal ones. */
+  kind?: CustomerKind;
+  /** Overrides the default patience (a phone order's deadline). */
+  patienceMs?: number;
   name?: string | null;
   avatarUrl?: string | null;
   dessertId: string;
@@ -27,6 +33,9 @@ export interface CafeQueueOptions {
   patienceMs: number;
   maxNameLength: number;
 }
+
+/** VIP first, then phone orders, then viewers (gifts), then anonymous customers. */
+const rank = (c: Customer): number => (c.kind === 'vip' ? 0 : c.kind === 'phone' ? 1 : c.viewer ? 2 : 3);
 
 /**
  * The café queue. Customers are WAITING → SERVING → PAID | LEFT. Only waiting customers lose patience; the one being
@@ -51,33 +60,40 @@ export class CafeQueue {
   enqueue(n: NewCustomer): 'ok' | 'full' {
     if (this.list.length >= this.opts.maxWaiting) return 'full';
     const name = n.name ? cleanName(n.name, this.opts.maxNameLength) : '';
+    const patience = n.patienceMs !== undefined && Number.isFinite(n.patienceMs) && n.patienceMs > 0 ? n.patienceMs : this.opts.patienceMs;
     const customer: Customer = {
       id: this.nextId++,
+      kind: n.kind ?? 'normal',
       viewer: n.viewer,
       name: name === '' ? null : name,
       avatarUrl: n.avatarUrl ?? null,
       seed: this.nextId,
       dessertId: n.dessertId,
-      patienceMs: this.opts.patienceMs,
-      patienceMaxMs: this.opts.patienceMs,
+      patienceMs: patience,
+      patienceMaxMs: patience,
       state: 'WAITING',
     };
-    if (n.viewer) {
-      // First-come first-served among viewers (a combo of gifts cannot jump the line), but ahead of anonymous customers.
-      let at = 0;
-      while (at < this.list.length && this.list[at]?.viewer) at++;
-      this.list.splice(at, 0, customer);
-    } else this.list.push(customer);
+    // Priority rank, first-come first-served within a rank: a combo of gifts cannot jump the line.
+    const r = rank(customer);
+    let at = this.list.length;
+    for (let i = 0; i < this.list.length; i++) {
+      if (rank(this.list[i] as Customer) > r) {
+        at = i;
+        break;
+      }
+    }
+    this.list.splice(at, 0, customer);
     return 'ok';
   }
 
-  /** Customers who ran out of patience this tick (removed from the queue). */
-  tick(dtMs: number): Customer[] {
+  /** Customers who ran out of patience this tick (removed from the queue). `slow` (0..1] slows the loss (lucky cat). */
+  tick(dtMs: number, slow = 1): Customer[] {
     if (!Number.isFinite(dtMs) || dtMs <= 0) return [];
+    const dt = dtMs * (Number.isFinite(slow) && slow > 0 && slow <= 1 ? slow : 1);
     const left: Customer[] = [];
     const stay: Customer[] = [];
     for (const c of this.list) {
-      c.patienceMs -= dtMs;
+      c.patienceMs -= dt;
       if (c.patienceMs <= 0) {
         c.state = 'LEFT';
         left.push(c);

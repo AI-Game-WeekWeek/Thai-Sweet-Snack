@@ -142,4 +142,35 @@ describe('gift details (viewer name and picture)', () => {
     expect(parseLiveEvent({ id: 'bad', type: 'like', count: 'x', tsMs: NOW }, 1000)).toBeNull();
     expect(parseLiveEvent({ id: 'bad2', type: 'like', count: 0, tsMs: NOW }, 1000)).toBeNull();
   });
+
+  it('follows and orange hearts are counted for the surprise events in every state, even when old, when gifts are accepted', () => {
+    const m = new TikTokEventManager(defaultConfig);
+    for (let i = 0; i < 10_000; i++) {
+      m.ingest({ id: `f${i}`, type: 'follow', count: 1, tsMs: i % 2 ? NOW : -9e9 });
+      if (m.queueLength >= defaultConfig.events.queueMax) m.drain(round, NOW); // keep the queue below its cap
+    }
+    const m2 = new TikTokEventManager(defaultConfig);
+    m2.ingest({ id: 'a', type: 'follow', count: 1, tsMs: NOW });
+    m2.ingest({ id: 'b', type: 'follow', count: 1, tsMs: NOW });
+    m2.ingest({ id: 'c', type: 'orangeHeart', count: 5, tsMs: NOW });
+    const fx = m2.drain({ ...round, cooking: false }, NOW);
+    expect(fx.surprises).toEqual({ follows: 2, orangeHearts: 1 }); // one orange-heart event = one VIP trigger, whatever its count
+    const cooking = m2.drain({ ...round, cooking: true }, NOW);
+    expect(cooking.surprises).toEqual({ follows: 0, orangeHearts: 0 });
+  });
+
+  it('without acceptsGifts (classic and vote modes) no surprise counts are reported', () => {
+    const m = new TikTokEventManager(defaultConfig);
+    m.ingest({ id: 'a', type: 'follow', count: 1, tsMs: NOW });
+    m.ingest({ id: 'b', type: 'orangeHeart', count: 1, tsMs: NOW });
+    expect(m.drain({ ...round, acceptsGifts: false }, NOW).surprises).toEqual({ follows: 0, orangeHearts: 0 });
+  });
+
+  it('follow and orange-heart events carry no names even if a provider sends them', () => {
+    for (const type of ['follow', 'orangeHeart']) {
+      const e = parseLiveEvent({ id: `nm${++n}`, type, count: 1, tsMs: NOW, displayName: 'Somchai', avatarUrl: 'https://x.example/a.jpg', user: 'Somchai' }, 1000) as unknown as Record<string, unknown>;
+      expect(e.displayName).toBeUndefined();
+      expect(e.avatarUrl).toBeUndefined();
+    }
+  });
 });

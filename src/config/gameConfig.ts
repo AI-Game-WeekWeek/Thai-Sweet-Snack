@@ -55,6 +55,12 @@ export interface GameConfig {
     /** Extra payout (percent) for a customer who did not have to wait at all. */
     payBonusMaxPct: number;
     giftTiers: { minCoins: number; dessertId: string }[];
+    surprise: {
+      luckyCat: { durationMs: number; maxMs: number; payBonusPct: number; /** Waiting customers lose patience at this fraction of normal speed. */ patienceSlowdown: number };
+      vip: { cooldownMs: number; payBonusPct: number; /** The VIP orders the best unlocked tier worth at least this many coins. */ minGiftCoins: number };
+      tip: { perCustomer: number; max: number };
+      phone: { firstMs: number; everyMs: number; jitter: number; ringMs: number; deadlineMs: number; payBonusPct: number };
+    };
   };
   vote: {
     candidates: number;
@@ -122,6 +128,12 @@ export const defaultConfig: GameConfig = {
       { minCoins: 199, dessertId: 'luk-chup' },
       { minCoins: 500, dessertId: 'khanom-buang' },
     ],
+    surprise: {
+      luckyCat: { durationMs: 20_000, maxMs: 60_000, payBonusPct: 100, patienceSlowdown: 0.5 },
+      vip: { cooldownMs: 30_000, payBonusPct: 50, minGiftCoins: 50 },
+      tip: { perCustomer: 3, max: 36 },
+      phone: { firstMs: 45_000, everyMs: 100_000, jitter: 0.3, ringMs: 3000, deadlineMs: 35_000, payBonusPct: 200 },
+    },
   },
   vote: { candidates: 3, windowMs: 15_000, maxVoters: 5000, anonVotesPerSec: 50, heartPerLike: 0.012, heartPerFollow: 0.15, heartPerHeart: 0.08, graceMs: 3000, heartDecayPerSec: 0.1, maxBoost: 4, cookRatePerSec: 6 },
 };

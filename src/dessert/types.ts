@@ -1,5 +1,5 @@
 export const ANIM_IDS = ['pour', 'stir', 'drizzle', 'steam', 'cut', 'arrange', 'fry', 'shape', 'knead', 'spread', 'boil'] as const;
-export const SOUND_IDS = ['pour', 'stir', 'syrup', 'steam', 'slice', 'arrange', 'sizzle', 'boil', 'pop'] as const;
+export const SOUND_IDS = ['pour', 'stir', 'syrup', 'steam', 'slice', 'arrange', 'sizzle', 'boil', 'pop', 'ring', 'coin'] as const;
 
 export type AnimId = (typeof ANIM_IDS)[number];
 export type SoundId = (typeof SOUND_IDS)[number];

@@ -53,5 +53,7 @@ export interface EventEffects {
   hearts: number;
   /** Every gift/rose seen (café mode only), bounded per drain. */
   gifts: GiftInfo[];
+  /** Café surprise triggers, counted in every state: one per follow event / orange-heart event. No names. */
+  surprises: { follows: number; orangeHearts: number };
   counters: Counters;
 }

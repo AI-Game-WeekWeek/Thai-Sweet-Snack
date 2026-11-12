@@ -22,6 +22,9 @@ const RECIPES: Record<SoundId, Recipe> = {
   sizzle: { durationSec: 1.1, peak: 0.3, attackSec: 0.05, noise: { filter: 'highpass', freq: 4200, q: 0.6 }, lfo: { hz: 17, depth: 0.45 } },
   boil: { durationSec: 1.2, peak: 0.35, attackSec: 0.12, noise: { filter: 'lowpass', freq: 450, q: 1.2 }, lfo: { hz: 6, depth: 0.6 } },
   pop: { durationSec: 0.28, peak: 0.5, attackSec: 0.01, tone: { type: 'sine', from: 620, to: 1240, level: 1 } },
+  // Telephone trill and a coin ping (café surprise events).
+  ring: { durationSec: 1.1, peak: 0.35, attackSec: 0.01, tone: { type: 'triangle', from: 760, to: 900, level: 1 }, lfo: { hz: 18, depth: 0.9 } },
+  coin: { durationSec: 0.35, peak: 0.4, attackSec: 0.005, tone: { type: 'sine', from: 1400, to: 2100, level: 1 } },
 };
 
 interface Voice {
