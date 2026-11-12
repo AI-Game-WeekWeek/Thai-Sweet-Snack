@@ -7,6 +7,8 @@ export interface RoundInfo {
   /** Source-clock time at which the active round started. Older events are stale. */
   startedAtMs: number;
   cooking: boolean;
+  /** True during the menu vote window: comments count as votes. */
+  voting?: boolean;
 }
 
 type Ingest = 'queued' | 'duplicate' | 'invalid';
@@ -63,11 +65,17 @@ export class TikTokEventManager {
   /** Empties the queue into one coalesced result. Safe to call every tick. */
   drain(round: RoundInfo, nowMs: number): EventEffects {
     const cfg = this.config.events;
-    const fx: EventEffects = { progressAdd: 0, completeStep: false, roseEffect: false, bigGiftEffect: false, shareBonus: 0, counters: this.counts };
+    const fx: EventEffects = { progressAdd: 0, completeStep: false, roseEffect: false, bigGiftEffect: false, shareBonus: 0, votes: [], likes: 0, follows: 0, counters: this.counts };
     const batch = this.queue;
     this.queue = [];
     for (const e of batch) {
       try {
+        if (e.type === 'comment') {
+          if (round.voting && e.tsMs >= round.startedAtMs && e.vote !== undefined) {
+            fx.votes.push({ vote: e.vote, ...(e.userId !== undefined ? { userKey: e.userId } : {}) });
+          }
+          continue;
+        }
         this.count(e);
         if (e.type === 'share') {
           fx.shareBonus += cfg.shareBonusPct;
@@ -77,9 +85,11 @@ export class TikTokEventManager {
         switch (e.type) {
           case 'like':
             fx.progressAdd += cfg.likeProgress * e.count;
+            fx.likes += e.count;
             break;
           case 'follow':
             fx.progressAdd += cfg.followProgress;
+            fx.follows += 1;
             break;
           case 'orangeHeart':
             fx.progressAdd += cfg.heartProgress * e.count;

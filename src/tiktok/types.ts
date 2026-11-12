@@ -1,4 +1,4 @@
-export const LIVE_EVENT_TYPES = ['like', 'follow', 'orangeHeart', 'rose', 'gift', 'share'] as const;
+export const LIVE_EVENT_TYPES = ['like', 'follow', 'orangeHeart', 'rose', 'gift', 'share', 'comment'] as const;
 export type LiveEventType = (typeof LIVE_EVENT_TYPES)[number];
 export type ConnectionState = 'connected' | 'reconnecting' | 'offline';
 
@@ -14,6 +14,10 @@ export interface LiveEvent {
   user?: string;
   /** Gift value in coins, when known. */
   giftCoins?: number;
+  /** Menu vote (1..3) parsed from a comment. The comment text itself is never kept. */
+  vote?: number;
+  /** Opaque viewer key used only for one-vote-per-viewer; never displayed. */
+  userId?: string;
 }
 
 export interface Counters {
@@ -31,5 +35,10 @@ export interface EventEffects {
   bigGiftEffect: boolean;
   /** Percent bonus accumulated from shares in this drain. */
   shareBonus: number;
+  /** Menu votes seen during the vote window. */
+  votes: { vote: number; userKey?: string }[];
+  /** Likes and follows applied while cooking (for the heart meter). */
+  likes: number;
+  follows: number;
   counters: Counters;
 }

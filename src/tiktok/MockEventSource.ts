@@ -23,6 +23,7 @@ export class MockEventSource {
   constructor(
     private readonly rng: () => number,
     private readonly sink: (raw: unknown) => void,
+    private readonly opts: { comments?: boolean } = {},
   ) {}
 
   steady(ratePerSec: number, durationMs: number): void {
@@ -71,6 +72,7 @@ export class MockEventSource {
   }
 
   private pickType(): LiveEventType {
+    if (this.opts.comments && this.rng() < 0.3) return 'comment';
     const r = this.rng();
     if (r < 0.8) return 'like';
     if (r < 0.92) return 'follow';
@@ -82,7 +84,11 @@ export class MockEventSource {
 
   private make(type: LiveEventType, tsMs: number): LiveEvent {
     const count = type === 'like' ? 1 + Math.floor(this.rng() * 5) : 1;
-    const e: LiveEvent = { id: `${this.prefix}-${++this.seq}`, type, count, tsMs };
+    const e: LiveEvent & { text?: string } = { id: `${this.prefix}-${++this.seq}`, type, count, tsMs };
+    if (type === 'comment') {
+      e.text = String(1 + Math.floor(this.rng() * 3));
+      e.userId = `u${Math.floor(this.rng() * 300)}`;
+    }
     if (type === 'gift') e.giftCoins = this.rng() < 0.4 ? 500 : 5;
     return e;
   }
