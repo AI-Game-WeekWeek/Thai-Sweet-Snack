@@ -174,4 +174,46 @@ describe('Game in menu-vote mode', () => {
     expect(g.snapshot().vote).toBeUndefined();
     expect(g.snapshot().dessertNameTh).not.toBeNull();
   });
+
+  it('with no votes the same dessert is never cooked twice in a row (3 unlocked, 80 rounds)', () => {
+    const events = new TikTokEventManager(voteConfig);
+    const vote = { manager: new VoteManager({ maxVoters: V.maxVoters, anonVotesPerSec: V.anonVotesPerSec }), meter: new HeartMeter({ decayPerSec: V.heartDecayPerSec, maxBoost: V.maxBoost }), rng: () => 0.4 };
+    let s = 5;
+    const dm = new DessertManager(ALL_DESSERTS, IDS.slice(0, 3), () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296));
+    const game = new Game(voteConfig, dm, undefined, events, undefined, undefined, vote);
+    game.start();
+    let last: string | null = null;
+    let repeats = 0;
+    for (let round = 0; round < 80; round++) {
+      runUntil(game, () => game.snapshot().state === 'COOKING' && game.snapshot().roundId === round + 1);
+      const name = cookingName(game);
+      if (name === last) repeats++;
+      last = name;
+    }
+    expect(repeats).toBe(0);
+  });
+
+  it('orange hearts and small gifts fill the heart meter while cooking', () => {
+    const { game, vote } = mk();
+    game.start();
+    runUntil(game, () => game.snapshot().state === 'COOKING');
+    game.update(16);
+    game.ingestEvent({ id: `h${++n}`, type: 'orangeHeart', count: 3, tsMs: game.nowMs });
+    game.ingestEvent({ id: `g${++n}`, type: 'gift', count: 1, giftCoins: 1, tsMs: game.nowMs });
+    game.update(16);
+    expect(vote.meter.value).toBeGreaterThanOrEqual(4 * V.heartPerHeart - 0.02);
+  });
+
+  it('votes still count for graceMs after the on-screen countdown shows 0 (stream latency)', () => {
+    const { game, vote } = mk();
+    game.start();
+    runUntil(game, () => game.snapshot().state === 'PREPARING' && game.snapshot().vote!.remainingMs === 0);
+    expect(game.snapshot().state).toBe('PREPARING'); // the box is still open
+    expect(vote.manager.isOpen).toBe(true);
+    for (let i = 0; i < 5; i++) comment(game, '3', `late${i}`);
+    game.update(16);
+    expect(vote.manager.tally()[2]).toBe(5);
+    runUntil(game, () => game.snapshot().state === 'COOKING');
+    expect(game.snapshot().vote?.winner).toBe(2);
+  });
 });

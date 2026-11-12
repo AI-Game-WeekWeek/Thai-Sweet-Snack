@@ -127,4 +127,23 @@ describe('comment events', () => {
     for (let t = 0; t < 2000; t += 16) b.tick(16, NOW);
     expect(off.some((e) => (e as { type: string }).type === 'comment')).toBe(false);
   });
+
+  it('no event type keeps a nickname: `user` is dropped everywhere', () => {
+    const like = parseLiveEvent({ id: 'u1', type: 'like', count: 1, tsMs: NOW, user: 'Somchai99' }, 1000) as unknown as Record<string, unknown>;
+    expect(like.user).toBeUndefined();
+    expect(JSON.stringify(like)).not.toContain('Somchai99');
+  });
+
+  it('manager reports orange hearts and small gifts as "hearts" while cooking (not big gifts, not outside cooking)', () => {
+    const m = new TikTokEventManager(defaultConfig);
+    const cooking = { roundId: 1, startedAtMs: NOW - 10, cooking: true };
+    m.ingest({ id: 'h1', type: 'orangeHeart', count: 5, tsMs: NOW });
+    m.ingest({ id: 'g1', type: 'gift', count: 1, giftCoins: 1, tsMs: NOW });
+    m.ingest({ id: 'g2', type: 'gift', count: 1, giftCoins: 999, tsMs: NOW });
+    const fx = m.drain(cooking, NOW);
+    expect(fx.hearts).toBe(6);
+    expect(fx.completeStep).toBe(true);
+    m.ingest({ id: 'h2', type: 'orangeHeart', count: 5, tsMs: NOW });
+    expect(m.drain({ ...cooking, cooking: false }, NOW).hearts).toBe(0);
+  });
 });

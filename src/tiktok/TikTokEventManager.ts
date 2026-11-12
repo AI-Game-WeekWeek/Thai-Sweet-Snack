@@ -65,7 +65,7 @@ export class TikTokEventManager {
   /** Empties the queue into one coalesced result. Safe to call every tick. */
   drain(round: RoundInfo, nowMs: number): EventEffects {
     const cfg = this.config.events;
-    const fx: EventEffects = { progressAdd: 0, completeStep: false, roseEffect: false, bigGiftEffect: false, shareBonus: 0, votes: [], likes: 0, follows: 0, counters: this.counts };
+    const fx: EventEffects = { progressAdd: 0, completeStep: false, roseEffect: false, bigGiftEffect: false, shareBonus: 0, votes: [], likes: 0, follows: 0, hearts: 0, counters: this.counts };
     const batch = this.queue;
     this.queue = [];
     for (const e of batch) {
@@ -93,6 +93,7 @@ export class TikTokEventManager {
             break;
           case 'orangeHeart':
             fx.progressAdd += cfg.heartProgress * e.count;
+            fx.hearts += e.count;
             break;
           case 'rose':
             if (nowMs - this.lastRoseMs >= cfg.roseCooldownMs) {
@@ -109,6 +110,7 @@ export class TikTokEventManager {
               }
             } else {
               fx.progressAdd += cfg.heartProgress; // a small gift counts like a heart
+              fx.hearts += 1;
             }
             break;
         }

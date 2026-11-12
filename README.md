@@ -35,22 +35,23 @@ are entitled to use and check TikTok's and the provider's terms. Details and lim
 
 Every round (about 25–40 s):
 
-1. **Vote (15 s):** a menu board shows 3 desserts and live vote bars. Viewers comment `1`, `2` or `3` (also `#2`).
+1. **Vote (15 s, the last 3 s still count after the clock shows 0, for stream delay):** a menu board shows 3 desserts and live vote bars. Viewers comment `1`, `2` or `3` (also `#2`).
    Most votes wins, a tie is random, **no votes = the first dessert**, so the show never waits.
 2. **Cook:** the winner is cooked step by step with animation and ASMR sound. Progress also rises on its own, so it
    works with zero viewers.
-3. **Hearts:** every like fills the heart meter (up to ×4 cooking speed); it drains over time. A follow adds a chunk;
-   a large gift completes the current step; a share adds a reward bonus.
+3. **Hearts:** while it cooks, every like, orange heart and small gift fills the heart meter (up to ×4 cooking speed); it
+   drains over time. A follow adds a chunk; a large gift completes the current step; a share adds a reward bonus. Likes sent
+   during the vote window do not count.
 4. **Served and sold:** the dessert goes on the tray, the screen shows `+score +coins`, then the next vote starts.
 
 All numbers are in `src/config/gameConfig.ts` (`vote`, `events`, `reward`). Coins unlock the other desserts automatically
 (cheapest affordable first); nothing requires real money or gifts. Progress is saved in the browser (`localStorage`).
 
-**Privacy:** a comment is only ever turned into a vote number. The text and nicknames are never stored, shown or relayed;
+**Privacy:** a comment is only ever turned into a vote number. The text is never stored, shown or relayed, and nicknames are dropped from every event;
 an opaque viewer key is used only to allow one vote per viewer per round.
 
 **Provider dependency:** votes need an event source that delivers comments (and ideally a user key). If yours does not,
-the menu simply rotates by itself; likes, follows and gifts still work. See [docs/tiktok-integration.md](docs/tiktok-integration.md).
+the menu simply rotates by itself (never the same dessert twice in a row); likes, follows and gifts still work. See [docs/tiktok-integration.md](docs/tiktok-integration.md).
 
 ## Architecture
 

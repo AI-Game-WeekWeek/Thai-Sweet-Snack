@@ -11,7 +11,6 @@ export interface LiveEvent {
   count: number;
   /** Source timestamp (ms). */
   tsMs: number;
-  user?: string;
   /** Gift value in coins, when known. */
   giftCoins?: number;
   /** Menu vote (1..3) parsed from a comment. The comment text itself is never kept. */
@@ -40,5 +39,7 @@ export interface EventEffects {
   /** Likes and follows applied while cooking (for the heart meter). */
   likes: number;
   follows: number;
+  /** Orange hearts and small gifts applied while cooking. */
+  hearts: number;
   counters: Counters;
 }

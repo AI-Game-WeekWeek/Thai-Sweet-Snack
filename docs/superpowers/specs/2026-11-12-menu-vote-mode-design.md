@@ -1,6 +1,6 @@
 # Menu-Vote Mode — Design Spec (draft for review)
 
-Date: 2026-11-12 · Status: **waiting for user review, no code written yet**
+Date: 2026-11-12 · Status: **implemented (see "Changes made during build" at the end)**
 Builds on: `2026-11-12-thai-dessert-asmr-design.md` (Phases 1–8, unchanged).
 Supersedes: `2026-11-12-krok-shop-mode-design.md` (cancelled by the user; its unfinished files are kept only in a local git stash).
 
@@ -96,3 +96,17 @@ works with no viewers and without TikTok, classic mode tests unchanged.
 
 Comments depend on the event provider; a vote needs a number only (no text commands); art is simple; audio/visual quality is
 checked by tests and screenshots, not on a live stream.
+
+## 11. Changes made during build (after a viewer / marketing / dev review and two independent code reviews)
+
+- **Default mode is vote mode**; classic stays at `?mode=classic`. Vote mode draws everything on the canvas (no DOM HUD, no
+  `UIManager` edits); no separate counter display (the existing tray is the shop front, plus a big "+score +coins" message).
+- **Grace period:** votes count for `vote.graceMs` (3 s) after the on-screen countdown reaches 0, because stream delay makes
+  viewers see the clock late.
+- **No repeats with zero voters:** the first (default-winner) candidate is never the dessert just cooked.
+- **Hearts:** likes, follows, orange hearts and small gifts feed the meter while cooking; likes during the vote window are ignored.
+- **Privacy:** nicknames (`user`) are dropped from every event, not only comments.
+- **Bridge:** well-formed non-vote comments get 202 `{ignored}` instead of 400 so providers never see errors for chatter.
+- Known, deferred minors: votes arriving in the single frame where the window closes are dropped; Thai/full-width digits are not
+  accepted as votes; the unlock message is not shown in vote mode; the candidate count (3) is partly hard-coded; a backward wall-clock
+  jump costs one round of votes/likes; the `Noto Sans Thai` font is not bundled (system fallback).

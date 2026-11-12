@@ -17,7 +17,6 @@ export function parseLiveEvent(raw: unknown, maxLikeCount: number): LiveEvent | 
     type: o.type as LiveEvent['type'],
     count: Math.floor(o.count),
     tsMs: o.tsMs,
-    ...(typeof o.user === 'string' ? { user: o.user.slice(0, 64) } : {}),
     ...(typeof o.giftCoins === 'number' ? { giftCoins: o.giftCoins } : {}),
   };
 }
@@ -46,4 +45,11 @@ function parseComment(o: Record<string, unknown>): LiveEvent | null {
     vote,
     ...(typeof o.userId === 'string' && o.userId.length > 0 ? { userId: o.userId.slice(0, 64) } : {}),
   };
+}
+
+/** A well-formed comment that is simply not a vote ("อร่อยมาก", "hi"): fine to ignore, not an error to retry. */
+export function isChatterComment(raw: unknown): boolean {
+  if (typeof raw !== 'object' || raw === null) return false;
+  const o = raw as Record<string, unknown>;
+  return o.type === 'comment' && typeof o.id === 'string' && o.id.length > 0 && typeof o.text === 'string';
 }

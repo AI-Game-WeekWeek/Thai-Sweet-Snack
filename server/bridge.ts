@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { WebSocket, WebSocketServer } from 'ws';
-import { parseLiveEvent } from '../src/tiktok/parseLiveEvent';
+import { isChatterComment, parseLiveEvent } from '../src/tiktok/parseLiveEvent';
 import type { LiveEvent } from '../src/tiktok/types';
 
 export interface BridgeOptions {
@@ -118,13 +118,16 @@ export function createBridge(opts: BridgeOptions): Bridge {
     if (items.length > maxBatch) return send(res, 413, { error: 'too many events in one request' });
 
     const valid: LiveEvent[] = [];
+    let ignored = 0;
     for (const item of items) {
       const e = parseLiveEvent(item, maxLike);
       if (e) valid.push(e);
+      else if (isChatterComment(item)) ignored++; // ordinary chat, not a vote: fine, but not an error the provider should retry
     }
-    if (valid.length === 0) return send(res, 400, { error: 'no valid events', rejected: items.length });
-    broadcast(JSON.stringify(valid));
-    send(res, 202, { accepted: valid.length, rejected: items.length - valid.length });
+    // 400 only when nothing in the request was understood at all.
+    if (valid.length === 0 && ignored === 0) return send(res, 400, { error: 'no valid events', rejected: items.length });
+    if (valid.length > 0) broadcast(JSON.stringify(valid));
+    send(res, 202, { accepted: valid.length, ignored, rejected: items.length - valid.length - ignored });
   }
 
   server.on('upgrade', (req, socket, head) => {

@@ -121,6 +121,7 @@ export class Game {
   private candidates: DessertDef[] = [];
   private voteStart = 0;
   private winnerIdx: number | null = null;
+  private lastCookedId: string | null = null;
   private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
 
   constructor(
@@ -226,7 +227,7 @@ export class Game {
     const tally = vote.manager.tally();
     for (let i = 0; i < v.tally.length; i++) v.tally[i] = tally[i] ?? 0;
     v.open = vote.manager.isOpen;
-    v.remainingMs = m.state === 'PREPARING' ? Math.max(0, this.config.durationsMs.preparing - m.stateElapsedMs) : 0;
+    v.remainingMs = m.state === 'PREPARING' ? Math.max(0, this.config.durationsMs.preparing - this.config.vote.graceMs - m.stateElapsedMs) : 0;
     v.winner = this.winnerIdx;
     return v;
   }
@@ -305,6 +306,12 @@ export class Game {
     if (!vote) return;
     this.candidates = this.desserts.pickCandidates(this.config.vote.candidates);
     if (this.candidates.length === 0) this.candidates = [this.desserts.next()];
+    // With nobody voting the first candidate wins: never let that be the dessert we just cooked.
+    if (this.candidates.length > 1 && this.candidates[0]?.id === this.lastCookedId) {
+      const first = this.candidates[0] as DessertDef;
+      this.candidates[0] = this.candidates[1] as DessertDef;
+      this.candidates[1] = first;
+    }
     this.winnerIdx = null;
     this.voteStart = this.clockMs;
     vote.manager.open(this.candidates.length, roundId);
@@ -320,6 +327,7 @@ export class Game {
     const idx = this.candidates.length === 0 ? -1 : vote.manager.winner(vote.rng ?? Math.random);
     this.winnerIdx = idx >= 0 ? idx : null;
     this.current = idx >= 0 ? (this.candidates[idx] ?? null) : null;
+    if (this.current) this.lastCookedId = this.current.id;
   }
 
   /** After the reward: auto-unlock (coins only) and save. Never allowed to disturb the loop. */
@@ -445,7 +453,7 @@ export class Game {
       if (this.vote) {
         for (const v of fx.votes) this.vote.manager.cast(v.vote, v.userKey, m.roundId, this.clockMs);
         // Hearts feed the meter (which speeds cooking up) instead of adding progress directly.
-        this.vote.meter.add(fx.likes * this.config.vote.heartPerLike + fx.follows * this.config.vote.heartPerFollow);
+        this.vote.meter.add(fx.likes * this.config.vote.heartPerLike + fx.follows * this.config.vote.heartPerFollow + fx.hearts * this.config.vote.heartPerHeart);
       } else if (fx.progressAdd > 0) this.cooking.addProgress(fx.progressAdd, m.roundId);
       if (fx.completeStep) this.cooking.completeCurrentStep(m.roundId);
       if (fx.roseEffect) this.burst(18, 160);

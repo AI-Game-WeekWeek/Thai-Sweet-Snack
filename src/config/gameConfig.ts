@@ -44,6 +44,10 @@ export interface GameConfig {
     anonVotesPerSec: number;
     heartPerLike: number;
     heartPerFollow: number;
+    /** Meter fill per orange heart / small gift. */
+    heartPerHeart: number;
+    /** Votes still count this long after the on-screen countdown reaches 0 (stream latency). */
+    graceMs: number;
     heartDecayPerSec: number;
     /** Cooking speed multiplier when the heart meter is full. */
     maxBoost: number;
@@ -76,7 +80,7 @@ export const defaultConfig: GameConfig = {
   reward: { speedParMs: 25000, speedBonusMaxPct: 30, xpBase: 100, xpGrowth: 1.25 },
   save: { key: 'thai-dessert-asmr:save', backupKey: 'thai-dessert-asmr:save.corrupt' },
   progression: { autoUnlock: true },
-  vote: { candidates: 3, windowMs: 15_000, maxVoters: 5000, anonVotesPerSec: 50, heartPerLike: 0.012, heartPerFollow: 0.15, heartDecayPerSec: 0.1, maxBoost: 4, cookRatePerSec: 6 },
+  vote: { candidates: 3, windowMs: 15_000, maxVoters: 5000, anonVotesPerSec: 50, heartPerLike: 0.012, heartPerFollow: 0.15, heartPerHeart: 0.08, graceMs: 3000, heartDecayPerSec: 0.1, maxBoost: 4, cookRatePerSec: 6 },
 };
 
 /** Real game: CookingSystem drives COOKING; the global watchdog sits above any recipe length. */

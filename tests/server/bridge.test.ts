@@ -90,6 +90,29 @@ describe('bridge', () => {
     c.ws.close();
   });
 
+  it('well-formed chatter comments are accepted and ignored (202), never relayed, and never a retry-inducing 4xx', async () => {
+    const { port, url } = await boot();
+    const c = await connect(port);
+    const chatter = { id: 'chat1', type: 'comment', text: 'ขนมครกอร่อยมาก', userId: 'v', tsMs: Date.now() };
+    const res = await post(url, chatter, auth);
+    expect(res.status).toBe(202);
+    expect(await res.json()).toMatchObject({ accepted: 0, ignored: 1 });
+    const mixed = await post(url, [chatter, { id: 'v1', type: 'comment', text: '2', userId: 'w', tsMs: Date.now() }, { nope: 1 }], auth);
+    expect(mixed.status).toBe(202);
+    expect(await mixed.json()).toMatchObject({ accepted: 1, ignored: 1, rejected: 1 });
+    await until(() => c.msgs.length > 0);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(c.msgs).toHaveLength(1);
+    expect(JSON.stringify(c.msgs)).not.toContain('อร่อย');
+    c.ws.close();
+  });
+
+  it('malformed comments (no id, no text) are still 400', async () => {
+    const { url } = await boot();
+    expect((await post(url, { type: 'comment', text: 'hi' }, auth)).status).toBe(400);
+    expect((await post(url, { id: 'z', type: 'comment', tsMs: 1 }, auth)).status).toBe(400);
+  });
+
   it('non-JSON body is 400', async () => {
     const { url } = await boot();
     expect((await post(url, '{not json', auth)).status).toBe(400);
