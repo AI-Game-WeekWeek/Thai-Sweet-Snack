@@ -28,6 +28,7 @@ import { WebSocketSource } from './tiktok/WebSocketSource';
 import { TikTokEventManager } from './tiktok/TikTokEventManager';
 
 declare const __DEMO__: boolean;
+declare const __PACKED__: boolean;
 
 const app = document.getElementById('app');
 if (!app) throw new Error('#app not found');
@@ -154,6 +155,10 @@ if (bridgeParam && /^wss?:\/\//i.test(bridgeParam)) {
 }
 // Optional recorded voice lines in public/voice/ (see src/audio/voiceFiles.ts): played when present, otherwise the device voice speaks.
 // voice/index.json (made at build time) lists the files that really exist, so nothing is requested in vain.
+const inlineVoice = (globalThis as { __VOICE__?: Record<string, string> }).__VOICE__;
+if (inlineVoice && Object.keys(inlineVoice).length > 0) {
+  for (const v of voiceFiles(ALL_DESSERTS)) if (inlineVoice[v.file]) audio.registerSample(v.key, inlineVoice[v.file] as string);
+} else
 void fetch('voice/index.json')
   .then((r) => (r.ok ? (r.json() as Promise<unknown>) : []))
   .then((present) => {
@@ -188,13 +193,38 @@ const driver = new LoopDriver({
 // ?debug=1 exposes a read-only snapshot for automated browser checks.
 if (params.get('debug') === '1') (window as unknown as { __snapshot: () => unknown }).__snapshot = () => game.snapshot();
 
-game.start();
-driver.start();
+// A start screen (one click) in the downloadable game and the demo: it unlocks the sound and gives the page keyboard focus,
+// so shortcut keys work. Through the bridge / OBS (nobody to click) the game starts by itself. ?gate=1 forces it, ?gate=0 removes it.
+function begin(): void {
+  audio.unlock();
+  try {
+    window.focus();
+    canvas.tabIndex = 0;
+    canvas.focus({ preventScroll: true });
+  } catch {
+    /* focus is a convenience only */
+  }
+  game.start();
+  driver.start();
+}
+const gateParam = params.get('gate');
+const useGate = gateParam === '1' || (gateParam !== '0' && (__PACKED__ || __DEMO__) && params.get('bridge') === null);
+if (useGate) {
+  const gate = document.createElement('div');
+  gate.style.cssText = 'position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:rgba(28,21,17,.94);color:#ffe9c8;z-index:50;font:700 22px "Mali",system-ui,sans-serif;text-align:center;padding:24px;cursor:pointer';
+  gate.innerHTML = '<div style="font-size:34px">ร้านขนมไทย</div><button type="button" style="font:inherit;font-size:26px;padding:14px 40px;border:0;border-radius:999px;background:#1f8a8a;color:#fff;cursor:pointer">เริ่มเกม</button><div style="font-size:16px;opacity:.8;font-weight:600">คลิก 1 ครั้งเพื่อเปิดเสียงและเริ่มเกม · คีย์ลัดจะใช้ได้หลังคลิก</div>';
+  const go = (): void => {
+    gate.remove();
+    begin();
+  };
+  gate.addEventListener('click', go, { once: true });
+  document.body.append(gate);
+} else begin();
 
 // Test shortcuts (press ? to see them): on with ?keys=1, ?debug=1 or in the hosted demo.
 // ?keys=live: the same keys for a streamer's own tool (e.g. a key-press action), with no help panel or toasts on screen.
 const keysParam = params.get('keys');
-if (cafeMode && (keysParam === '1' || keysParam === 'live' || params.get('debug') === '1' || __DEMO__)) {
+if (cafeMode && (keysParam === '1' || keysParam === 'live' || params.get('debug') === '1' || __DEMO__ || __PACKED__)) {
   const bgs = ['day', 'rain', 'night'] as const;
   installDevKeys({
     game,
@@ -210,7 +240,7 @@ if (cafeMode && (keysParam === '1' || keysParam === 'live' || params.get('debug'
     playSound: (id) => void audio.play(id as never, 0),
     voiceName: () => audio.lastVoiceName,
     voiceCount: () => (globalThis as { speechSynthesis?: SpeechSynthesis }).speechSynthesis?.getVoices?.().length ?? 0,
-  }, document, { quiet: keysParam === 'live' });
+  }, document, { quiet: keysParam === 'live' || (__PACKED__ && keysParam !== '1') });
 }
 
 // Classic mode's HUD only reads snapshots, ten times a second.

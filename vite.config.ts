@@ -28,7 +28,8 @@ function voiceIndex(): Plugin {
 export default defineConfig(({ mode }) => ({
   // relative asset paths: the same build works at a domain root, in a sub-folder (GitHub Pages) and when the bridge serves it
   base: './',
-  define: { __DEMO__: JSON.stringify(mode === 'demo') },
+  // demo = simulated viewers + visible test keys; packed = the downloadable game (no simulated viewers, shortcut keys on, quiet)
+  define: { __DEMO__: JSON.stringify(mode === 'demo'), __PACKED__: JSON.stringify(mode === 'packed') },
   plugins: [voiceIndex()],
   // Soak and memory tests simulate hundreds of rounds (several seconds of CPU).
   test: { include: ['tests/**/*.test.ts'], testTimeout: 120_000 },
