@@ -7,6 +7,8 @@ import { DessertManager } from './dessert/DessertManager';
 import type { AnimId, DessertDef, SoundId } from './dessert/types';
 import { GameManager } from './core/GameManager';
 import type { GameState } from './core/StateMachine';
+import type { TikTokEventManager } from './tiktok/TikTokEventManager';
+import type { ConnectionState, Counters } from './tiktok/types';
 
 export interface AnimationsLike {
   play(spec: AnimSpec, roundId: number): number;
@@ -35,6 +37,10 @@ export interface GameSnapshot {
   nextDessertNameTh: string;
   stepNameTh: string | null;
   progress: number;
+  counters: Counters;
+  connection: ConnectionState;
+  /** Share bonus (percent) banked for the current round. */
+  bonusPct: number;
 }
 
 /** What the Renderer needs, in world units (WORLD_W x WORLD_H). */
@@ -68,11 +74,15 @@ export class Game {
   private emitAcc = 0;
   private finalAnim: number | null = null;
   private pendingComplete: number | null = null;
+  private clockMs = 0;
+  private roundStart = 0;
+  private bonusPct = 0;
 
   constructor(
     private readonly config: GameConfig,
     private readonly desserts: DessertManager,
     private readonly fx?: GameFx,
+    private readonly events?: TikTokEventManager,
   ) {
     this.cooking = new CookingSystem(config, this.progress, {
       onStepStart: (step, index, roundId) => this.startStepFx(step.anim, step.sound, step.maxMs, index, roundId),
@@ -91,14 +101,39 @@ export class Game {
     return this.manager.start();
   }
 
-  update(dtMs: number): void {
+  /** Game clock in ms (the source clock live events are timestamped against). */
+  get nowMs(): number {
+    return this.clockMs;
+  }
+
+  /** Game-clock time at which the current round entered COOKING. */
+  get roundStartedAtMs(): number {
+    return this.roundStart;
+  }
+
+  /** `nowMs` is the wall clock in production; tests omit it and the clock advances by the clamped dt. */
+  update(dtMs: number, nowMs?: number): void {
+    const valid = Number.isFinite(dtMs) && dtMs > 0;
+    if (valid) {
+      this.clockMs = nowMs !== undefined && Number.isFinite(nowMs) ? nowMs : this.clockMs + Math.min(dtMs, this.config.maxFrameMs);
+    }
     this.manager.update(dtMs);
-    if (!Number.isFinite(dtMs) || dtMs <= 0) return;
+    if (!valid) return;
     const dt = Math.min(dtMs, this.config.maxFrameMs);
     this.fx?.animations.update(dt);
     this.fx?.particles?.update(dt);
     this.wobble = Math.max(0, this.wobble - dt / 700);
     if (this.stepKind && this.manager.snapshot().state === 'COOKING') this.emitParticles(this.stepKind, dt);
+    this.applyEvents();
+  }
+
+  ingestEvent(raw: unknown): 'queued' | 'duplicate' | 'invalid' {
+    try {
+      return this.events ? this.events.ingest(raw) : 'invalid';
+    } catch (err) {
+      console.error('[Game] ingest failed', err);
+      return 'invalid';
+    }
   }
 
   snapshot(): GameSnapshot {
@@ -113,6 +148,9 @@ export class Game {
       nextDessertNameTh: this.desserts.peekNext().nameTh,
       stepNameTh: step?.nameTh ?? null,
       progress: this.progress.value,
+      counters: this.events?.totals ?? { likes: 0, follows: 0, hearts: 0, gifts: 0, shares: 0 },
+      connection: this.events?.connection ?? 'offline',
+      bonusPct: this.bonusPct,
     };
   }
 
@@ -159,7 +197,9 @@ export class Game {
       this.current = null; // if next() throws, never replay the previous round's dessert
       this.current = this.desserts.next();
       this.progress.startRound(roundId);
+      this.bonusPct = 0;
     } else if (state === 'COOKING' && this.current) {
+      this.roundStart = this.clockMs;
       this.cooking.start(this.current, roundId);
     } else if (state !== 'COOKING') {
       // Left COOKING early (e.g. watchdog): stop cooking so no step state lingers into PRESENTING.
@@ -251,6 +291,35 @@ export class Game {
     this.fx?.animations.cancelRound(roundId);
     this.fx?.audio.stopRound(roundId);
     this.fx?.particles?.clear();
+  }
+
+  /** One coalesced drain per update; a failing event source can never stop the loop. */
+  private applyEvents(): void {
+    const events = this.events;
+    if (!events) return;
+    try {
+      const m = this.manager.snapshot();
+      const fx = events.drain({ roundId: m.roundId, startedAtMs: this.roundStart, cooking: m.state === 'COOKING' }, this.clockMs);
+      if (fx.progressAdd > 0) this.cooking.addProgress(fx.progressAdd, m.roundId);
+      if (fx.completeStep) this.cooking.completeCurrentStep(m.roundId);
+      if (fx.roseEffect) this.burst(18, 160);
+      if (fx.bigGiftEffect) {
+        this.burst(48, 300);
+        this.fx?.audio.play('pop', m.roundId);
+      }
+      if (fx.shareBonus > 0 && (m.state === 'COOKING' || m.state === 'PRESENTING')) this.bonusPct += fx.shareBonus;
+    } catch (err) {
+      console.error('[Game] event processing failed', err);
+    }
+  }
+
+  private burst(count: number, speed: number): void {
+    this.wobble = 1;
+    const pal = this.current?.palette ?? ['#ffb3c1'];
+    for (let i = 0; i < count; i++) {
+      const a = (Math.PI * 2 * i) / count;
+      this.fx?.particles?.spawn({ x: WORLD_W / 2, y: 330, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed - 160, lifeMs: 900, size: 6, color: i % 2 ? '#ff5d8f' : (pal[i % pal.length] ?? '#fff') });
+    }
   }
 
   private emitParticles(kind: AnimId, dtMs: number): void {
