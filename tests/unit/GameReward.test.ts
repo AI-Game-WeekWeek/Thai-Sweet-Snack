@@ -47,7 +47,7 @@ describe('Game rewards', () => {
     expect(s.reward.last).not.toBeNull();
     expect(s.reward.score).toBe(s.reward.last!.score);
     expect(s.toast).toContain(`+${s.reward.last!.score}`);
-    runUntil(game, () => game.snapshot().state === 'PREPARING' && game.snapshot().roundId === 2);
+    runUntil(game, () => game.snapshot().state === 'COOKING' && game.snapshot().roundId === 2);
     expect(game.snapshot().toast).toBeNull();
   });
 

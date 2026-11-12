@@ -7,7 +7,9 @@ import { DessertManager } from './dessert/DessertManager';
 import type { AnimId, DessertDef, SoundId } from './dessert/types';
 import { GameManager } from './core/GameManager';
 import type { GameState } from './core/StateMachine';
+import type { ProgressionManager } from './reward/ProgressionManager';
 import type { RewardManager } from './reward/RewardManager';
+import type { SaveSystem } from './save/SaveSystem';
 import type { RewardResult } from './reward/types';
 import type { TikTokEventManager } from './tiktok/TikTokEventManager';
 import type { ConnectionState, Counters } from './tiktok/types';
@@ -62,6 +64,11 @@ export interface RenderView {
   piecesCount: number;
 }
 
+export interface GamePersistence {
+  progression: ProgressionManager;
+  save: SaveSystem;
+}
+
 export const WORLD_W = 1000;
 export const WORLD_H = 600;
 const PRESENT_MS = 900;
@@ -91,6 +98,7 @@ export class Game {
     private readonly fx?: GameFx,
     private readonly events?: TikTokEventManager,
     private readonly rewards?: RewardManager,
+    private readonly persistence?: GamePersistence,
   ) {
     this.cooking = new CookingSystem(config, this.progress, {
       onStepStart: (step, index, roundId) => this.startStepFx(step.anim, step.sound, step.maxMs, index, roundId),
@@ -215,8 +223,8 @@ export class Game {
       this.current = this.desserts.next();
       this.progress.startRound(roundId);
       this.bonusPct = 0;
-      this.toastText = null;
     } else if (state === 'COOKING' && this.current) {
+      this.toastText = null; // reward/unlock news stays visible through REWARDING, NEXT_DESSERT and PREPARING
       this.roundStart = this.clockMs;
       this.cooking.start(this.current, roundId);
     } else if (state !== 'COOKING') {
@@ -225,6 +233,25 @@ export class Game {
     }
     if (state === 'PRESENTING') this.startPresentation(roundId);
     if (state === 'REWARDING') this.awardRound(roundId);
+    if (state === 'NEXT_DESSERT') this.settleRound();
+  }
+
+  /** After the reward: auto-unlock (coins only) and save. Never allowed to disturb the loop. */
+  private settleRound(): void {
+    const p = this.persistence;
+    if (!p || !this.rewards) return;
+    try {
+      if (this.config.progression.autoUnlock) {
+        const next = p.progression.nextAffordable();
+        if (next && p.progression.unlock(next.id) === 'ok') {
+          this.desserts.setUnlocked(this.rewards.profile.unlocked);
+          this.toastText = `ปลดล็อกขนมใหม่: ${next.nameTh}!`;
+        }
+      }
+      p.save.save(this.rewards.profile);
+    } catch (err) {
+      console.error('[Game] settle failed', err);
+    }
   }
 
   private awardRound(roundId: number): void {

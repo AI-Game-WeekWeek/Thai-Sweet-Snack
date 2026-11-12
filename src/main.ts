@@ -6,6 +6,10 @@ import { Game, WORLD_H, WORLD_W } from './Game';
 import { LoopDriver } from './core/LoopDriver';
 import { ALL_DESSERTS } from './dessert/data';
 import { DessertManager } from './dessert/DessertManager';
+import { ProgressionManager } from './reward/ProgressionManager';
+import { RewardManager } from './reward/RewardManager';
+import { SaveSystem, type StorageLike } from './save/SaveSystem';
+import { UIManager } from './ui/UIManager';
 import { Renderer } from './render/Renderer';
 import { MockEventSource } from './tiktok/MockEventSource';
 import { TikTokEventManager } from './tiktok/TikTokEventManager';
@@ -17,17 +21,30 @@ const canvas = document.createElement('canvas');
 canvas.width = 1000;
 canvas.height = 600;
 canvas.style.cssText = 'width:100%;max-width:1000px;display:block;margin:0 auto;touch-action:manipulation';
-const readout = document.createElement('div');
-readout.style.cssText = 'font:16px system-ui,sans-serif;text-align:center;padding:8px';
-app.append(canvas, readout);
+const hudRoot = document.createElement('div');
+app.append(canvas, hudRoot);
+const ui = new UIManager(hudRoot);
 const ctx = canvas.getContext('2d');
 
 const animations = new AnimationManager(liveConfig);
 const audio = new AudioManager(liveConfig);
 const particles = new ParticleSystem(liveConfig.particles.cap, liveConfig.particles.gravity);
-const unlocked = ALL_DESSERTS.filter((d) => 'default' in d.unlock).map((d) => d.id);
+// localStorage can be missing or throw (private mode, blocked site data): the game then simply doesn't persist.
+function safeStorage(): StorageLike | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+const defaultUnlocked = ALL_DESSERTS.filter((d) => 'default' in d.unlock).map((d) => d.id);
+const save = new SaveSystem(liveConfig, safeStorage(), defaultUnlocked, ALL_DESSERTS.map((d) => d.id));
+const rewards = new RewardManager(liveConfig, save.load());
 const events = new TikTokEventManager(liveConfig);
-const game = new Game(liveConfig, new DessertManager(ALL_DESSERTS, unlocked), { animations, audio, particles }, events);
+const game = new Game(liveConfig, new DessertManager(ALL_DESSERTS, rewards.profile.unlocked), { animations, audio, particles }, events, rewards, {
+  progression: new ProgressionManager(ALL_DESSERTS, rewards),
+  save,
+});
 
 // ?mock=1 feeds simulated viewer events (no TikTok needed): steady likes/follows/gifts plus a burst now and then.
 const params = new URLSearchParams(location.search);
@@ -61,13 +78,9 @@ const driver = new LoopDriver({
 game.start();
 driver.start();
 
-// Plain-text readout; the real HUD arrives in Phase 5.
+// The HUD only reads snapshots, ten times a second.
 function render(): void {
-  const s = game.snapshot();
-  readout.textContent =
-    `ขนม: ${s.dessertNameTh ?? '-'} | ขั้นตอน: ${s.stepNameTh ?? '-'} | ความคืบหน้า: ${s.progress.toFixed(0)}% | ` +
-    `ถัดไป: ${s.nextDessertNameTh} | state=${s.state} round=${s.roundId} done=${s.roundsCompleted} | ` +
-    `ไลก์ ${s.counters.likes} ติดตาม ${s.counters.follows} หัวใจ ${s.counters.hearts} ของขวัญ ${s.counters.gifts} แชร์ ${s.counters.shares} (${s.connection})`;
+  ui.render(game.snapshot());
 }
 render();
 setInterval(render, 100);

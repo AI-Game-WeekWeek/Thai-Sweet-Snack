@@ -83,6 +83,13 @@ export class RewardManager {
     return true;
   }
 
+  /** Marks a dessert unlocked (no cost check: ProgressionManager decides). Returns false if it already was. */
+  addUnlocked(id: string): boolean {
+    if (this.data.unlocked.includes(id)) return false;
+    this.data = { ...this.data, unlocked: [...this.data.unlocked, id] };
+    return true;
+  }
+
   private levelFor(xp: number): number {
     let level = 1;
     let need = this.config.reward.xpBase;
