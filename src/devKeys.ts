@@ -39,7 +39,7 @@ export function devKeys(): DevKey[] {
     { key: 'k', label: 'ไลก์ระเบิด 400 ครั้ง', run: (t) => (ev(t, 'like', { count: 400 }), 'ไลก์ ×400') },
     { key: 'f', label: 'กดติดตาม → แมวกวักนำโชค', run: (t) => (ev(t, 'follow'), 'ติดตาม') },
     { key: 'o', label: 'หัวใจสีส้ม → ลูกค้า VIP + ฝนทิป', run: (t) => (ev(t, 'orangeHeart'), 'หัวใจสีส้ม') },
-    { key: 's', label: 'แชร์ (โบนัสคะแนน)', run: (t) => (ev(t, 'share'), 'แชร์') },
+    { key: 's', label: 'แชร์ (โบนัสคะแนน + โควตาหมอผี +1)', run: (t) => (ev(t, 'share'), 'แชร์') },
     { key: 'r', label: 'กุหลาบ (เอฟเฟกต์)', run: (t) => (ev(t, 'rose', { displayName: 'ทดสอบ' }), 'กุหลาบ') },
     { key: 'p', label: 'โทรศัพท์ดัง → ผีไทยมา (ผีบีบถ้าช้า)', run: (t) => (t.game.callGhostNow() ? 'โทรศัพท์ดัง!' : 'มีผีอยู่แล้ว หรือคิวเต็ม') },
     ...(['นางรำ', 'ผีพราย', 'กระสือ', 'แม่นาค', 'ผีหิว'] as const).map((name, i): DevKey => ({

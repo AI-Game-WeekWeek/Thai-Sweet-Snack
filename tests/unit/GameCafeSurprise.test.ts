@@ -446,3 +446,21 @@ describe('shaman test key', () => {
     expect(game.renderView().cafe?.ghostCalm ?? false).toBe(false);
   });
 });
+
+describe('shaman quota from shares', () => {
+  it('each share saves a shaman visit (shown on screen, capped); the next ghost uses one automatically', () => {
+    const ph = { firstMs: 1e12, everyMs: 1e12, jitter: 0, ringMs: 600, deadlineMs: 600_000, squeezeMs: 60_000, fineCoins: 0, reliefPerLike: 0, harderPerVisit: 0, minSqueezeMs: 1000, squeezeSlow: 0 };
+    const { game } = mk({ phone: ph, vip: {} }, { npcSpawnEveryMs: 1e9 });
+    game.start();
+    expect(game.renderView().cafe?.shamanQuota).toBe(0);
+    const share = () => { game.ingestEvent({ id: `sq${++n}`, type: 'share', count: 1, tsMs: game.nowMs }); advance(game, 6000); };
+    share();
+    expect(game.renderView().cafe?.shamanQuota).toBe(1); // no ghost: saved, shaman does not come
+    expect(game.renderView().cafe?.shaman ?? 0).toBe(0);
+    for (let i = 0; i < 8; i++) share();
+    expect(game.renderView().cafe?.shamanQuota).toBeLessThanOrEqual(5);
+    expect(game.callGhostNow()).toBe(true);
+    runUntil(game, () => game.renderView().cafe?.ghostCalm === true, 600_000);
+    expect(game.renderView().cafe?.shamanQuota).toBeLessThan(5); // one was used
+  });
+});

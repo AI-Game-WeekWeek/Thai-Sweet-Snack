@@ -115,6 +115,8 @@ export interface CafeView {
   shaman?: number;
   /** The ghost has been calmed by the shaman's holy water (for this visit). */
   ghostCalm?: boolean;
+  /** Shaman visits saved up from shares (each share +1, up to a maximum); one is used when a ghost needs calming. */
+  shamanQuota?: number;
 }
 
 export interface GameCafeMode {
@@ -168,6 +170,8 @@ export const WORLD_H = 600;
 const PRESENT_MS = 900;
 /** The shaman's whole visit: walks in, splashes holy water, walks away. */
 const SHAMAN_MS = 5200;
+/** Shares save up shaman visits, at most this many. */
+const SHAMAN_MAX_QUOTA = 5;
 /** The ghost's voice: clearly higher and thinner than a normal customer (normal women 1.35, men 0.85). */
 const GHOST_PITCH = 1.9;
 const PHONE_RETRY_MS = 3000;
@@ -216,6 +220,7 @@ export class Game {
   private squeezeFlashMs = 0;
   private shamanMs = 0;
   private shamanSplashed = false;
+  private shamanQuota = 0;
   private ghostTamed = false;
   private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
 
@@ -501,6 +506,8 @@ export class Game {
   }
 
   private tickShaman(dt: number): void {
+    // a saved visit is used as soon as a ghost needs calming
+    if (this.shamanMs <= 0 && this.shamanQuota > 0 && !this.ghostTamed && this.ghostPresent() && this.callShaman()) this.shamanQuota -= 1;
     if (this.shamanMs <= 0) return;
     this.shamanMs = Math.max(0, this.shamanMs - dt);
     const t = 1 - this.shamanMs / SHAMAN_MS;
@@ -777,6 +784,7 @@ export class Game {
       squeezedNow: this.squeezeFlashMs > 0,
       shaman: this.shamanMs > 0 ? 1 - this.shamanMs / SHAMAN_MS : 0,
       ghostCalm: this.ghostTamed,
+      shamanQuota: this.shamanQuota,
       spooky: this.phoneRingMs > 0 || this.phoneTalkMs > 0 || this.cafe?.queue.current?.kind === 'phone' || (this.cafe?.queue.waiting().some((c) => c.kind === 'phone') ?? false),
     };
   }
@@ -962,7 +970,10 @@ export class Game {
           const relief = (Number.isFinite(rl) ? rl : 0.012) * (fx.likes + fx.hearts * 3);
           this.squeeze = Math.max(0, this.squeeze - (Number.isFinite(relief) ? relief : 0));
         }
-        if (fx.shareBonus > 0) this.callShaman();
+        if (fx.shareBonus > 0) {
+          this.shamanQuota = Math.min(SHAMAN_MAX_QUOTA, this.shamanQuota + 1);
+          this.toastText = `แชร์! โควตาหมอผี ${this.shamanQuota} ครั้ง`;
+        }
         this.cafe.meter.add(fx.likes * this.config.vote.heartPerLike + fx.follows * this.config.vote.heartPerFollow + fx.hearts * this.config.vote.heartPerHeart);
       } else if (fx.progressAdd > 0) this.cooking.addProgress(fx.progressAdd, m.roundId);
       if (fx.completeStep && !this.cafe) this.cooking.completeCurrentStep(m.roundId);

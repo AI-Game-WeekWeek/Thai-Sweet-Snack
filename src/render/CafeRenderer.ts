@@ -116,6 +116,7 @@ export class CafeRenderer {
       this.safely('queue', () => this.drawQueue(ctx, view.cafe, dt));
       this.safely('serve', () => this.drawServeOut(ctx, view));
       this.safely('shaman', () => this.drawShaman(ctx, view.cafe));
+      this.safely('shamanQuota', () => this.drawShamanQuota(ctx, view.cafe));
       this.safely('squeeze', () => this.drawSqueeze(ctx, view.cafe, sq));
       this.safely('hud', () => this.drawHud(ctx, view.cafe));
     } finally {
@@ -315,6 +316,24 @@ export class CafeRenderer {
       ctx.ellipse(CAFE_W / 2, 520, 60 + 220 * k, 40 + 150 * k, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
+  }
+
+  /** How many shaman visits are saved up from shares (shown whenever there is at least one, or one is on its way). */
+  private drawShamanQuota(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined): void {
+    const q = cafe?.shamanQuota;
+    if (q === undefined || !Number.isFinite(q) || q <= 0) return;
+    const n = Math.min(99, Math.floor(q));
+    const label = `หมอผี ×${n}`;
+    ctx.font = `700 30px ${FONT}`;
+    const w = (Number.isFinite(ctx.measureText(label).width) ? ctx.measureText(label).width : 150) + 48;
+    ctx.fillStyle = 'rgba(40,28,60,0.85)';
+    ctx.beginPath();
+    ctx.roundRect(16, 84, w, 46, 23);
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#bfe6ff';
+    ctx.stroke();
+    this.text(ctx, label, 16 + w / 2, 109, 28, '#e6f6ff', '#1c1233');
   }
 
   /** Warning while the ghost squeezes: dark red edges closing in, a danger bar and a call to tap. */
