@@ -174,3 +174,22 @@ describe('CafeRenderer', () => {
     }
   });
 });
+
+describe('customers walk', () => {
+  it('a new customer walks in from outside the screen, and a served one walks away and is then removed', () => {
+    const r = new CafeRenderer(4, avatars());
+    const mkC = (id: number, serving = false) => ({ id, kind: 'normal' as const, name: null, viewer: false, seed: id, avatarUrl: null, dessertId: 'khao-tom-mat', dessertNameTh: 'ข้าวต้มมัด', color: '#fff', patience: 1, serving });
+    const draw = (cafe: Record<string, unknown>, frames = 1) => {
+      for (let i = 0; i < frames; i++) r.draw(fakeCtx().ctx, 720, 1280, view({ cafe: { ...view().cafe, ...cafe } as never }), new ParticleSystem(10, 0), 16);
+    };
+    draw({ serving: mkC(1, true), waiting: [] }); // first picture: standing
+    expect(r.actorCount).toBe(1);
+    draw({ serving: mkC(2, true), waiting: [] }); // 1 left the line, 2 arrives from outside
+    expect(r.actorCount).toBe(2);
+    draw({ serving: mkC(2, true), waiting: [] }, 200); // long enough for 1 to walk off screen
+    expect(r.actorCount).toBe(1);
+    expect(() => draw({ serving: null, waiting: [mkC(3), mkC(4), mkC(5)] }, 30)).not.toThrow();
+    draw({ serving: null, waiting: [] }, 400);
+    expect(r.actorCount).toBe(0);
+  });
+});

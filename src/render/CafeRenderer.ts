@@ -6,6 +6,15 @@ import type { CafeView, CustomerView, RenderView } from '../Game';
 import type { AvatarCache } from './AvatarCache';
 import { Renderer } from './Renderer';
 
+interface Actor {
+  c: CustomerView;
+  x: number;
+  y: number;
+  r: number;
+  leaving: boolean;
+  speed: number;
+}
+
 /** Portrait world (9:16). The cooking station from the landscape scene is placed inside it as a 1000x600 window. */
 export const CAFE_W = 1080;
 export const CAFE_H = 1920;
@@ -64,7 +73,7 @@ export class CafeRenderer {
       this.safely('cat', () => this.drawCat(ctx, 975, 1428, view.cafe?.luckyCatSec ?? 0));
       this.safely('lucky', () => this.drawLuckyPill(ctx, view.cafe));
       this.safely('status', () => this.drawStatus(ctx, view));
-      this.safely('queue', () => this.drawQueue(ctx, view.cafe));
+      this.safely('queue', () => this.drawQueue(ctx, view.cafe, dt));
       this.safely('hud', () => this.drawHud(ctx, view.cafe));
     } finally {
       ctx.restore();
@@ -496,20 +505,84 @@ export class CafeRenderer {
 
   // ---- queue -----------------------------------------------------------------------------------------------------
 
-  private drawQueue(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined): void {
-    if (!cafe) return;
-    // Waiting customers stand in a line behind the counter; the one being served is large in the middle.
+  /** Customers on screen, walking in from the street and walking out again after they are served (or give up). */
+  private readonly actors = new Map<number, Actor>();
+  private seenFirstFrame = false;
+
+  /** How many customers are currently drawn (walking in, standing, or walking out). For tests. */
+  get actorCount(): number {
+    return this.actors.size;
+  }
+
+  private stepActors(cafe: CafeView | undefined, dt: number): void {
     const slots: [number, number][] = [[170, 548], [360, 548], [720, 548], [910, 548]];
-    cafe.waiting.slice(0, slots.length).forEach((c, i) => {
-      const [x, y] = slots[i] as [number, number];
-      this.drawCustomer(ctx, c, x, y, 54);
-    });
-    if (cafe.serving) {
-      this.drawCustomer(ctx, cafe.serving, CAFE_W / 2, 446, 92);
-      this.drawOrderBubble(ctx, cafe.serving);
+    const want = new Map<number, { c: CustomerView; x: number; y: number; r: number }>();
+    if (cafe) {
+      cafe.waiting.slice(0, slots.length).forEach((c, i) => {
+        const [x, y] = slots[i] as [number, number];
+        want.set(c.id, { c, x, y, r: 54 });
+      });
+      if (cafe.serving) want.set(cafe.serving.id, { c: cafe.serving, x: CAFE_W / 2, y: 446, r: 92 });
+    }
+    const k = 1 - Math.exp(-Math.min(100, Math.max(0, dt)) / 260); // smooth approach
+    for (const [id, w] of want) {
+      let a = this.actors.get(id);
+      if (!a) {
+        const fromLeft = Math.abs(Math.floor(Number.isFinite(w.c.seed) ? w.c.seed : id)) % 2 === 0;
+        const inPlace = !this.seenFirstFrame; // the very first picture shows everyone standing; later arrivals walk in
+        a = { c: w.c, x: inPlace ? w.x : fromLeft ? -140 : CAFE_W + 140, y: w.y, r: w.r, leaving: false, speed: 0 };
+        this.actors.set(id, a);
+      }
+      a.c = w.c;
+      a.leaving = false;
+      const nx = a.x + (w.x - a.x) * k;
+      const ny = a.y + (w.y - a.y) * k;
+      const nr = a.r + (w.r - a.r) * k;
+      a.speed = Math.hypot(nx - a.x, ny - a.y) / Math.max(1, dt);
+      a.x = nx;
+      a.y = ny;
+      a.r = nr;
+    }
+    for (const [id, a] of this.actors) {
+      if (want.has(id)) continue;
+      if (!a.leaving) {
+        a.leaving = true;
+        a.c = { ...a.c, serving: true }; // no patience bar or order label while walking away
+      }
+      const dir = a.x < CAFE_W / 2 ? -1 : 1;
+      const step = 0.42 * Math.max(0, dt);
+      a.x += dir * step;
+      a.speed = 0.42;
+      a.r += (54 - a.r) * k;
+      if (a.x < -170 || a.x > CAFE_W + 170) this.actors.delete(id);
+    }
+    this.seenFirstFrame = true;
+    // never let stray customers pile up
+    while (this.actors.size > 24) {
+      const first = this.actors.keys().next().value as number;
+      this.actors.delete(first);
+    }
+  }
+
+  private drawQueue(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined, dt = 16): void {
+    this.stepActors(cafe, dt);
+    const list = [...this.actors.values()].sort((p, q) => p.r - q.r);
+    for (const a of list) {
+      const walking = a.speed > 0.03;
+      const hop = walking ? Math.abs(Math.sin(this.timeMs / 105)) * 14 : 0;
+      this.drawCustomer(ctx, a.c, a.x, a.y - hop, a.r);
+    }
+    if (cafe?.serving) {
+      this.drawOrderBubbleIfThere(ctx, cafe.serving);
     } else {
       this.text(ctx, 'รอลูกค้า…', CAFE_W / 2, 318, 48, '#fff3dc');
     }
+  }
+
+  /** The order bubble appears only after the customer has reached the counter. */
+  private drawOrderBubbleIfThere(ctx: CanvasRenderingContext2D, c: CustomerView): void {
+    const a = this.actors.get(c.id);
+    if (a && Math.abs(a.x - CAFE_W / 2) < 60 && !a.leaving) this.drawOrderBubble(ctx, c);
   }
 
   private drawOrderBubble(ctx: CanvasRenderingContext2D, c: CustomerView): void {
