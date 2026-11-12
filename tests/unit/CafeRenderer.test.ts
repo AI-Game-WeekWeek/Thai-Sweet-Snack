@@ -28,13 +28,13 @@ function fakeCtx(opts: { throwOnText?: boolean } = {}) {
 }
 
 const cust = (id: number, over: Partial<CustomerView> = {}): CustomerView => ({
-  id, kind: 'normal', name: null, viewer: false, seed: id, avatarUrl: null, dessertId: 'khanom-krok', dessertNameTh: 'ขนมครก', color: '#fdf5e6', patience: 0.6, serving: false, ...over,
+  id, kind: 'normal', name: null, viewer: false, seed: id, avatarUrl: null, dessertId: 'khao-tom-mat', dessertNameTh: 'ข้าวต้มมัด', color: '#fdf5e6', patience: 0.6, serving: false, ...over,
 });
 const cafe = (over: Partial<CafeView> = {}): CafeView => ({
   serving: cust(1, { serving: true, patience: 1, viewer: true, name: 'มะลิ', dessertNameTh: 'บัวลอย' }),
   waiting: [cust(2, { viewer: true, name: 'น้ำฝน' }), cust(3), cust(4, { patience: 0.1 }), cust(5)],
   waitingTotal: 7, lost: 2, coins: 345, luckyCatSec: 0, phoneRinging: false,
-  giftMenu: [{ coins: 1, nameTh: 'ขนมครก', color: '#fdf5e6' }, { coins: 5, nameTh: 'บัวลอย', color: '#b4a7d6' }, { coins: 500, nameTh: 'ขนมเบื้อง', color: '#fff' }],
+  giftMenu: [{ coins: 1, nameTh: 'ข้าวต้มมัด', color: '#fdf5e6' }, { coins: 5, nameTh: 'บัวลอย', color: '#b4a7d6' }, { coins: 500, nameTh: 'ขนมเบื้อง', color: '#fff' }],
   ...over,
 });
 const view = (over: Partial<RenderView> = {}): RenderView => ({
@@ -51,7 +51,7 @@ const draw = (v: RenderView, ctxOpts = {}) => {
 describe('CafeRenderer', () => {
   it('draws the shop sign, the gift menu with every tier, the queue and the coin count', () => {
     const t = draw(view()).texts.join(' | ');
-    for (const s of ['ร้านขนมไทย', 'ส่งของขวัญ', 'ขนมครก', 'บัวลอย', 'ขนมเบื้อง', '500', 'มะลิ', 'น้ำฝน', '345']) expect(t).toContain(s);
+    for (const s of ['ร้านขนมไทย', 'ส่งของขวัญ', 'ข้าวต้มมัด', 'บัวลอย', 'ขนมเบื้อง', '500', 'มะลิ', 'น้ำฝน', '345']) expect(t).toContain(s);
   });
 
   it('shows what is happening in each state', () => {

@@ -1,6 +1,9 @@
 import type { DessertDef } from '../types';
 
-/** The café's everyday dessert: what customers order when nobody has sent a gift. */
+/**
+ * The café's first menu item and everyday dessert (what customers order when nobody has sent a gift): sticky rice wrapped in
+ * banana leaf with a black-bean and banana filling, served as individual parcels.
+ */
 export const khaoTomMat: DessertDef = {
   id: 'khao-tom-mat',
   nameTh: 'ข้าวต้มมัด',

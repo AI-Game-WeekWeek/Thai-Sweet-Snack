@@ -93,7 +93,7 @@ describe('bridge', () => {
   it('well-formed chatter comments are accepted and ignored (202), never relayed, and never a retry-inducing 4xx', async () => {
     const { port, url } = await boot();
     const c = await connect(port);
-    const chatter = { id: 'chat1', type: 'comment', text: 'ขนมครกอร่อยมาก', userId: 'v', tsMs: Date.now() };
+    const chatter = { id: 'chat1', type: 'comment', text: 'ข้าวต้มมัดอร่อยมาก', userId: 'v', tsMs: Date.now() };
     const res = await post(url, chatter, auth);
     expect(res.status).toBe(202);
     expect(await res.json()).toMatchObject({ accepted: 0, ignored: 1 });

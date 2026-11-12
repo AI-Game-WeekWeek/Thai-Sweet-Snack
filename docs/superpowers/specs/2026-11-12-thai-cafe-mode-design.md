@@ -36,7 +36,7 @@ whenever the queue is short, so the queue is always visibly long.
 
 ## 3. Gifts choose the dessert
 
-A configurable table maps gift value to dessert, default (coins → dessert): 1 → ขนมครก, 5 → บัวลอย, 10 → ทองหยอด,
+A configurable table maps gift value to dessert, default (coins → dessert): 1 → ข้าวต้มมัด, 5 → บัวลอย, 10 → ทองหยอด,
 20 → ขนมชั้น, 50 → ฝอยทอง, 99 → ทองหยิบ, 199 → ลูกชุบ, 500 → ขนมเบื้อง (highest tier not above the gift value). A dessert
 not yet unlocked falls back to the best unlocked one. The same table is drawn as a **menu board on the café wall** so viewers
 see "gift = dessert" at a glance. Matching is by coin value (provider-independent); gift names are optional extra info.
@@ -156,3 +156,6 @@ only the phone call happens, and the café works as before.
 - **Everyday dessert (user request):** a 9th dessert, ข้าวต้มมัด, is always unlocked. Anonymous customers and phone orders always order it, so
   with no gifts the café serves only ข้าวต้มมัด; the other eight desserts are ordered by a viewer's gift (gift tiers) or by a VIP
   (orange heart, 50-coin tier). `cafe.defaultDessertId` sets it; if it is somehow locked the café falls back to a random unlocked dessert.
+- **Menu change (user request):** ขนมครก was removed from the game; **ข้าวต้มมัด** (black-bean and banana filling) is the first menu item and the
+  1-coin gift tier. There are 8 desserts. Old saves that list ขนมครก simply drop it. Each gift is its own customer, so a gifting viewer is
+  served the dessert they paid for, separately from other viewers (guarded by tests).

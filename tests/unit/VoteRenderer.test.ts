@@ -24,7 +24,7 @@ const view = (over: Partial<RenderView> = {}): RenderView => ({
   state: 'PREPARING', progress: 0, palette: ['#f5f0e1'], stepKind: null, stepT: 0, presentT: null, wobble: 0, piecesCount: 8,
   heart: 0, dessertNameTh: null, stepNameTh: null, toast: null,
   vote: { open: true, candidates: [
-    { id: 'a', nameTh: 'ขนมครก', palette: ['#fdf5e6'] }, { id: 'b', nameTh: 'บัวลอย', palette: ['#b4a7d6'] }, { id: 'c', nameTh: 'ทองหยอด', palette: ['#f1c232'] },
+    { id: 'a', nameTh: 'ข้าวต้มมัด', palette: ['#fdf5e6'] }, { id: 'b', nameTh: 'บัวลอย', palette: ['#b4a7d6'] }, { id: 'c', nameTh: 'ทองหยอด', palette: ['#f1c232'] },
   ], tally: [3, 10, 0], remainingMs: 7400, winner: null },
   ...over,
 });
@@ -37,7 +37,7 @@ const draw = (v: RenderView) => {
 describe('VoteRenderer', () => {
   it('shows the instruction, all candidate names, vote counts and the countdown while voting', () => {
     const t = draw(view());
-    for (const s of ['1', '2', '3', 'ขนมครก', 'บัวลอย', 'ทองหยอด', '10', '8']) expect(t).toContain(s); // 7400 ms -> 8 s
+    for (const s of ['1', '2', '3', 'ข้าวต้มมัด', 'บัวลอย', 'ทองหยอด', '10', '8']) expect(t).toContain(s); // 7400 ms -> 8 s
     expect(t).toContain('พิมพ์');
   });
 
@@ -47,7 +47,7 @@ describe('VoteRenderer', () => {
   });
 
   it('shows the sold message when serving', () => {
-    const t = draw(view({ state: 'REWARDING', progress: 100, dessertNameTh: 'ขนมครก', toast: '+120 คะแนน +14 เหรียญ', vote: undefined, presentT: 1 }));
+    const t = draw(view({ state: 'REWARDING', progress: 100, dessertNameTh: 'ข้าวต้มมัด', toast: '+120 คะแนน +14 เหรียญ', vote: undefined, presentT: 1 }));
     expect(t).toContain('+14 เหรียญ');
     expect(t).toContain('เสร็จแล้ว');
   });

@@ -4,8 +4,8 @@ import { validateDessert } from '../../src/dessert/validate';
 import type { DessertDef } from '../../src/dessert/types';
 import { ANIM_IDS, SOUND_IDS } from '../../src/dessert/types';
 
-// The 8 v1 desserts in spec order, then the café's everyday default.
-const NAMES = ['ขนมชั้น', 'ลูกชุบ', 'ฝอยทอง', 'ทองหยิบ', 'ทองหยอด', 'ขนมครก', 'บัวลอย', 'ขนมเบื้อง', 'ข้าวต้มมัด'];
+// The café's first menu item (ข้าวต้มมัด, the everyday default) followed by the other desserts. ขนมครก was removed.
+const NAMES = ['ข้าวต้มมัด', 'ขนมชั้น', 'ลูกชุบ', 'ฝอยทอง', 'ทองหยิบ', 'ทองหยอด', 'บัวลอย', 'ขนมเบื้อง'];
 
 function good(): DessertDef {
   return {
@@ -19,9 +19,10 @@ function good(): DessertDef {
 }
 
 describe('dessert data', () => {
-  it('has the 8 v1 desserts in spec order plus ข้าวต้มมัด, with unique ids', () => {
+  it('has ข้าวต้มมัด first, then the other desserts, without ขนมครก, with unique ids', () => {
     expect(ALL_DESSERTS.map((d) => d.nameTh)).toEqual(NAMES);
-    expect(new Set(ALL_DESSERTS.map((d) => d.id)).size).toBe(9);
+    expect(ALL_DESSERTS.some((d) => d.id === 'khanom-krok' || d.nameTh === 'ขนมครก')).toBe(false);
+    expect(new Set(ALL_DESSERTS.map((d) => d.id)).size).toBe(8);
   });
 
   it('every dessert is valid, has >=4 steps and only known anim/sound ids', () => {
@@ -35,8 +36,10 @@ describe('dessert data', () => {
     }
   });
 
-  it('ข้าวต้มมัด is served as individual leaf-wrapped parcels, each wrapped and tied on its own', () => {
+  it('ข้าวต้มมัด has a black-bean and banana filling and is served as individual leaf-wrapped parcels, each wrapped and tied on its own', () => {
     const d = ALL_DESSERTS.find((x) => x.id === 'khao-tom-mat')!;
+    expect(d.ingredients.map((i) => i.nameTh)).toEqual(expect.arrayContaining(['ถั่วดำ', 'กล้วยน้ำว้า']));
+    expect(d.steps.map((st) => st.nameTh).join(' | ')).toContain('ใส่ไส้กล้วยกับถั่วดำ');
     expect(d.presentation.layout).toBe('parcels');
     const steps = d.steps.map((st) => st.nameTh).join(' | ');
     expect(steps).toContain('ห่อใบตองทีละห่อ');

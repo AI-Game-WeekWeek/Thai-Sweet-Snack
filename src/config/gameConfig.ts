@@ -122,7 +122,7 @@ export const defaultConfig: GameConfig = {
     avatar: { hosts: [], max: 24, timeoutMs: 5000 },
     payBonusMaxPct: 50,
     giftTiers: [
-      { minCoins: 1, dessertId: 'khanom-krok' },
+      { minCoins: 1, dessertId: 'khao-tom-mat' },
       { minCoins: 5, dessertId: 'bua-loy' },
       { minCoins: 10, dessertId: 'thong-yod' },
       { minCoins: 20, dessertId: 'khanom-chan' },

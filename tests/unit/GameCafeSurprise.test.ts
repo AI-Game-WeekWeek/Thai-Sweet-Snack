@@ -128,7 +128,7 @@ describe('café surprise events', () => {
     it('a VIP gets in even when the queue is full of anonymous customers, but never pushes out a viewer', () => {
       const a = mk({}, { maxWaiting: 3, npcSpawnEveryMs: 1e9 });
       a.game.start();
-      for (let i = 0; i < 5; i++) a.queue.enqueue({ viewer: false, dessertId: 'khanom-krok' });
+      for (let i = 0; i < 5; i++) a.queue.enqueue({ viewer: false, dessertId: 'khao-tom-mat' });
       heart(a.game);
       a.game.update(16);
       expect(a.queue.waiting()[0]?.kind).toBe('vip');
@@ -137,7 +137,7 @@ describe('café surprise events', () => {
       const b = mk({}, { maxWaiting: 3, npcSpawnEveryMs: 1e9 });
       b.game.start();
       while (b.queue.displaceAnonymous()) { /* clear the opening filler customers */ }
-      for (let i = 0; i < 5; i++) b.queue.enqueue({ viewer: true, name: `v${i}`, dessertId: 'khanom-krok' });
+      for (let i = 0; i < 5; i++) b.queue.enqueue({ viewer: true, name: `v${i}`, dessertId: 'khao-tom-mat' });
       heart(b.game);
       b.game.update(16);
       expect(b.queue.waiting().some((c) => c.kind === 'vip')).toBe(false);
@@ -229,7 +229,7 @@ describe('café surprise events', () => {
     it('with a full queue the call replaces an anonymous customer, and is skipped only when every waiting customer is a paying viewer', () => {
       const a = mk(fast, { maxWaiting: 3, npcSpawnEveryMs: 1e9 });
       a.game.start();
-      for (let i = 0; i < 5; i++) a.queue.enqueue({ viewer: false, dessertId: 'khanom-krok' });
+      for (let i = 0; i < 5; i++) a.queue.enqueue({ viewer: false, dessertId: 'khao-tom-mat' });
       expect(a.queue.waiting()).toHaveLength(3);
       advance(a.game, 2500);
       expect(a.queue.waiting().filter((c) => c.kind === 'phone')).toHaveLength(1);
@@ -238,7 +238,7 @@ describe('café surprise events', () => {
       const b = mk(fast, { maxWaiting: 3, npcSpawnEveryMs: 1e9 });
       b.game.start();
       while (b.queue.displaceAnonymous()) { /* clear the opening filler customers */ }
-      for (let i = 0; i < 5; i++) b.queue.enqueue({ viewer: true, name: `v${i}`, dessertId: 'khanom-krok' });
+      for (let i = 0; i < 5; i++) b.queue.enqueue({ viewer: true, name: `v${i}`, dessertId: 'khao-tom-mat' });
       advance(b.game, 2500);
       expect(b.queue.waiting().filter((c) => c.kind === 'phone')).toHaveLength(0);
       expect(b.queue.waiting()).toHaveLength(3);

@@ -83,14 +83,14 @@ describe('gift details (viewer name and picture)', () => {
   });
 
   it('DessertManager exposes the unlocked ids', () => {
-    const m = new DessertManager(ALL_DESSERTS, ['khanom-krok', 'bua-loy', 'nope'], () => 0.5);
-    expect([...m.unlockedIds].sort()).toEqual(['bua-loy', 'khanom-krok']);
+    const m = new DessertManager(ALL_DESSERTS, ['khao-tom-mat', 'bua-loy', 'nope'], () => 0.5);
+    expect([...m.unlockedIds].sort()).toEqual(['bua-loy', 'khao-tom-mat']);
     m.setUnlocked(['thong-yod']);
     expect(m.unlockedIds).toEqual(['thong-yod']);
   });
 
   it('RewardManager.addCoins adds valid amounts only', () => {
-    const r = new RewardManager(defaultConfig, defaultProfile(['khanom-krok']));
+    const r = new RewardManager(defaultConfig, defaultProfile(['khao-tom-mat']));
     expect(r.addCoins(25)).toBe(true);
     expect(r.profile.coins).toBe(25);
     for (const bad of [NaN, Infinity, -1, 0, 2e6]) expect(r.addCoins(bad), String(bad)).toBe(false);

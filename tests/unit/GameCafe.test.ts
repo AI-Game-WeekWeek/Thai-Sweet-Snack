@@ -75,7 +75,7 @@ describe('Game in café mode', () => {
   });
 
   it('every tier orders its own dessert; a locked dessert falls back to the best unlocked tier', () => {
-    const tiers: [number, string][] = [[1, 'khanom-krok'], [5, 'bua-loy'], [10, 'thong-yod'], [20, 'khanom-chan'], [50, 'foi-thong'], [99, 'thong-yip'], [199, 'luk-chup'], [500, 'khanom-buang']];
+    const tiers: [number, string][] = [[1, 'khao-tom-mat'], [5, 'bua-loy'], [10, 'thong-yod'], [20, 'khanom-chan'], [50, 'foi-thong'], [99, 'thong-yip'], [199, 'luk-chup'], [500, 'khanom-buang']];
     for (const [coins, id] of tiers) {
       const { game } = mk();
       game.start();
@@ -116,7 +116,7 @@ describe('Game in café mode', () => {
   it('when the queue is full a gift still pays coins to the café and nothing breaks', () => {
     const { game, rewards, queue } = mk({ maxWaiting: 3, npcSpawnEveryMs: 1e9 });
     game.start();
-    for (let i = 0; i < 10; i++) queue.enqueue({ viewer: false, dessertId: 'khanom-krok' });
+    for (let i = 0; i < 10; i++) queue.enqueue({ viewer: false, dessertId: 'khao-tom-mat' });
     expect(queue.waiting()).toHaveLength(3);
     const coins = rewards.profile.coins;
     gift(game, 40);
@@ -247,7 +247,7 @@ describe('Game in café mode', () => {
     game.update(16);
     const v = game.snapshot().cafe!;
     expect(v.giftMenu).toHaveLength(cfg.cafe.giftTiers.length);
-    expect(v.giftMenu[0]).toMatchObject({ coins: 1, nameTh: nameOf('khanom-krok') });
+    expect(v.giftMenu[0]).toMatchObject({ coins: 1, nameTh: nameOf('khao-tom-mat') });
     expect(v.waiting.length).toBeLessThanOrEqual(cfg.cafe.visible - 1);
     expect(v.waitingTotal).toBeLessThanOrEqual(cfg.cafe.maxWaiting);
   });
@@ -290,7 +290,7 @@ describe('Game in café mode', () => {
   });
 
   it('the default dessert is always unlocked, even on a save from before it existed', () => {
-    const { game } = mk({}, ['khanom-krok']); // the café must still open if the default is somehow missing
+    const { game } = mk({}, ['bua-loy']); // the café must still open if the default is somehow locked
     game.start();
     expect(() => runUntil(game, () => game.snapshot().roundsCompleted >= 2)).not.toThrow();
   });
@@ -309,5 +309,42 @@ describe('Game in café mode', () => {
     runUntil(other.game, () => other.game.snapshot().roundId === 2 && other.game.snapshot().state === 'PRESENTING');
     expect(other.game.snapshot().dessertNameTh).toBe(nameOf('bua-loy'));
     expect(other.game.renderView()).toMatchObject({ pieceStyle: 'round', piecesCount: 8 });
+  });
+
+  it('every gifting viewer is served the dessert they paid for, separately from the other viewers', () => {
+    const noPhone = { ...cafeConfig.cafe.surprise, phone: { ...cafeConfig.cafe.surprise.phone, firstMs: 1e12 } }; // keep the random phone call out of this test
+    const { game } = mk({ npcSpawnEveryMs: 1e9, surprise: noPhone });
+    game.start();
+    runUntil(game, () => cooking(game));
+    gift(game, 20, { displayName: 'ก้อย' });   // ขนมชั้น
+    gift(game, 199, { displayName: 'เบิร์ด' }); // ลูกชุบ
+    gift(game, 5, { displayName: 'ฝน' });      // บัวลอย
+    game.update(16);
+    const queued = game.snapshot().cafe!.waiting.filter((c) => c.viewer).map((c) => `${c.name}:${c.dessertNameTh}`);
+    expect(queued).toEqual([`ก้อย:${nameOf('khanom-chan')}`, `เบิร์ด:${nameOf('luk-chup')}`, `ฝน:${nameOf('bua-loy')}`]);
+
+    // each one is cooked in its own round and paid under that viewer's own name, one at a time
+    const served: string[] = [];
+    for (let round = 2; round <= 4; round++) {
+      runUntil(game, () => game.snapshot().state === 'COOKING' && game.snapshot().roundId === round);
+      const who = game.snapshot().cafe!.serving!;
+      expect(who.viewer).toBe(true);
+      expect(game.snapshot().dessertNameTh).toBe(who.dessertNameTh);
+      runUntil(game, () => game.snapshot().state === 'REWARDING' && game.snapshot().roundId === round);
+      expect(game.snapshot().toast).toContain(who.name!);
+      served.push(`${who.name}:${who.dessertNameTh}`);
+    }
+    expect(served).toEqual(queued);
+  });
+
+  it('two gifts from the same viewer are two separate customers with their own desserts', () => {
+    const { game } = mk({ npcSpawnEveryMs: 1e9 });
+    game.start();
+    gift(game, 20, { displayName: 'ซ้ำ' });
+    gift(game, 50, { displayName: 'ซ้ำ' });
+    game.update(16);
+    const mine = game.snapshot().cafe!.waiting.filter((c) => c.name === 'ซ้ำ');
+    expect(mine.map((c) => c.dessertNameTh)).toEqual([nameOf('khanom-chan'), nameOf('foi-thong')]);
+    expect(new Set(mine.map((c) => c.id)).size).toBe(2);
   });
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CafeQueue } from '../../src/cafe/CafeQueue';
 
 const mk = (maxWaiting = 5, patienceMs = 10_000) => new CafeQueue({ maxWaiting, patienceMs, maxNameLength: 16 });
-const npc = (dessertId = 'khanom-krok') => ({ viewer: false, dessertId });
+const npc = (dessertId = 'khao-tom-mat') => ({ viewer: false, dessertId });
 const viewer = (name: string | null = 'มะลิ', dessertId = 'bua-loy') => ({ viewer: true, name, dessertId });
 
 describe('CafeQueue', () => {
