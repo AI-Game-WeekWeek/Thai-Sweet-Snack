@@ -95,3 +95,17 @@ describe('TikFinity route', () => {
     expect((msgs.flat().find((m) => (m as { type?: string }).type === 'rose') as { giftCoins: number }).giftCoins).toBe(3);
   }, 12000);
 });
+
+describe('live.html', () => {
+  it('serves the game with the token built in (no query in the address) and with no-store', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dist-'));
+    writeFileSync(join(dir, 'index.html'), '<!doctype html><html><head><title>เกม</title></head><body></body></html>');
+    const { url } = await boot({ staticDir: dir });
+    const r = await fetch(`${url}/live.html`);
+    expect(r.status).toBe(200);
+    expect(r.headers.get('cache-control')).toBe('no-store');
+    const html = await r.text();
+    expect(html).toContain(`window.__BRIDGE_TOKEN__="${TOKEN}"`);
+    expect(html.indexOf('__BRIDGE_TOKEN__')).toBeLessThan(html.indexOf('<title>'));
+  });
+});

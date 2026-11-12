@@ -248,6 +248,18 @@ export function createBridge(opts: BridgeOptions): Bridge {
 
   async function serveStatic(req: IncomingMessage, res: ServerResponse, path: string): Promise<void> {
     if (!staticRoot || (req.method !== 'GET' && req.method !== 'HEAD')) return send(res, 404, { error: 'not found' });
+    // /live.html = the game with the token built in, so the address has no ?query at all (TikTok LIVE Studio's Link field
+    // rejects some URLs). The bridge only listens on this computer, and other web pages cannot read this response.
+    if (path === '/live.html') {
+      try {
+        const html = await readFile(join(staticRoot, 'index.html'), 'utf8');
+        const inject = `<script>window.__BRIDGE_TOKEN__=${JSON.stringify(opts.token)};</script>`;
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-frame-options': 'SAMEORIGIN' });
+        return void res.end(req.method === 'HEAD' ? undefined : html.replace('<head>', () => `<head>${inject}`));
+      } catch {
+        return send(res, 404, { error: 'not found' });
+      }
+    }
     let rel = '';
     try {
       rel = decodeURIComponent(path);

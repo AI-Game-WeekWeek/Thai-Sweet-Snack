@@ -26,7 +26,7 @@ if (token.length < 16) {
 const bridge = createBridge({ token, host, port, staticDir: 'dist' });
 const { port: p } = await bridge.start();
 const base = `http://${host}:${p}`;
-const gameUrl = `${base}/?token=${token}`; // the page connects back to the bridge it came from
+const gameUrl = `${base}/live.html`; // no ?query: the token is built into the page, which connects back to the bridge it came from
 console.log('\nพร้อมแล้ว ใช้ลิงก์เหล่านี้ (เก็บเป็นความลับ: มีรหัสลับอยู่ในลิงก์)\n');
 console.log('1) ใส่ใน TikTok LIVE Studio แบบ Link  ขนาด 1080x1920  Fill:');
 console.log('   ' + gameUrl + '\n');

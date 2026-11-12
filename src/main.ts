@@ -130,7 +130,8 @@ if (cafeRenderer) {
 }
 // The bridge address: ?bridge=ws://... or, when the page itself is served by the bridge, just ?token=... (a short URL
 // that TikTok LIVE Studio's Link field accepts: it rejects a URL with ws:// inside it).
-const bridgeUrl = params.get('bridge') ?? (params.get('token') && /^https?:$/.test(location.protocol) ? `ws://${location.host}` : null);
+const bridgeToken = params.get('token') ?? (globalThis as { __BRIDGE_TOKEN__?: string }).__BRIDGE_TOKEN__ ?? null;
+const bridgeUrl = params.get('bridge') ?? (bridgeToken && /^https?:$/.test(location.protocol) ? `ws://${location.host}` : null);
 if (cafeRenderer) cafeRenderer.showConnection = bridgeUrl !== null || params.get('status') === '1';
 const renderer = cafeRenderer ?? (voteMode ? new VoteRenderer(cfg.vote.maxBoost) : new Renderer());
 
@@ -140,7 +141,7 @@ const bridgeParam = bridgeUrl;
 if (bridgeParam && /^wss?:\/\//i.test(bridgeParam)) {
   try {
     const url = new URL(bridgeParam);
-    const token = params.get('token');
+    const token = bridgeToken;
     if (token) url.searchParams.set('token', token);
     const bridge = new WebSocketSource({ url: url.toString(), sink: (raw) => game.ingestEvent(raw), onState: (s) => events.setConnection(s) });
     bridge.start();
