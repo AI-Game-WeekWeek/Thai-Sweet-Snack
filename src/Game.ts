@@ -31,7 +31,7 @@ export interface AudioLike {
   play(sound: SoundId, roundId: number): boolean;
   stopRound(roundId: number): number;
   /** Optional spoken line (browser voice). */
-  speak?(text: string, roundId: number, pitch?: number, rate?: number, gender?: 'male' | 'female'): boolean;
+  speak?(text: string, roundId: number, pitch?: number, rate?: number, gender?: 'male' | 'female', sampleKey?: string): boolean;
 }
 
 export interface GameFx {
@@ -190,7 +190,7 @@ export class Game {
   private stepSound: SoundId | null = null;
   private soundAcc = 0;
   private rewardMs = 0;
-  private orderSpeak: { text: string; pitch: number; roundId: number; ms: number; gender: 'male' | 'female' } | null = null;
+  private orderSpeak: { text: string; pitch: number; roundId: number; ms: number; gender: 'male' | 'female'; key: string } | null = null;
   private dripAcc = 0;
   private stepT = 0;
   private presentT: number | null = null;
@@ -505,7 +505,7 @@ export class Game {
     this.shamanMs = SHAMAN_MS;
     this.shamanSplashed = false;
     const sr = this.soundRound(this.manager.snapshot().roundId);
-    this.fx?.audio.speak?.('ผีได๋ คือสิมาแข็งข้อกับกู๋', sr, 0.7, 0.8, 'male');
+    this.fx?.audio.speak?.('ผีได๋ คือสิมาแข็งข้อกับกู๋', sr, 0.7, 0.8, 'male', 'voice-shaman');
     return true;
   }
 
@@ -587,7 +587,7 @@ export class Game {
     if (o.ms > 0) return;
     this.orderSpeak = null;
     const st = this.manager.snapshot().state;
-    if (st === 'PREPARING' || st === 'COOKING') this.fx?.audio.speak?.(o.text, this.soundRound(o.roundId), o.pitch, 0.7, o.gender);
+    if (st === 'PREPARING' || st === 'COOKING') this.fx?.audio.speak?.(o.text, this.soundRound(o.roundId), o.pitch, 0.7, o.gender, o.key);
   }
 
   /** Café: the customer at the counter orders; anonymous customers keep the queue full when nobody is gifting. */
@@ -607,7 +607,7 @@ export class Game {
       // the customer says their order once they have walked up to the counter (a moment after they become the next one)
       const g = genderForSeed(c.seed);
       const ghost = c.kind === 'phone';
-      this.orderSpeak = { text: ghost ? `ขอ… ${this.current.nameTh}… หน่อย… จ้ะ` : `เอา… ${this.current.nameTh}… ${politeEnding(g)}`, pitch: ghost ? GHOST_PITCH : g === 'male' ? 0.85 : 1.35, roundId: this.manager.snapshot().roundId, ms: 1100, gender: g };
+      this.orderSpeak = { text: ghost ? `ขอ… ${this.current.nameTh}… หน่อย… จ้ะ` : `เอา… ${this.current.nameTh}… ${politeEnding(g)}`, pitch: ghost ? GHOST_PITCH : g === 'male' ? 0.85 : 1.35, roundId: this.manager.snapshot().roundId, ms: 1100, gender: g, key: ghost ? 'voice-ghost-order' : `voice-order-${this.current.id}-${g === 'male' ? 'm' : 'f'}` };
     }
   }
 
@@ -709,7 +709,7 @@ export class Game {
           this.phoneTalkMs = 3400;
           const sr = this.soundRound(this.manager.snapshot().roundId);
           this.fx?.audio.play('ghost', sr);
-          this.fx?.audio.speak?.('ฮือ ๆ… ช่วยด้วย… ผีอยากกินขนม…', sr, GHOST_PITCH, 0.62, 'female');
+          this.fx?.audio.speak?.('ฮือ ๆ… ช่วยด้วย… ผีอยากกินขนม…', sr, GHOST_PITCH, 0.62, 'female', 'voice-ghost-call');
         }
         // The line filled up with paying viewers during the ring: try again soon instead of waiting a whole interval.
         if (!placed) this.phoneTimerMs = Math.min(this.phoneTimerMs, PHONE_RETRY_MS);
@@ -845,7 +845,7 @@ export class Game {
       this.toastText = `${who}+${r.score} คะแนน +${r.coins} เหรียญ${r.levelUp ? ' • เลเวลอัป!' : ''}`;
       const sr = this.soundRound(roundId);
       this.fx?.audio.play('reward', sr);
-      this.fx?.audio.speak?.(`${this.current.nameTh}… เสร็จแล้วค่ะ`, sr, 1.25, 0.75, 'female');
+      this.fx?.audio.speak?.(`${this.current.nameTh}… เสร็จแล้วค่ะ`, sr, 1.25, 0.75, 'female', 'voice-done');
     }
   }
 

@@ -100,7 +100,7 @@ export class AudioManager {
   private readonly pendingSamples: [string, string][] = [];
 
   /** Registers a recorded sound for an id (an url, or a data: url). It replaces the synthesized one once loaded; failures keep the synth. */
-  registerSample(id: SoundId, url: string): void {
+  registerSample(id: string, url: string): void {
     this.pendingSamples.push([id, url]);
     if (this.ctx) void this.loadPending();
   }
@@ -120,7 +120,7 @@ export class AudioManager {
           data = bytes.buffer;
         } else {
           const res = await fetch(url);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          if (!res.ok) continue; // a voice file that is not there is normal (the browser voice is used instead): stay quiet
           data = await res.arrayBuffer();
         }
         this.samples.set(id, await ctx.decodeAudioData(data));
@@ -168,9 +168,17 @@ export class AudioManager {
   }
 
   /** A spoken line (the browser's Thai voice, if there is one). Silent when unsupported or muted; never throws. */
-  speak(text: string, roundId: number, pitch = 1.25, rate = 0.78, gender?: 'male' | 'female'): boolean {
-    void roundId;
+  speak(text: string, roundId: number, pitch = 1.25, rate = 0.78, gender?: 'male' | 'female', sampleKey?: string): boolean {
     if (this.muted || typeof text !== 'string' || text.length === 0) return false;
+    // a recorded voice file for this line beats the device's text-to-speech
+    const rec = sampleKey ? this.samples.get(sampleKey) : undefined;
+    if (rec) {
+      try {
+        return this.playSample(rec, 1, roundId);
+      } catch {
+        /* fall through to the browser voice */
+      }
+    }
     try {
       const synth = (globalThis as { speechSynthesis?: SpeechSynthesis }).speechSynthesis;
       const Utter = (globalThis as { SpeechSynthesisUtterance?: typeof SpeechSynthesisUtterance }).SpeechSynthesisUtterance;

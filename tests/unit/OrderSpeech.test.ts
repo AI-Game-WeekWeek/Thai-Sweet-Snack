@@ -71,3 +71,15 @@ describe('voice choice', () => {
     }
   });
 });
+
+import { voiceFiles } from '../../src/audio/voiceFiles';
+
+describe('recorded voice lines', () => {
+  it('lists 20 unique files for 8 desserts, and a recorded line is played instead of the device voice', () => {
+    const files = voiceFiles(ALL_DESSERTS);
+    expect(files.length).toBe(ALL_DESSERTS.length * 2 + 4);
+    expect(new Set(files.map((f) => f.file)).size).toBe(files.length);
+    expect(new Set(files.map((f) => f.key)).size).toBe(files.length);
+    expect(files.every((f) => /^[a-z0-9-]+\.mp3$/.test(f.file))).toBe(true);
+  });
+});

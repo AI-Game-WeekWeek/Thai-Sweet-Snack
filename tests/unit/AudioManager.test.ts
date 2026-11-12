@@ -186,4 +186,16 @@ describe('AudioManager', () => {
     expect(a.play('meow', 1)).toBe(true); // falls back to the synthesized meow when the sample failed
     expect(a.activeVoices).toBe(2);
   });
+
+  it('speak() plays a recorded voice file when one is registered for the line (no device voice needed)', async () => {
+    const { ctx, a } = mk();
+    (ctx as unknown as { decodeAudioData: (d: ArrayBuffer) => Promise<unknown> }).decodeAudioData = async () => ({ duration: 1 });
+    a.unlock();
+    expect(a.speak('เอา… ข้าวต้มมัด… ค่ะ', 1, 1.3, 0.7, 'female', 'voice-order-x-f')).toBe(false); // nothing registered, no device voice in the test
+    a.registerSample('voice-order-x-f', 'data:audio/mpeg;base64,AAAA');
+    await new Promise((r) => setTimeout(r, 20));
+    const before = ctx.sources.length;
+    expect(a.speak('เอา… ข้าวต้มมัด… ค่ะ', 1, 1.3, 0.7, 'female', 'voice-order-x-f')).toBe(true);
+    expect(ctx.sources.length - before).toBe(1);
+  });
 });

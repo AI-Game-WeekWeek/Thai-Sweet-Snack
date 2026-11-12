@@ -17,6 +17,7 @@ import '@fontsource/mali/thai-700.css';
 import '@fontsource/mali/latin-700.css';
 import { CafeRenderer } from './render/CafeRenderer';
 import { installDevKeys } from './devKeys';
+import { voiceFiles } from './audio/voiceFiles';
 import { preloadArt } from './render/artImages';
 import { ALL_PIC_NAMES } from './render/artManifest';
 import { Renderer } from './render/Renderer';
@@ -150,6 +151,8 @@ if (bridgeParam && /^wss?:\/\//i.test(bridgeParam)) {
   audio.registerSample('ghost', inline?.ghost ?? 'sfx/ghost.mp3');
   audio.registerSample('ring', inline?.ring ?? 'sfx/ring.mp3');
 }
+// Optional recorded voice lines in public/voice/ (see src/audio/voiceFiles.ts): played when present, otherwise the device voice speaks.
+for (const v of voiceFiles(ALL_DESSERTS)) audio.registerSample(v.key, `voice/${v.file}`);
 audio.unlock();
 const gestures = ['pointerup', 'click', 'keydown', 'touchend'] as const;
 const retryUnlock = (): void => {
