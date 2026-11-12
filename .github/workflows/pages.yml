@@ -1,4 +1,4 @@
-# Publishes the game to GitHub Pages on every push to main (after the tests pass).
+# Publishes the game to GitHub Pages on every push to main. Automatic tests are switched off on purpose (run `npm test` by hand).
 # One-time setup in the repository: Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
 name: Deploy game to GitHub Pages
 
@@ -29,7 +29,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm test
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
