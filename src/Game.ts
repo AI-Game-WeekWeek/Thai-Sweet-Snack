@@ -111,6 +111,10 @@ export interface CafeView {
   squeeze?: number;
   /** True for a moment right after the ghost squeezed (screen shake). */
   squeezedNow?: boolean;
+  /** 0 = no shaman; otherwise 0..1 through the visit (walks in, splashes holy water, walks away). */
+  shaman?: number;
+  /** The ghost has been calmed by the shaman's holy water (for this visit). */
+  ghostCalm?: boolean;
 }
 
 export interface GameCafeMode {
@@ -162,6 +166,8 @@ export interface GamePersistence {
 export const WORLD_W = 1000;
 export const WORLD_H = 600;
 const PRESENT_MS = 900;
+/** The shaman's whole visit: walks in, splashes holy water, walks away. */
+const SHAMAN_MS = 5200;
 /** The ghost's voice: clearly higher and thinner than a normal customer (normal women 1.35, men 0.85). */
 const GHOST_PITCH = 1.9;
 const PHONE_RETRY_MS = 3000;
@@ -208,6 +214,9 @@ export class Game {
   private forceGhostType: number | null = null;
   private visitCounted = false;
   private squeezeFlashMs = 0;
+  private shamanMs = 0;
+  private shamanSplashed = false;
+  private ghostTamed = false;
   private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
 
   constructor(
@@ -281,6 +290,7 @@ export class Game {
     if (this.cafe) {
       this.tickCafe(dt);
       this.tickSqueeze(dt);
+      this.tickShaman(dt);
       this.tickOrderSpeak(dt);
     }
     if (this.stepKind && this.manager.snapshot().state === 'COOKING') {
@@ -474,6 +484,36 @@ export class Game {
     return true;
   }
 
+  private ghostPresent(): boolean {
+    const q = this.cafe?.queue;
+    return !!q && (this.phoneRingMs > 0 || this.phoneTalkMs > 0 || q.current?.kind === 'phone' || q.waiting().some((c) => c.kind === 'phone'));
+  }
+
+  /** A share calls the Isan shaman (หมอผี) when a ghost is around: he walks in, splashes holy water and calms it. False when nothing to do. */
+  callShaman(): boolean {
+    if (!this.cafe || this.shamanMs > 0 || this.ghostTamed || !this.ghostPresent()) return false;
+    this.shamanMs = SHAMAN_MS;
+    this.shamanSplashed = false;
+    const sr = this.soundRound(this.manager.snapshot().roundId);
+    this.fx?.audio.speak?.('ผีได๋ คือสิมาแข็งข้อกับกู๋', sr, 0.7, 0.8, 'male');
+    return true;
+  }
+
+  private tickShaman(dt: number): void {
+    if (this.shamanMs <= 0) return;
+    this.shamanMs = Math.max(0, this.shamanMs - dt);
+    const t = 1 - this.shamanMs / SHAMAN_MS;
+    if (!this.shamanSplashed && t >= 0.5) {
+      this.shamanSplashed = true;
+      this.ghostTamed = true;
+      this.squeeze = 0;
+      this.squeezed = false;
+      this.toastText = 'หมอผีสาดน้ำมนต์! ผีสงบแล้ว';
+      this.fx?.audio.play('splash', this.soundRound(this.manager.snapshot().roundId));
+      this.burst(26, 220);
+    }
+  }
+
   private ghostCooking(): boolean {
     return !!this.cafe && this.manager.snapshot().state === 'COOKING' && this.cafe.queue.current?.kind === 'phone';
   }
@@ -485,7 +525,10 @@ export class Game {
       if (this.cafe?.queue.current?.kind !== 'phone') {
         this.squeeze = 0;
         this.squeezed = false;
-        this.visitCounted = false;
+        if (this.visitCounted) {
+          this.visitCounted = false;
+          this.ghostTamed = false; // the calm lasts for this visit only
+        }
       }
       return;
     }
@@ -498,6 +541,7 @@ export class Game {
     const base = Number.isFinite(ph.squeezeMs) && ph.squeezeMs > 0 ? ph.squeezeMs : 11_000;
     const harder = Number.isFinite(ph.harderPerVisit) ? Math.max(0, ph.harderPerVisit) : 0;
     const floor = Number.isFinite(ph.minSqueezeMs) && ph.minSqueezeMs > 0 ? ph.minSqueezeMs : 5000;
+    if (this.ghostTamed) return; // calmed by the shaman: no squeezing this visit
     const fill = Math.max(floor, base / (1 + harder * (this.ghostVisits - 1)));
     this.squeeze = Math.min(1, this.squeeze + dt / fill);
     if (this.squeeze >= 1 && !this.squeezed) {
@@ -728,6 +772,8 @@ export class Game {
       phoneTalking: this.phoneTalkMs > 0,
       squeeze: this.ghostCooking() ? this.squeeze : 0,
       squeezedNow: this.squeezeFlashMs > 0,
+      shaman: this.shamanMs > 0 ? 1 - this.shamanMs / SHAMAN_MS : 0,
+      ghostCalm: this.ghostTamed,
       spooky: this.phoneRingMs > 0 || this.phoneTalkMs > 0 || this.cafe?.queue.current?.kind === 'phone' || (this.cafe?.queue.waiting().some((c) => c.kind === 'phone') ?? false),
     };
   }
@@ -760,7 +806,7 @@ export class Game {
         this.bonusPct += paid.happiness * this.config.cafe.payBonusMaxPct;
         if (paid.customer.kind === 'vip') this.bonusPct += sur.vip.payBonusPct;
         if (paid.customer.kind === 'phone' && !this.squeezed) this.bonusPct += sur.phone.payBonusPct;
-        who = paid.customer.kind === 'vip' ? 'VIP ' : paid.customer.kind === 'phone' ? (this.squeezed ? 'ผีบีบ! ' : 'ผีพอใจ! ') : paid.customer.name ? `${paid.customer.name} ` : '';
+        who = paid.customer.kind === 'vip' ? 'VIP ' : paid.customer.kind === 'phone' ? (this.squeezed ? 'ผีบีบ! ' : this.ghostTamed ? 'ผีสงบ! ' : 'ผีพอใจ! ') : paid.customer.name ? `${paid.customer.name} ` : '';
       }
       if (this.luckyCatMs > 0) this.bonusPct += sur.luckyCat.payBonusPct;
     }
@@ -913,6 +959,7 @@ export class Game {
           const relief = (Number.isFinite(rl) ? rl : 0.012) * (fx.likes + fx.hearts * 3);
           this.squeeze = Math.max(0, this.squeeze - (Number.isFinite(relief) ? relief : 0));
         }
+        if (fx.shareBonus > 0) this.callShaman();
         this.cafe.meter.add(fx.likes * this.config.vote.heartPerLike + fx.follows * this.config.vote.heartPerFollow + fx.hearts * this.config.vote.heartPerHeart);
       } else if (fx.progressAdd > 0) this.cooking.addProgress(fx.progressAdd, m.roundId);
       if (fx.completeStep && !this.cafe) this.cooking.completeCurrentStep(m.roundId);

@@ -36,6 +36,8 @@ const RECIPES: Record<SoundId, Recipe> = {
   ghost: { durationSec: 1.9, peak: 0.4, attackSec: 0.4, tone: { type: 'sine', from: 780, to: 420, level: 1 }, noise: { filter: 'bandpass', freq: 1800, freqTo: 900, q: 3 }, lfo: { hz: 5.5, depth: 0.7 } },
   // Lucky cat meow (used only when the recorded sample is not available).
   meow: { durationSec: 0.6, peak: 0.4, attackSec: 0.05, tone: { type: 'triangle', from: 520, to: 900, level: 1 }, lfo: { hz: 7, depth: 0.4 } },
+  // Holy water splashed from a bowl: a quick wet swish.
+  splash: { durationSec: 0.7, peak: 0.45, attackSec: 0.03, noise: { filter: 'bandpass', freq: 3200, freqTo: 900, q: 0.8 }, lfo: { hz: 22, depth: 0.3 } },
   coin: { durationSec: 0.35, peak: 0.4, attackSec: 0.005, tone: { type: 'sine', from: 1400, to: 2100, level: 1 } },
 };
 

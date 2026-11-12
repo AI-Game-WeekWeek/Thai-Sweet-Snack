@@ -409,3 +409,28 @@ describe('forced ghost kind (test shortcut)', () => {
     expect(game.squeezeNow()).toBe(true);
   });
 });
+
+describe('shaman (share)', () => {
+  it('a share with a ghost around calls the shaman: he splashes holy water, the ghost is calmed (no squeeze, no fine); without a ghost nothing happens', () => {
+    const slow = { cooking: { baseProgressPerSec: 0.3 } };
+    const ph = { firstMs: 1e12, everyMs: 1e12, jitter: 0, ringMs: 600, deadlineMs: 600_000, squeezeMs: 3000, fineCoins: 5, reliefPerLike: 0, harderPerVisit: 0, minSqueezeMs: 1000, squeezeSlow: 0 };
+    const { game, rewards } = mk({ phone: ph, vip: {} }, { npcSpawnEveryMs: 1e9 }, slow);
+    game.start();
+    expect(game.callShaman()).toBe(false); // no ghost yet
+    expect(game.callGhostNow()).toBe(true);
+    runUntil(game, () => game.snapshot().cafe!.serving?.kind === 'phone');
+    runUntil(game, () => game.snapshot().state === 'COOKING');
+    rewards.addCoins(40);
+    const coins = rewards.profile.coins;
+    const r = game.ingestEvent({ id: `sh${++n}`, type: 'share', count: 1, tsMs: game.nowMs });
+    game.update(16);
+    expect(r).toBe('queued');
+    game.update(16);
+    expect((game.renderView().cafe?.shaman ?? 0)).toBeGreaterThan(0);
+    runUntil(game, () => game.renderView().cafe?.ghostCalm === true, 100_000);
+    expect(game.callShaman()).toBe(false); // already calm this visit
+    for (let i = 0; i < 1200 && game.snapshot().cafe!.serving?.kind === 'phone'; i++) game.update(16); // far longer than squeezeMs
+    expect(game.renderView().cafe?.squeezedNow ?? false).toBe(false);
+    expect(rewards.profile.coins).toBeGreaterThanOrEqual(coins);
+  });
+});

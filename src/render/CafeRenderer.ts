@@ -115,6 +115,7 @@ export class CafeRenderer {
       this.holdLeaving = view.serveOutT !== undefined && Number.isFinite(view.serveOutT) && view.serveOutT > 0 && view.serveOutT < 1;
       this.safely('queue', () => this.drawQueue(ctx, view.cafe, dt));
       this.safely('serve', () => this.drawServeOut(ctx, view));
+      this.safely('shaman', () => this.drawShaman(ctx, view.cafe));
       this.safely('squeeze', () => this.drawSqueeze(ctx, view.cafe, sq));
       this.safely('hud', () => this.drawHud(ctx, view.cafe));
     } finally {
@@ -178,6 +179,142 @@ export class CafeRenderer {
     this.mutedKey = key;
     this.mutedCanvas = out;
     return out;
+  }
+
+  /**
+   * The Isan shaman (หมอผี) comes to help when someone shares: walks in from the left saying his line, splashes holy
+   * water at the ghost, then walks away. Painted pictures shaman-1/2/3 (walk, throw, stand) when loaded; drawn otherwise.
+   */
+  private drawShaman(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined): void {
+    const raw = cafe?.shaman;
+    if (raw === undefined || !Number.isFinite(raw) || raw <= 0 || raw >= 1) return;
+    const t = raw;
+    const groundY = 690;
+    const standX = 330;
+    // 0..0.42 walks in, 0.42..0.7 splashes, 0.7..1 walks away
+    let x = standX;
+    let phase: 'walk' | 'throw' = 'throw';
+    if (t < 0.42) {
+      x = -160 + (standX + 160) * (t / 0.42);
+      phase = 'walk';
+    } else if (t > 0.7) {
+      x = standX - (standX + 200) * ((t - 0.7) / 0.3);
+      phase = 'walk';
+    }
+    const dir = t > 0.7 ? -1 : 1;
+    const hop = phase === 'walk' ? Math.abs(Math.sin(this.timeMs / 110)) * 6 : 0;
+    const cy = groundY - 150 - hop;
+    // shadow
+    ctx.fillStyle = 'rgba(40,22,10,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(x, groundY, 90, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const pic = CAFE_PICS.shaman[phase === 'walk' ? (Math.floor(this.timeMs / 220) % 2 === 0 ? 0 : 2) : 1] as string;
+    if (artImage(pic)) {
+      drawArt(ctx, pic, x, cy, 260, 330, Math.sin(this.timeMs / 130) * (phase === 'walk' ? 0.04 : 0), dir, 1, 4);
+    } else {
+      ctx.save();
+      try {
+        ctx.translate(x, cy);
+        ctx.scale(dir, 1);
+        // white robe
+        ctx.fillStyle = '#f4f1e6';
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.roundRect(-62, -40, 124, 190, 40);
+        ctx.fill();
+        ctx.stroke();
+        // red sacred threads across the chest
+        ctx.strokeStyle = '#d94f4f';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(-50, -30);
+        ctx.lineTo(50, 90);
+        ctx.moveTo(50, -30);
+        ctx.lineTo(-50, 90);
+        ctx.stroke();
+        // head with a white head cloth
+        ctx.fillStyle = '#e8b98a';
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(0, -78, 48, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.roundRect(-52, -128, 104, 36, 18);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#2b2230';
+        for (const sx of [-1, 1]) {
+          ctx.beginPath();
+          ctx.arc(sx * 17, -80, 5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.beginPath();
+        ctx.arc(0, -62, 14, 0.2, Math.PI - 0.2);
+        ctx.stroke();
+        // silver bowl of holy water in the raised hand
+        const lift = phase === 'throw' ? Math.sin(t * 40) * 4 - 20 : 0;
+        ctx.fillStyle = '#d7dde6';
+        ctx.beginPath();
+        ctx.ellipse(86, 30 + lift, 40, 16, 0, 0, Math.PI);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#9fd6ff';
+        ctx.beginPath();
+        ctx.ellipse(86, 30 + lift, 38, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } finally {
+        ctx.restore();
+      }
+    }
+    // his line, while he walks in
+    if (t < 0.5) {
+      const label = 'ผีได๋ คือสิมาแข็งข้อกับกู๋!';
+      ctx.font = `700 34px ${FONT}`;
+      const w = (Number.isFinite(ctx.measureText(label).width) ? ctx.measureText(label).width : 420) + 48;
+      const bx = Math.min(Math.max(x + 30, w / 2 + 10), CAFE_W - w / 2 - 10);
+      ctx.fillStyle = '#fffaf0';
+      ctx.beginPath();
+      ctx.roundRect(bx - w / 2, cy - 250, w, 64, 24);
+      ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+      this.text(ctx, label, bx, cy - 217, 34, INK, '#fffaf0');
+    }
+    // holy water arcing from the bowl to the ghost
+    if (t >= 0.42 && t <= 0.72) {
+      const k = (t - 0.42) / 0.3;
+      const sx = x + 86;
+      const sy = cy + 10;
+      const tx = CAFE_W / 2;
+      const ty = 520;
+      for (let i = 0; i < 14; i++) {
+        const p = Math.min(1, Math.max(0, k * 1.3 - i * 0.04));
+        if (p <= 0) continue;
+        const px = sx + (tx - sx) * p + Math.sin(i * 7.3) * 14;
+        const py = sy + (ty - sy) * p - Math.sin(Math.PI * p) * 130 + Math.cos(i * 4.1) * 10;
+        if (!drawArt(ctx, CAFE_PICS.holyWater, px, py, 54 + (i % 3) * 14, 54 + (i % 3) * 14, i)) {
+          ctx.fillStyle = i % 2 ? 'rgba(180,225,255,0.95)' : 'rgba(255,255,255,0.95)';
+          ctx.beginPath();
+          ctx.arc(px, py, 7 + (i % 3) * 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+    // the splash lands: a glowing ring on the ghost
+    if (t > 0.58 && t < 0.78) {
+      const k = (t - 0.58) / 0.2;
+      ctx.strokeStyle = `rgba(190,235,255,${(1 - k).toFixed(3)})`;
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.ellipse(CAFE_W / 2, 520, 60 + 220 * k, 40 + 150 * k, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
 
   /** Warning while the ghost squeezes: dark red edges closing in, a danger bar and a call to tap. */
@@ -374,25 +511,7 @@ export class CafeRenderer {
       const row = Math.floor(i / 2);
       const x = 110 + col * (colW + 20);
       const y = 1646 + row * 58;
-      ctx.fillStyle = '#e8b64c';
-      ctx.beginPath();
-      ctx.arc(x + 30, y + 22, 25, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#a9761f';
-      ctx.lineWidth = 4;
-      ctx.stroke();
-      this.text(ctx, String(t.coins), x + 30, y + 24, t.coins >= 100 ? 21 : 26, '#fff', '#7a4f12');
-      // picture slot: the dessert picture when loaded, otherwise an empty rounded frame
-      const pic = ICON_PICS[t.id];
-      if (!(pic && drawArt(ctx, pic, x + 90, y + 22, 52, 48, 0, 1, 1, 1.6))) {
-        ctx.fillStyle = 'rgba(255,255,255,0.08)';
-        ctx.beginPath();
-        ctx.roundRect(x + 64, y - 2, 52, 48, 10);
-        ctx.fill();
-        ctx.strokeStyle = '#e8b64c';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
+      // the coin button, its number and the dessert picture are left out on purpose: that space stays empty
       ctx.textAlign = 'left';
       this.text(ctx, clip(t.nameTh, 10), x + 128, y + 24, 30, '#fff', '#1c2e24');
       ctx.textAlign = 'center';

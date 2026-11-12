@@ -51,7 +51,8 @@ const draw = (v: RenderView, ctxOpts = {}) => {
 describe('CafeRenderer', () => {
   it('draws the shop sign, the gift menu with every tier, the queue and the coin count', () => {
     const t = draw(view()).texts.join(' | ');
-    for (const s of ['ร้านขนมไทย', 'ส่งของขวัญ', 'ข้าวต้มมัด', 'บัวลอย', 'ขนมเบื้อง', '500', 'มะลิ', 'น้ำฝน', '345']) expect(t).toContain(s);
+    for (const s of ['ร้านขนมไทย', 'ส่งของขวัญ', 'ข้าวต้มมัด', 'บัวลอย', 'ขนมเบื้อง', 'มะลิ', 'น้ำฝน', '345']) expect(t).toContain(s);
+    expect(t).not.toContain('500'); // the gift board has no coin numbers (that space is left empty)
   });
 
   it('shows what is happening in each state', () => {
@@ -242,5 +243,19 @@ describe('paid customer waits for the dessert', () => {
     expect(pos()).toBe(x0);
     for (let i = 0; i < 20; i++) frame({ serving: null, waiting: [] }, 1); // dessert arrived
     expect(pos()).not.toBe(x0);
+  });
+});
+
+describe('shaman', () => {
+  it('draws through the whole visit, and with hostile values, without throwing and with a balanced canvas', () => {
+    const r = new CafeRenderer(4, avatars());
+    for (const sh of [0, 0.05, 0.3, 0.5, 0.6, 0.75, 0.99, 1, NaN, -1, Infinity]) {
+      const f = fakeCtx();
+      expect(() => r.draw(f.ctx, 720, 1280, view({ cafe: { ...view().cafe, shaman: sh } as never }), new ParticleSystem(10, 0), 16)).not.toThrow();
+      expect(f.depth()).toBe(0);
+    }
+    const f = fakeCtx();
+    r.draw(f.ctx, 720, 1280, view({ cafe: { ...view().cafe, shaman: 0.2 } as never }), new ParticleSystem(10, 0), 16);
+    expect(f.texts.join(' ')).toContain('แข็งข้อกับกู๋');
   });
 });

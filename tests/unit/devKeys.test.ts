@@ -5,7 +5,7 @@ import { devKeys, installDevKeys, type DevKeyTargets } from '../../src/devKeys';
 function targets() {
   const events: Record<string, unknown>[] = [];
   const t = {
-    game: { nowMs: 1000, ingestEvent: (e: Record<string, unknown>) => (events.push(e), 'queued'), callGhostNow: vi.fn((_t?: number) => true), squeezeNow: vi.fn(() => true), finishCookingNow: vi.fn(() => true) },
+    game: { nowMs: 1000, ingestEvent: (e: Record<string, unknown>) => (events.push(e), 'queued'), callGhostNow: vi.fn((_t?: number) => true), squeezeNow: vi.fn(() => true), callShaman: vi.fn(() => true), finishCookingNow: vi.fn(() => true) },
     giftCoins: [1, 5, 10, 20, 50, 99, 199, 500],
     setMuted: vi.fn(),
     cycleBackground: vi.fn(() => 'rain'),
@@ -32,6 +32,7 @@ describe('test shortcuts', () => {
     press('p');
     for (const k of ['q', 'w', 'e', 't', 'y']) press(k);
     press('z');
+    press('x');
     press('c');
     press('b');
     press('m');
@@ -40,6 +41,7 @@ describe('test shortcuts', () => {
     press('g');
     expect(raw.game.callGhostNow.mock.calls.map((c) => c[0])).toEqual([undefined, 0, 1, 2, 3, 4]);
     expect(raw.game.squeezeNow).toHaveBeenCalledTimes(1);
+    expect(raw.game.callShaman).toHaveBeenCalledTimes(1);
     expect(raw.game.finishCookingNow).toHaveBeenCalledTimes(1);
     expect(raw.cycleBackground).toHaveBeenCalled();
     expect(raw.setMuted.mock.calls.map((c) => c[0])).toEqual([true, false]);
