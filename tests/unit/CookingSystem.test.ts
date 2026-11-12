@@ -148,4 +148,17 @@ describe('CookingSystem', () => {
     expect(cooking.addProgress(50, 1)).toBe(50);
     expect(cooking.completeCurrentStep(1)).toBe(true);
   });
+
+  it('rateMultiplier scales automatic progress; invalid values are ignored', () => {
+    const { cooking, progress } = setup(10);
+    cooking.setRateMultiplier(3);
+    cooking.update(1000);
+    expect(progress.value).toBeCloseTo(30, 5);
+    for (const bad of [NaN, Infinity, -2]) cooking.setRateMultiplier(bad);
+    cooking.update(1000);
+    expect(progress.value).toBeCloseTo(60, 5);
+    cooking.setRateMultiplier(1e9); // clamped
+    cooking.update(1);
+    expect(progress.value).toBeLessThanOrEqual(100);
+  });
 });

@@ -36,6 +36,19 @@ export interface GameConfig {
   reward: { speedParMs: number; speedBonusMaxPct: number; xpBase: number; xpGrowth: number };
   save: { key: string; backupKey: string };
   progression: { autoUnlock: boolean };
+  vote: {
+    candidates: number;
+    windowMs: number;
+    maxVoters: number;
+    /** Votes per second accepted from sources without a user id. */
+    anonVotesPerSec: number;
+    heartPerLike: number;
+    heartPerFollow: number;
+    heartDecayPerSec: number;
+    /** Cooking speed multiplier when the heart meter is full. */
+    maxBoost: number;
+    cookRatePerSec: number;
+  };
 }
 
 export const defaultConfig: GameConfig = {
@@ -63,6 +76,7 @@ export const defaultConfig: GameConfig = {
   reward: { speedParMs: 25000, speedBonusMaxPct: 30, xpBase: 100, xpGrowth: 1.25 },
   save: { key: 'thai-dessert-asmr:save', backupKey: 'thai-dessert-asmr:save.corrupt' },
   progression: { autoUnlock: true },
+  vote: { candidates: 3, windowMs: 15_000, maxVoters: 5000, anonVotesPerSec: 50, heartPerLike: 0.012, heartPerFollow: 0.15, heartDecayPerSec: 0.1, maxBoost: 4, cookRatePerSec: 6 },
 };
 
 /** Real game: CookingSystem drives COOKING; the global watchdog sits above any recipe length. */
@@ -70,4 +84,12 @@ export const liveConfig: GameConfig = {
   ...defaultConfig,
   placeholderCooking: false,
   maxMs: { ...defaultConfig.maxMs, cooking: 180_000 },
+};
+
+/** Menu-vote mode: PREPARING is the vote window; short serve/sell beats; faster base cooking (hearts speed it up further). */
+export const voteConfig: GameConfig = {
+  ...liveConfig,
+  durationsMs: { ...liveConfig.durationsMs, preparing: liveConfig.vote.windowMs, presenting: 1500, rewarding: 2500 },
+  maxMs: { ...liveConfig.maxMs, preparing: liveConfig.vote.windowMs + 5000 },
+  cooking: { baseProgressPerSec: liveConfig.vote.cookRatePerSec },
 };

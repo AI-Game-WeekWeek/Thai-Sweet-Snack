@@ -29,6 +29,21 @@ export class DessertManager {
     this.bag = [];
   }
 
+  /** Up to `n` distinct unlocked desserts for a menu board (fewer if fewer are unlocked). */
+  pickCandidates(n: number): DessertDef[] {
+    const want = Math.min(Math.max(0, Math.floor(n)), this.pool.length);
+    const out: DessertDef[] = [];
+    const seen = new Set<string>();
+    for (let i = 0; i < want * 4 && out.length < want; i++) {
+      const d = this.next();
+      if (!seen.has(d.id)) {
+        seen.add(d.id);
+        out.push(d);
+      }
+    }
+    return out;
+  }
+
   peekNext(): DessertDef {
     this.ensureBag();
     return this.bag[this.bag.length - 1] as DessertDef;

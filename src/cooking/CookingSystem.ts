@@ -25,6 +25,7 @@ export class CookingSystem {
   private stepElapsedMs = 0;
   private bandEnds: number[] = [];
   private advancing = false;
+  private rateMultiplier = 1;
 
   constructor(
     private readonly config: GameConfig,
@@ -38,6 +39,7 @@ export class CookingSystem {
     this.stepIndex = 0;
     this.stepElapsedMs = 0;
     this.advancing = false;
+    this.rateMultiplier = 1;
     const total = def.steps.reduce((sum, s) => sum + s.weight, 0);
     let cumulative = 0;
     this.bandEnds = def.steps.map((s) => {
@@ -51,10 +53,15 @@ export class CookingSystem {
     if (first) this.safely(() => this.callbacks.onStepStart?.(first, 0, roundId));
   }
 
+  /** Speed-up from viewer hearts. Invalid values are ignored; clamped to 0..10. */
+  setRateMultiplier(m: number): void {
+    if (Number.isFinite(m) && m >= 0) this.rateMultiplier = Math.min(10, m);
+  }
+
   /** Caller passes an already-clamped dt. Invalid dt is ignored. */
   update(dtMs: number): void {
     if (!this.active || !Number.isFinite(dtMs) || dtMs <= 0) return;
-    this.progress.add((this.config.cooking.baseProgressPerSec * dtMs) / 1000, this.roundId);
+    this.progress.add((this.config.cooking.baseProgressPerSec * this.rateMultiplier * dtMs) / 1000, this.roundId);
     this.stepElapsedMs += dtMs;
     const step = this.dessert?.steps[this.stepIndex];
     if (step && this.stepElapsedMs >= step.maxMs) {

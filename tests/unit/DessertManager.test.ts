@@ -61,4 +61,24 @@ describe('DessertManager', () => {
     expect(m.get(IDS[1]!)?.id).toBe(IDS[1]);
     expect(m.get('zzz')).toBeUndefined();
   });
+
+  it('pickCandidates returns distinct unlocked desserts (100 draws of 3 from 8)', () => {
+    const m = new DessertManager(ALL_DESSERTS, IDS, rng(21));
+    for (let i = 0; i < 100; i++) {
+      const c = m.pickCandidates(3);
+      expect(c).toHaveLength(3);
+      expect(new Set(c.map((d) => d.id)).size).toBe(3);
+      for (const d of c) expect(IDS).toContain(d.id);
+    }
+  });
+
+  it('pickCandidates with fewer unlocked than asked returns what exists', () => {
+    const two = new DessertManager(ALL_DESSERTS, [IDS[0]!, IDS[1]!], rng(2));
+    expect(two.pickCandidates(3).map((d) => d.id).sort()).toEqual([IDS[0], IDS[1]].sort());
+    const one = new DessertManager(ALL_DESSERTS, [IDS[3]!], rng(2));
+    expect(one.pickCandidates(3).map((d) => d.id)).toEqual([IDS[3]]);
+    const none = new DessertManager(ALL_DESSERTS, [], rng(2));
+    expect(none.pickCandidates(3).length).toBeGreaterThanOrEqual(1);
+    expect(none.pickCandidates(0)).toEqual([]);
+  });
 });
