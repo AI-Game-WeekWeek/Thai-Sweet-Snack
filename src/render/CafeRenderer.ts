@@ -59,6 +59,7 @@ export class CafeRenderer {
           ctx.restore();
         }
       });
+      this.safely('logo', () => drawArt(ctx, CAFE_PICS.logo, 105, 1205, 180, 170, 0, 1, 1, 4));
       this.safely('phone', () => this.drawPhone(ctx, view.cafe));
       this.safely('cat', () => this.drawCat(ctx, 950, 1342, view.cafe?.luckyCatSec ?? 0));
       this.safely('lucky', () => this.drawLuckyPill(ctx, view.cafe));
@@ -310,8 +311,8 @@ export class CafeRenderer {
     const y = 1452;
     const pic = ringing ? CAFE_PICS.phoneRing : CAFE_PICS.phoneStill;
     if (artImage(pic)) {
-      drawArt(ctx, pic, x + (ringing ? Math.sin(this.timeMs / 35) * 4 : 0), y - 14, 150, 130, 0, 1, 1, 3);
-      if (ringing) this.text(ctx, 'โทรศัพท์ดัง!', x + 40, y - 96, 36, '#fff', '#b3261e');
+      drawArt(ctx, pic, x + 14 + (ringing ? Math.sin(this.timeMs / 35) * 5 : 0), y - 28, 220, 190, 0, 1, 1, 4);
+      if (ringing) this.ringLabel(ctx, x + 70, y - 138);
       return;
     }
     ctx.save();
@@ -347,7 +348,21 @@ export class CafeRenderer {
     } finally {
       ctx.restore();
     }
-    if (ringing) this.text(ctx, 'โทรศัพท์ดัง!', x + 40, y - 96, 36, '#fff', '#b3261e');
+    if (ringing) this.ringLabel(ctx, x + 70, y - 138);
+  }
+
+  /** The "phone is ringing" label on a solid pill so nothing behind it can hide it. */
+  private ringLabel(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+    ctx.font = `700 38px ${FONT}`;
+    const w = (Number.isFinite(ctx.measureText('โทรศัพท์ดัง!').width) ? ctx.measureText('โทรศัพท์ดัง!').width : 240) + 44;
+    ctx.fillStyle = '#d94f4f';
+    ctx.beginPath();
+    ctx.roundRect(cx - w / 2, cy - 30, w, 60, 30);
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#fff3dc';
+    ctx.stroke();
+    this.text(ctx, 'โทรศัพท์ดัง!', cx, cy + 2, 38, '#fff', '#8b1e1e');
   }
 
   private drawCat(ctx: CanvasRenderingContext2D, x: number, y: number, luckySec = 0): void {
@@ -672,7 +687,6 @@ export class CafeRenderer {
       ctx.lineWidth = 4;
       ctx.stroke();
     }
-    drawArt(ctx, CAFE_PICS.logo, 105, 1262, 180, 170, 0, 1, 1, 4);
     ctx.textAlign = 'right';
     this.text(ctx, coins >= 1e6 ? `${Math.floor(coins / 1e6)}M` : String(coins), 990, 52, 38, '#fff', '#7a4f12');
     ctx.textAlign = 'center';
