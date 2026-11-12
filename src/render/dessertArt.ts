@@ -596,19 +596,21 @@ function drawCookPics(ctx: CanvasRenderingContext2D, art: ArtId, a: CookingArt):
   if (layers.length === 0) return false;
   const t = c01(a.t);
   const time = Number.isFinite(a.time) ? a.time : 0;
-  const pop = 0.9 + 0.1 * spring(Math.min(1, t * 5));
+  const pop = 0.94 + 0.06 * smooth(c01(t / 0.5));
   const mix = smooth(c01(t * 1.4 - 0.1));
   // the new step dissolves in out of the previous step's picture, so things are visibly the same food moving on
   const prev = stage > 0 ? steps[stage - 1] : undefined;
-  const blend = smooth(c01(t / 0.35));
-  if (prev && blend < 1) {
+  // sequential, not stacked: the old picture fades out first (first 30% of the step), then the new one fades in (25%..65%)
+  const outA = 1 - smooth(c01(t / 0.3));
+  const blend = smooth(c01((t - 0.25) / 0.4));
+  if (prev && outA > 0) {
     for (const l of prev.layers) {
       if (artImage(l.pic) === null) continue;
       if (layers.some((n) => n.pic === l.pic)) continue; // still on stage: it simply stays
       const pose = poseOf(l.motion, l.size, time, 1);
       ctx.save();
       try {
-        ctx.globalAlpha = (1 - blend) * (l.fade === 'in' ? 1 : 1);
+        ctx.globalAlpha = outA;
         drawArt(ctx, l.pic, l.x + pose.dx, l.y + pose.dy, l.size, l.size, pose.rot, pose.sx, pose.sy, 5);
       } finally {
         ctx.restore();

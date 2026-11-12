@@ -229,3 +229,18 @@ describe('serve to customer', () => {
     }
   });
 });
+
+describe('paid customer waits for the dessert', () => {
+  it('stays at the counter while the dessert is flying to them, then walks away', () => {
+    const r = new CafeRenderer(4, avatars());
+    const c = { id: 7, kind: 'normal' as const, name: null, viewer: false, seed: 7, avatarUrl: null, dessertId: 'khao-tom-mat', dessertNameTh: 'ข้าวต้มมัด', color: '#fff', patience: 1, serving: true };
+    const pos = () => (r as unknown as { actors: Map<number, { x: number }> }).actors.get(7)?.x;
+    const frame = (cafe: Record<string, unknown>, serveOutT: number) => r.draw(fakeCtx().ctx, 720, 1280, view({ cafe: { ...view().cafe, ...cafe } as never, serveOutT, art: 'bowl', state: 'REWARDING' }), new ParticleSystem(10, 0), 16);
+    frame({ serving: c, waiting: [] }, 0);
+    const x0 = pos();
+    for (let i = 0; i < 30; i++) frame({ serving: null, waiting: [] }, 0.5); // paid: gone from the view, dessert in flight
+    expect(pos()).toBe(x0);
+    for (let i = 0; i < 20; i++) frame({ serving: null, waiting: [] }, 1); // dessert arrived
+    expect(pos()).not.toBe(x0);
+  });
+});

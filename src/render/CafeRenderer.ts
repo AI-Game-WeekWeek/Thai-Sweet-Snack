@@ -96,6 +96,7 @@ export class CafeRenderer {
       this.safely('cat', () => this.drawCat(ctx, 975, 1428, view.cafe?.luckyCatSec ?? 0));
       this.safely('lucky', () => this.drawLuckyPill(ctx, view.cafe));
       this.safely('status', () => this.drawStatus(ctx, view));
+      this.holdLeaving = view.serveOutT !== undefined && Number.isFinite(view.serveOutT) && view.serveOutT > 0 && view.serveOutT < 1;
       this.safely('queue', () => this.drawQueue(ctx, view.cafe, dt));
       this.safely('serve', () => this.drawServeOut(ctx, view));
       this.safely('hud', () => this.drawHud(ctx, view.cafe));
@@ -553,6 +554,7 @@ export class CafeRenderer {
   /** Customers on screen, walking in from the street and walking out again after they are served (or give up). */
   private readonly actors = new Map<number, Actor>();
   private seenFirstFrame = false;
+  private holdLeaving = false;
 
   /** How many customers are currently drawn (walking in, standing, or walking out). For tests. */
   get actorCount(): number {
@@ -597,6 +599,11 @@ export class CafeRenderer {
       if (!a.leaving) {
         a.leaving = true;
         a.c = { ...a.c, serving: true }; // no patience bar or order label while walking away
+      }
+      // the paid customer waits at the counter until the dessert has reached them, then walks away
+      if (this.holdLeaving) {
+        a.speed = 0;
+        continue;
       }
       const dir = a.x < CAFE_W / 2 ? -1 : 1;
       const step = 0.34 * Math.max(0, dt);
