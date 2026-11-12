@@ -44,6 +44,8 @@ export interface GameConfig {
     /** Anonymous customers arrive this often while fewer than npcMinWaiting are waiting. */
     npcSpawnEveryMs: number;
     npcMinWaiting: number;
+    /** Cooking speed with NO taps/hearts, as a fraction of normal (1 = cooks by itself, 0 = waits until someone taps or presses I; hearts still speed it up to the maximum). */
+    idleCookRate: number;
     /** A viewer who gifted comes back to order again this often (while still active), at most regularMaxReturns times; active = gifted within regularWindowMs. */
     regularEveryMs: number;
     regularWindowMs: number;
@@ -120,6 +122,7 @@ export const defaultConfig: GameConfig = {
     npcSpawnEveryMs: 700,
     // fewer than 3 people waiting: bots (anonymous customers) are sent in, so the café is never empty
     npcMinWaiting: 3,
+    idleCookRate: 1,
     regularEveryMs: 75_000,
     regularWindowMs: 15 * 60_000,
     regularMaxReturns: 4,

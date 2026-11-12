@@ -24,6 +24,7 @@ Capture the page in OBS (browser source) or TikTok LIVE Studio. Click the page o
 | `?mode=vote` | landscape: viewers vote the next dessert with comments 1/2/3 |
 | `?mode=classic` | the first mode: one dessert at a time, no queue, with a DOM HUD |
 | `?mock=1` (`&rate=N`, max 500) | simulated viewers (likes, follows, named gifts, comments in vote mode); no TikTok needed |
+| `?auto=1` | in the downloadable game (packed build) the dessert waits for taps (screen tap or the I key) before it cooks; `?auto=1` makes it cook by itself again |
 | `?keys=live` | the same shortcut keys with no panel or pop-ups on screen (for a tool that presses keys when viewers act): see [docs/hotkeys.md](docs/hotkeys.md) |
 | `?keys=1` | test shortcuts (also on with `?debug=1` and in the hosted demo): press `?` to see them. 1–8 gifts of each tier, L/K likes, F follow, O orange heart, P phone → random Thai ghost, Q/W/E/T/Y the 5 ghost kinds (นางรำ, พราย, กระสือ, แม่นาค, ผีหิว), Z squeeze now, X call the shaman (calms a ghost if one is there), S share (+1 shaman visit), C finish the dessert, B backdrop, V voices, M mute |
 | `?debug=1` | exposes `window.__snapshot()` for automated browser checks |

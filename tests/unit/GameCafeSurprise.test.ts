@@ -525,3 +525,27 @@ describe('regulars come back, bots fill the line', () => {
     expect(low / frames).toBeLessThan(0.1); // below 3 only for the moment a bot is on its way
   });
 });
+
+describe('cooking waits for taps (idleCookRate 0)', () => {
+  const progressAfter = (idle: number, likes: boolean) => {
+    const { game } = mk({}, { idleCookRate: idle, npcSpawnEveryMs: 700 });
+    game.start();
+    runUntil(game, () => game.snapshot().state === 'COOKING', 200_000);
+    const p0 = game.snapshot().progress;
+    for (let t = 0; t < 4000; t += 16) {
+      if (likes && t % 160 === 0) game.ingestEvent({ id: `tp${++n}`, type: 'like', count: 5, tsMs: game.nowMs });
+      game.update(16);
+    }
+    return { gain: game.snapshot().progress - p0, needsTaps: game.renderView().cafe?.needsTaps };
+  };
+  it('with idleCookRate 0 nothing cooks without taps, taps make it cook, and the screen says so; normal mode is unchanged', () => {
+    const idle = progressAfter(0, false);
+    const tapped = progressAfter(0, true);
+    const normal = progressAfter(1, false);
+    expect(idle.gain).toBeLessThan(1);
+    expect(idle.needsTaps).toBe(true);
+    expect(tapped.gain).toBeGreaterThan(idle.gain + 3);
+    expect(normal.gain).toBeGreaterThan(3);
+    expect(normal.needsTaps).toBe(false);
+  });
+});

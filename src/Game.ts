@@ -123,6 +123,8 @@ export interface CafeView {
   shamanQuotaMax?: number;
   /** Link to the live event source (bridge). */
   connection?: ConnectionState;
+  /** Cooking waits for taps / hearts (idleCookRate is low): the screen says so. */
+  needsTaps?: boolean;
 }
 
 export interface GameCafeMode {
@@ -258,7 +260,10 @@ export class Game {
           meter.update(dtMs);
           // the squeezing ghost also slows the cooking down, so being squeezed makes it harder to escape
           const slow = this.ghostCooking() ? 1 - Math.min(0.9, Math.max(0, this.config.cafe.surprise.phone.squeezeSlow || 0)) * this.squeeze : 1;
-          this.cooking.setRateMultiplier(meter.multiplier * slow);
+          // idleCookRate < 1: with no hearts the dessert cooks slowly (0 = it waits for taps); a full meter always reaches the maximum
+          const idle = this.cafe && Number.isFinite(this.config.cafe.idleCookRate) ? Math.min(1, Math.max(0, this.config.cafe.idleCookRate)) : 1;
+          const mult = this.cafe ? idle + meter.value * (this.config.vote.maxBoost - idle) : meter.multiplier;
+          this.cooking.setRateMultiplier(mult * slow);
         }
         this.cooking.update(dtMs);
       },
@@ -858,6 +863,7 @@ export class Game {
       shamanQuota: this.shamanQuota,
       shamanQuotaMax: SHAMAN_MAX_QUOTA,
       connection: this.events?.connection ?? 'offline',
+      needsTaps: this.config.cafe.idleCookRate < 0.5,
       spooky: this.phoneRingMs > 0 || this.phoneTalkMs > 0 || this.cafe?.queue.current?.kind === 'phone' || (this.cafe?.queue.waiting().some((c) => c.kind === 'phone') ?? false),
     };
   }

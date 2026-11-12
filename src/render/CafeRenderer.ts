@@ -731,7 +731,7 @@ export class CafeRenderer {
         this.text(ctx, clip(`กำลังทำ ${name}`.trim(), 24), CAFE_W / 2, 790, 46);
         if (view.stepNameTh) this.text(ctx, clip(view.stepNameTh, 30), CAFE_W / 2, 840, 32, '#ffe9a8');
         const heart = clamp01(view.heart);
-        this.text(ctx, 'กดหัวใจรัว ๆ ให้สุกเร็ว!', CAFE_W / 2, 892, 34, '#ffd1dc');
+        this.text(ctx, view.cafe?.needsTaps ? 'แตะหน้าจอ หรือกด I เพื่อทำขนม!' : 'กดหัวใจรัว ๆ ให้สุกเร็ว!', CAFE_W / 2, 892, 34, '#ffd1dc');
         for (let i = 0; i < 10; i++) this.drawHeart(ctx, 308 + i * 46, 944, 17, (i + 1) / 10 <= heart + 1e-6);
         this.text(ctx, `×${(1 + heart * (this.maxBoost - 1)).toFixed(1)}`, 830, 944, 34, '#ffd1dc');
         this.drawProgress(ctx, view.progress);

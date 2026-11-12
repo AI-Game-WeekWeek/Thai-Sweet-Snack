@@ -42,10 +42,13 @@ const cafeMode = mode === 'cafe';
 const voteMode = mode === 'vote';
 // ?surprise=1 brings the first phone call forward (to see it without waiting a minute).
 const quickPhone = params.get('surprise') === '1';
+// The downloadable game waits for taps before it cooks (hearts / the I key / a tap on the screen); ?auto=1 makes it cook by itself.
+const waitForTaps = __PACKED__ && params.get('auto') !== '1';
+const baseCafe = waitForTaps ? { ...cafeConfig, cafe: { ...cafeConfig.cafe, idleCookRate: 0 } } : cafeConfig;
 const cfg = cafeMode
   ? quickPhone
-    ? { ...cafeConfig, cafe: { ...cafeConfig.cafe, surprise: { ...cafeConfig.cafe.surprise, phone: { ...cafeConfig.cafe.surprise.phone, firstMs: 6000, everyMs: 25_000 } } } }
-    : cafeConfig
+    ? { ...baseCafe, cafe: { ...baseCafe.cafe, surprise: { ...baseCafe.cafe.surprise, phone: { ...baseCafe.cafe.surprise.phone, firstMs: 6000, everyMs: 25_000 } } } }
+    : baseCafe
   : voteMode
     ? voteConfig
     : liveConfig;
@@ -173,7 +176,13 @@ const retryUnlock = (): void => {
   if (audio.running) for (const g of gestures) removeEventListener(g, retryUnlock);
 };
 for (const g of gestures) addEventListener(g, retryUnlock);
-if (!cafeMode) {
+if (cafeMode) {
+  // A tap or click on the screen is a burst of hearts (it speeds the cooking up, like the I key but stronger).
+  let tapSeq = 0;
+  canvas.addEventListener('pointerdown', () => {
+    game.ingestEvent({ id: `tap${++tapSeq}-${Date.now()}`, type: 'like', count: 5, tsMs: game.nowMs });
+  });
+} else {
   canvas.addEventListener('pointerdown', (e) => {
     const r = canvas.getBoundingClientRect();
     game.poke(((e.clientX - r.left) / r.width) * WORLD_W, ((e.clientY - r.top) / r.height) * WORLD_H);
