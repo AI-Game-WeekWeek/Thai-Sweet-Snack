@@ -1,6 +1,6 @@
 # Khanom Krok Shop Mode — Design Spec (draft for approval)
 
-Date: 2026-11-12 · Status: **waiting for user confirmation, no gameplay code written yet**
+Date: 2026-11-12 · Status: **CANCELLED by the user; superseded by 2026-11-12-menu-vote-mode-design.md**
 Builds on: `2026-11-12-thai-dessert-asmr-design.md` (Phases 1–8, unchanged)
 
 ## 1. Goal
