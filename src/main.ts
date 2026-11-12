@@ -128,12 +128,15 @@ if (cafeRenderer) {
   const hour = new Date().getHours();
   cafeRenderer.background = bgParam === 'rain' || bgParam === 'night' || bgParam === 'day' ? bgParam : hour >= 18 || hour < 6 ? 'night' : 'day';
 }
-if (cafeRenderer) cafeRenderer.showConnection = params.get('bridge') !== null || params.get('status') === '1';
+// The bridge address: ?bridge=ws://... or, when the page itself is served by the bridge, just ?token=... (a short URL
+// that TikTok LIVE Studio's Link field accepts: it rejects a URL with ws:// inside it).
+const bridgeUrl = params.get('bridge') ?? (params.get('token') && /^https?:$/.test(location.protocol) ? `ws://${location.host}` : null);
+if (cafeRenderer) cafeRenderer.showConnection = bridgeUrl !== null || params.get('status') === '1';
 const renderer = cafeRenderer ?? (voteMode ? new VoteRenderer(cfg.vote.maxBoost) : new Renderer());
 
 // ?bridge=ws://127.0.0.1:8787&token=... connects to the local bridge (see docs/tiktok-integration.md).
 // Without it the game runs on its own (or with ?mock=1); a dead bridge only changes the connection label.
-const bridgeParam = params.get('bridge');
+const bridgeParam = bridgeUrl;
 if (bridgeParam && /^wss?:\/\//i.test(bridgeParam)) {
   try {
     const url = new URL(bridgeParam);
@@ -217,7 +220,7 @@ function begin(): void {
   driver.start();
 }
 const gateParam = params.get('gate');
-const useGate = gateParam === '1' || (gateParam !== '0' && (__PACKED__ || __DEMO__) && params.get('bridge') === null);
+const useGate = gateParam === '1' || (gateParam !== '0' && (__PACKED__ || __DEMO__) && bridgeUrl === null);
 if (useGate) {
   const gate = document.createElement('div');
   gate.style.cssText = 'position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:rgba(28,21,17,.94);color:#ffe9c8;z-index:50;font:700 22px "Mali",system-ui,sans-serif;text-align:center;padding:24px;cursor:pointer';
