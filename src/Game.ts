@@ -441,6 +441,26 @@ export class Game {
     if (this.current) this.lastCookedId = this.current.id;
   }
 
+  /** Test shortcut: the phone rings now (the ghost calls). False when a ghost is already around or the line is full. */
+  callGhostNow(): boolean {
+    const cafe = this.cafe;
+    if (!cafe) return false;
+    const busy = this.phoneRingMs > 0 || this.phoneTalkMs > 0 || cafe.queue.current?.kind === 'phone' || cafe.queue.waiting().some((c) => c.kind === 'phone');
+    if (busy || !this.hasRoomForSpecial()) return false;
+    const ph = this.config.cafe.surprise.phone;
+    this.phoneRingMs = Number.isFinite(ph.ringMs) ? Math.max(1, ph.ringMs) : 3000;
+    this.fx?.audio.play('ring', this.soundRound(this.manager.snapshot().roundId));
+    return true;
+  }
+
+  /** Test shortcut: finishes the dessert that is being cooked. False when nothing is cooking. */
+  finishCookingNow(): boolean {
+    const m = this.manager.snapshot();
+    if (m.state !== 'COOKING') return false;
+    this.cooking.addProgress(100, m.roundId);
+    return true;
+  }
+
   private ghostCooking(): boolean {
     return !!this.cafe && this.manager.snapshot().state === 'COOKING' && this.cafe.queue.current?.kind === 'phone';
   }

@@ -24,6 +24,7 @@ Capture the page in OBS (browser source) or TikTok LIVE Studio. Click the page o
 | `?mode=vote` | landscape: viewers vote the next dessert with comments 1/2/3 |
 | `?mode=classic` | the first mode: one dessert at a time, no queue, with a DOM HUD |
 | `?mock=1` (`&rate=N`, max 500) | simulated viewers (likes, follows, named gifts, comments in vote mode); no TikTok needed |
+| `?keys=1` | test shortcuts (also on with `?debug=1` and in the hosted demo): press `?` to see them. 1–8 gifts of each tier, L/K likes, F follow, O orange heart, P phone → Thai ghost, C finish the dessert, B backdrop, V voices, M mute |
 | `?debug=1` | exposes `window.__snapshot()` for automated browser checks |
 | `?bridge=ws://127.0.0.1:8787&token=...` | real events through the local bridge, see [docs/tiktok-integration.md](docs/tiktok-integration.md) |
 | `?speed=N` | N game updates per frame (testing aid) |
@@ -69,7 +70,7 @@ customers keep the café running.
 |---|---|
 | **Follow** | **Lucky cat (แมวกวัก):** 20 s per follow (stacks to 60 s): payouts +50 %, waiting customers lose patience at half speed (a phone order's deadline is not stretched). The pill next to the cat shows the bonus and the time left. |
 | **Orange heart / fan club** (one button) | **VIP customer + tip rain:** an anonymous VIP with a golden crown (orders the 50-coin dessert, or the best unlocked one below it; pays +50 %) is called **after any gifting viewer** and before filler customers, so it never makes a paying viewer wait longer; every waiting customer tips 1 coin (max 12). One VIP at a time, 60 s cooldown. |
-| *(nobody: about every 100 s)* | **Phone call:** the phone rings, then a phone-order customer (asks for ข้าวต้มมัด) joins right behind the current customer with a 35 s deadline; reaching the counter in time pays +200 %, too slow = they hang up. If the line is full of paying viewers when the ring ends, it retries in a few seconds. |
+| *(nobody: about every 100 s)* | **Phone call = a hungry Thai ghost:** the phone rings, we pick up and hear "ฮือๆ ช่วยด้วย ผีอยากกินขนม", the lights dim and a cute ghost (กระสือ or แม่นาค) joins right behind the current customer with a 35 s deadline (it asks for ข้าวต้มมัด). While it is served it **squeezes** the café in if the dessert is slow (16 s with no taps); every tap on hearts loosens it. Squeezed = a fine (10 coins) and no bonus; served in time = +200 %. Too slow overall = it vanishes. If the line is full of paying viewers when the ring ends, it retries in a few seconds. |
 
 VIP and phone orders replace the last anonymous (filler) customer when the line is full; they never push out a paying viewer.
 Nothing about who followed or sent an orange heart is shown or stored. `?surprise=1` brings the first phone call forward to 6 s.

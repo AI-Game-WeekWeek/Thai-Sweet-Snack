@@ -16,6 +16,7 @@ import { AvatarCache } from './render/AvatarCache';
 import '@fontsource/mali/thai-700.css';
 import '@fontsource/mali/latin-700.css';
 import { CafeRenderer } from './render/CafeRenderer';
+import { installDevKeys } from './devKeys';
 import { preloadArt } from './render/artImages';
 import { ALL_PIC_NAMES } from './render/artManifest';
 import { Renderer } from './render/Renderer';
@@ -171,6 +172,24 @@ if (params.get('debug') === '1') (window as unknown as { __snapshot: () => unkno
 
 game.start();
 driver.start();
+
+// Test shortcuts (press ? to see them): on with ?keys=1, ?debug=1 or in the hosted demo.
+if (cafeMode && (params.get('keys') === '1' || params.get('debug') === '1' || __DEMO__)) {
+  const bgs = ['day', 'rain', 'night'] as const;
+  installDevKeys({
+    game,
+    giftCoins: [...cfg.cafe.giftTiers].sort((a, b) => a.minCoins - b.minCoins).map((t) => t.minCoins),
+    setMuted: (m) => audio.setMuted(m),
+    cycleBackground: () => {
+      if (!cafeRenderer) return '-';
+      const next = bgs[(bgs.indexOf(cafeRenderer.background) + 1) % bgs.length] as (typeof bgs)[number];
+      cafeRenderer.background = next;
+      return next;
+    },
+    speak: (text, pitch, gender) => void audio.speak(text, 0, pitch, 0.7, gender),
+    playSound: (id) => void audio.play(id as never, 0),
+  });
+}
 
 // Classic mode's HUD only reads snapshots, ten times a second.
 if (ui) {
