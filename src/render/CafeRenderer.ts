@@ -118,6 +118,7 @@ export class CafeRenderer {
       this.safely('serve', () => this.drawServeOut(ctx, view));
       this.safely('shaman', () => this.drawShaman(ctx, view.cafe));
       this.safely('shamanQuota', () => this.drawShamanQuota(ctx, view.cafe));
+      this.safely('connection', () => this.drawConnection(ctx, view.cafe));
       this.safely('squeeze', () => this.drawSqueeze(ctx, view.cafe, sq));
       this.safely('hud', () => this.drawHud(ctx, view.cafe));
     } finally {
@@ -323,6 +324,27 @@ export class CafeRenderer {
       ctx.ellipse(CAFE_W / 2, 520, 60 + 220 * k, 40 + 150 * k, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
+  }
+
+  /** Shown on the canvas only when asked (a live bridge is configured): a small dot and label for the event link. */
+  showConnection = false;
+
+  private drawConnection(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined): void {
+    if (!this.showConnection || !cafe) return;
+    const st = cafe.connection ?? 'offline';
+    const color = st === 'connected' ? '#5fe07a' : st === 'reconnecting' ? '#ffc247' : '#ff6b6b';
+    const label = st === 'connected' ? 'ต่อ TikTok แล้ว' : st === 'reconnecting' ? 'กำลังต่อใหม่…' : 'ไม่ได้ต่อ TikTok';
+    ctx.font = `700 24px ${FONT}`;
+    const w = (Number.isFinite(ctx.measureText(label).width) ? ctx.measureText(label).width : 150) + 52;
+    ctx.fillStyle = 'rgba(20,12,8,0.7)';
+    ctx.beginPath();
+    ctx.roundRect(CAFE_W - 16 - w, 84, w, 40, 20);
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(CAFE_W - 16 - w + 22, 104, 9, 0, Math.PI * 2);
+    ctx.fill();
+    this.text(ctx, label, CAFE_W - 16 - w + 36 + (w - 36) / 2, 106, 24, '#fff3dc', '#1c1233');
   }
 
   /** How many shaman visits are saved up from shares (shown whenever there is at least one, or one is on its way). */

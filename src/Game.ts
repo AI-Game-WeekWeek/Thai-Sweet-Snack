@@ -120,6 +120,8 @@ export interface CafeView {
   /** Shaman visits saved up from shares (each share +1, up to a maximum); one is used when a ghost needs calming. */
   shamanQuota?: number;
   shamanQuotaMax?: number;
+  /** Link to the live event source (bridge). */
+  connection?: ConnectionState;
 }
 
 export interface GameCafeMode {
@@ -803,6 +805,7 @@ export class Game {
       ghostCalm: this.ghostTamed,
       shamanQuota: this.shamanQuota,
       shamanQuotaMax: SHAMAN_MAX_QUOTA,
+      connection: this.events?.connection ?? 'offline',
       spooky: this.phoneRingMs > 0 || this.phoneTalkMs > 0 || this.cafe?.queue.current?.kind === 'phone' || (this.cafe?.queue.waiting().some((c) => c.kind === 'phone') ?? false),
     };
   }

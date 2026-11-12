@@ -168,3 +168,4 @@ Thumbs.db
 
 # Hosted demo build
 dist-demo/
+.live-token

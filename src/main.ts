@@ -124,6 +124,7 @@ if (cafeRenderer) {
   const hour = new Date().getHours();
   cafeRenderer.background = bgParam === 'rain' || bgParam === 'night' || bgParam === 'day' ? bgParam : hour >= 18 || hour < 6 ? 'night' : 'day';
 }
+if (cafeRenderer) cafeRenderer.showConnection = params.get('bridge') !== null || params.get('status') === '1';
 const renderer = cafeRenderer ?? (voteMode ? new VoteRenderer(cfg.vote.maxBoost) : new Renderer());
 
 // ?bridge=ws://127.0.0.1:8787&token=... connects to the local bridge (see docs/tiktok-integration.md).
@@ -152,7 +153,14 @@ if (bridgeParam && /^wss?:\/\//i.test(bridgeParam)) {
   audio.registerSample('ring', inline?.ring ?? 'sfx/ring.mp3');
 }
 // Optional recorded voice lines in public/voice/ (see src/audio/voiceFiles.ts): played when present, otherwise the device voice speaks.
-for (const v of voiceFiles(ALL_DESSERTS)) audio.registerSample(v.key, `voice/${v.file}`);
+// voice/index.json (made at build time) lists the files that really exist, so nothing is requested in vain.
+void fetch('voice/index.json')
+  .then((r) => (r.ok ? (r.json() as Promise<unknown>) : []))
+  .then((present) => {
+    const have = new Set(Array.isArray(present) ? present.filter((x): x is string => typeof x === 'string') : []);
+    for (const v of voiceFiles(ALL_DESSERTS)) if (have.has(v.file)) audio.registerSample(v.key, `voice/${v.file}`);
+  })
+  .catch(() => undefined);
 audio.unlock();
 const gestures = ['pointerup', 'click', 'keydown', 'touchend'] as const;
 const retryUnlock = (): void => {

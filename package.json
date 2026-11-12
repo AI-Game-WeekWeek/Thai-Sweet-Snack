@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json",
-    "bridge": "tsx server/main.ts"
+    "bridge": "tsx server/main.ts",
+    "live": "tsx server/live.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

@@ -269,3 +269,15 @@ describe('shaman quota badge', () => {
     for (const q of [NaN, -2, Infinity, 1e9]) expect(() => t(q)).not.toThrow();
   });
 });
+
+describe('connection status', () => {
+  it('shows the link state only when asked, with a label per state', () => {
+    const t = (show: boolean, c: string | undefined) => { const r = new CafeRenderer(4, avatars()); r.showConnection = show; const f = fakeCtx(); r.draw(f.ctx, 720, 1280, view({ cafe: { ...view().cafe, connection: c } as never }), new ParticleSystem(10, 0), 16); expect(f.depth()).toBe(0); return f.texts.join(' '); };
+    expect(t(false, 'connected')).not.toContain('TikTok');
+    expect(t(true, 'connected')).toContain('ต่อ TikTok แล้ว');
+    expect(t(true, 'reconnecting')).toContain('กำลังต่อใหม่');
+    expect(t(true, 'offline')).toContain('ไม่ได้ต่อ TikTok');
+    expect(t(true, undefined)).toContain('ไม่ได้ต่อ TikTok');
+    expect(t(true, 'weird-value')).toContain('ไม่ได้ต่อ'.slice(0, 5));
+  });
+});
