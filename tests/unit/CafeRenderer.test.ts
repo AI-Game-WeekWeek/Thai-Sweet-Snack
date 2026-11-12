@@ -118,14 +118,16 @@ describe('CafeRenderer', () => {
     const sign = yOf('ร้านขนมไทย');
     const status = yOf('กำลังทำ บัวลอย');
     const progress = yOf('42%');
-    const menuTitle = yOf('ส่งของขวัญ = สั่งขนม');
+    const menuTitle = yOf('ส่งของขวัญ'); // the menu is two small boards beside the dessert, above where live chat covers the screen
+    expect(yOf('= สั่งขนม')).toBe(menuTitle);
     for (const y of customerYs) {
       expect(y).toBeGreaterThan(sign);
       expect(y).toBeLessThan(720); // upper third: nothing a customer says or shows is low on the screen
       expect(y).toBeLessThan(status);
     }
     expect(status).toBeLessThan(progress);
-    expect(progress).toBeLessThan(menuTitle);
+    expect(menuTitle).toBeGreaterThan(status);
+    expect(menuTitle).toBeLessThan(progress);
     expect(menuTitle).toBeLessThan(1920);
     // the order bubble sits above the served customer, near the top
     const bubble = f.at.find((a) => a.t === 'บัวลอย' && a.y < 400);
