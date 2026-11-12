@@ -26,6 +26,8 @@ export interface NewCustomer {
   name?: string | null;
   avatarUrl?: string | null;
   dessertId: string;
+  /** Fixes the look (outfit / ghost kind) of this customer. Default: derived from the id. */
+  seed?: number;
 }
 
 export interface CafeQueueOptions {
@@ -70,7 +72,7 @@ export class CafeQueue {
       viewer: n.viewer,
       name: name === '' ? null : name,
       avatarUrl: n.avatarUrl ?? null,
-      seed: this.nextId,
+      seed: n.seed !== undefined && Number.isFinite(n.seed) ? n.seed : this.nextId,
       dessertId: n.dessertId,
       patienceMs: patience,
       patienceMaxMs: patience,

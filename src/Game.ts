@@ -205,6 +205,7 @@ export class Game {
   private squeeze = 0;
   private squeezed = false;
   private ghostVisits = 0;
+  private forceGhostType: number | null = null;
   private visitCounted = false;
   private squeezeFlashMs = 0;
   private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
@@ -446,14 +447,22 @@ export class Game {
   }
 
   /** Test shortcut: the phone rings now (the ghost calls). False when a ghost is already around or the line is full. */
-  callGhostNow(): boolean {
+  callGhostNow(type?: number): boolean {
     const cafe = this.cafe;
     if (!cafe) return false;
     const busy = this.phoneRingMs > 0 || this.phoneTalkMs > 0 || cafe.queue.current?.kind === 'phone' || cafe.queue.waiting().some((c) => c.kind === 'phone');
     if (busy || !this.hasRoomForSpecial()) return false;
     const ph = this.config.cafe.surprise.phone;
     this.phoneRingMs = Number.isFinite(ph.ringMs) ? Math.max(1, ph.ringMs) : 3000;
+    this.forceGhostType = type !== undefined && Number.isFinite(type) ? Math.abs(Math.floor(type)) % 5 : null;
     this.fx?.audio.play('ring', this.soundRound(this.manager.snapshot().roundId));
+    return true;
+  }
+
+  /** Test shortcut: the ghost squeezes almost at once (to see the squeeze). False when no ghost is being served. */
+  squeezeNow(): boolean {
+    if (!this.ghostCooking()) return false;
+    this.squeeze = Math.max(this.squeeze, 0.97);
     return true;
   }
 
@@ -623,7 +632,8 @@ export class Game {
         const ids = this.desserts.unlockedIds;
         const preferred = this.config.cafe.defaultDessertId;
         const id = ids.includes(preferred) ? preferred : ids[Math.floor((cafe.rng ?? Math.random)() * ids.length)];
-        if (id) placed = this.enqueueSpecial({ viewer: false, kind: 'phone', dessertId: id, patienceMs: ph.deadlineMs });
+        if (id) placed = this.enqueueSpecial({ viewer: false, kind: 'phone', dessertId: id, patienceMs: ph.deadlineMs, ...(this.forceGhostType !== null ? { seed: 1000 + this.forceGhostType } : {}) });
+        this.forceGhostType = null;
         if (placed) {
           // we pick up: a Thai ghost sobs that it wants a dessert, and then turns up at the counter
           this.phoneTalkMs = 3400;

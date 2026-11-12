@@ -42,6 +42,12 @@ export function devKeys(): DevKey[] {
     { key: 's', label: 'แชร์ (โบนัสคะแนน)', run: (t) => (ev(t, 'share'), 'แชร์') },
     { key: 'r', label: 'กุหลาบ (เอฟเฟกต์)', run: (t) => (ev(t, 'rose', { displayName: 'ทดสอบ' }), 'กุหลาบ') },
     { key: 'p', label: 'โทรศัพท์ดัง → ผีไทยมา (ผีบีบถ้าช้า)', run: (t) => (t.game.callGhostNow() ? 'โทรศัพท์ดัง!' : 'มีผีอยู่แล้ว หรือคิวเต็ม') },
+    ...(['นางรำ', 'ผีพราย', 'กระสือ', 'แม่นาค', 'ผีหิว'] as const).map((name, i): DevKey => ({
+      key: ['q', 'w', 'e', 't', 'y'][i] as string,
+      label: `เสก${name} (โทรศัพท์ดังแล้วผีตัวนี้มา)`,
+      run: (t) => (t.game.callGhostNow(i) ? `เสก ${name}` : 'มีผีอยู่แล้ว หรือคิวเต็ม'),
+    })),
+    { key: 'z', label: 'ผีบีบทันที (ดูฉากโดนบีบ)', run: (t) => (t.game.squeezeNow() ? 'ผีบีบ!' : 'ยังไม่มีผีกำลังถูกเสิร์ฟ') },
     { key: 'c', label: 'ทำขนมให้เสร็จทันที', run: (t) => (t.game.finishCookingNow() ? 'เสร็จทันที' : 'ยังไม่ได้ทำขนม') },
     { key: 'b', label: 'สลับพื้นหลัง กลางวัน/ฝน/กลางคืน', run: (t) => `พื้นหลัง: ${t.cycleBackground()}` },
     { key: 'v', label: 'ทดสอบเสียงพูด (ผู้หญิง ผู้ชาย ผี)', run: (t) => {

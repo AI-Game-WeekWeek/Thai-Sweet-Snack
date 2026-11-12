@@ -392,3 +392,20 @@ describe('café surprise events', () => {
     expect(game.snapshot().cafe!.waiting.find((c) => c.kind === 'phone')!.dessertNameTh).toBe('ข้าวต้มมัด');
   });
 });
+
+describe('forced ghost kind (test shortcut)', () => {
+  it('callGhostNow(type) makes the next ghost look like that kind, and squeezeNow only works while a ghost is served', () => {
+    const { game } = mk({}, { npcSpawnEveryMs: 1e9 });
+    game.start();
+    expect(game.squeezeNow()).toBe(false);
+    expect(game.callGhostNow(3)).toBe(true);
+    expect(game.callGhostNow(1)).toBe(false); // already ringing
+    const all = () => { const c = game.snapshot().cafe!; return [...c.waiting, ...(c.serving ? [c.serving] : [])]; };
+    runUntil(game, () => all().some((c) => c.kind === 'phone'));
+    const ghost = all().find((c) => c.kind === 'phone')!;
+    expect(ghost.seed % 5).toBe(3);
+    runUntil(game, () => game.snapshot().cafe!.serving?.kind === 'phone');
+    runUntil(game, () => game.snapshot().state === 'COOKING');
+    expect(game.squeezeNow()).toBe(true);
+  });
+});

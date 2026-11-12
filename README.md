@@ -24,7 +24,7 @@ Capture the page in OBS (browser source) or TikTok LIVE Studio. Click the page o
 | `?mode=vote` | landscape: viewers vote the next dessert with comments 1/2/3 |
 | `?mode=classic` | the first mode: one dessert at a time, no queue, with a DOM HUD |
 | `?mock=1` (`&rate=N`, max 500) | simulated viewers (likes, follows, named gifts, comments in vote mode); no TikTok needed |
-| `?keys=1` | test shortcuts (also on with `?debug=1` and in the hosted demo): press `?` to see them. 1–8 gifts of each tier, L/K likes, F follow, O orange heart, P phone → Thai ghost, C finish the dessert, B backdrop, V voices, M mute |
+| `?keys=1` | test shortcuts (also on with `?debug=1` and in the hosted demo): press `?` to see them. 1–8 gifts of each tier, L/K likes, F follow, O orange heart, P phone → random Thai ghost, Q/W/E/T/Y the 5 ghost kinds (นางรำ, พราย, กระสือ, แม่นาค, ผีหิว), Z squeeze now, C finish the dessert, B backdrop, V voices, M mute |
 | `?debug=1` | exposes `window.__snapshot()` for automated browser checks |
 | `?bridge=ws://127.0.0.1:8787&token=...` | real events through the local bridge, see [docs/tiktok-integration.md](docs/tiktok-integration.md) |
 | `?speed=N` | N game updates per frame (testing aid) |
