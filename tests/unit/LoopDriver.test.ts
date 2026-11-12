@@ -87,4 +87,34 @@ describe('LoopDriver', () => {
     expect(f.pendingCount()).toBe(1);
     vi.restoreAllMocks();
   });
+
+  it('stop()+start() called from inside update() leaves exactly one loop', () => {
+    const f = fakeRaf();
+    let driver: LoopDriver | undefined;
+    let calls = 0;
+    const update = vi.fn(() => {
+      if (++calls === 1) {
+        driver!.stop();
+        driver!.start();
+      }
+    });
+    driver = new LoopDriver({ update } as unknown as GameManager, f.raf, f.caf);
+    driver.start();
+    f.frame(0);
+    expect(f.pendingCount()).toBe(1);
+    f.frame(16);
+    f.frame(32);
+    expect(f.pendingCount()).toBe(1);
+    expect(update).toHaveBeenCalledTimes(3); // one update per frame, not two
+  });
+
+  it('stop() called from inside update() ends the loop', () => {
+    const f = fakeRaf();
+    let driver: LoopDriver | undefined;
+    const update = vi.fn(() => driver!.stop());
+    driver = new LoopDriver({ update } as unknown as GameManager, f.raf, f.caf);
+    driver.start();
+    f.frame(0);
+    expect(f.pendingCount()).toBe(0);
+  });
 });

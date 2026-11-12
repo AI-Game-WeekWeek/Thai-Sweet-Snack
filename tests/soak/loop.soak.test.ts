@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultConfig } from '../../src/config/gameConfig';
-import { GameManager, type Snapshot } from '../../src/core/GameManager';
+import { defaultConfig, type GameConfig } from '../../src/config/gameConfig';
+import { GameManager, type GameHooks, type Snapshot } from '../../src/core/GameManager';
+import { LoopDriver } from '../../src/core/LoopDriver';
 import { TRANSITIONS, type GameState } from '../../src/core/StateMachine';
 
 const ROUNDS = 150;
@@ -19,9 +20,22 @@ function mulberry32(seed: number): () => number {
 }
 
 /** Runs the loop to ROUNDS finished rounds, asserting stability invariants on every frame. */
-function soak(frameFn: (g: GameManager, check: () => void) => void): { cleaned: number[]; frames: number } {
+function soak(
+  frameFn: (g: GameManager, check: () => void) => void,
+  config: GameConfig = defaultConfig,
+  makeHooks: (g: () => GameManager) => GameHooks = () => ({}),
+): { cleaned: number[]; frames: number } {
   const cleaned: number[] = [];
-  const g = new GameManager(defaultConfig, { onCleanupRound: (id) => cleaned.push(id) });
+  // eslint-disable-next-line prefer-const
+  let g: GameManager;
+  const extra = makeHooks(() => g);
+  g = new GameManager(config, {
+    onEnter: (st, id) => extra.onEnter?.(st, id),
+    onCleanupRound: (id) => {
+      cleaned.push(id);
+      extra.onCleanupRound?.(id);
+    },
+  });
   expect(g.start()).toBe(true);
   expect(g.start()).toBe(false);
 
@@ -36,7 +50,7 @@ function soak(frameFn: (g: GameManager, check: () => void) => void): { cleaned: 
     const idStep = cur.roundId - prev.roundId;
     expect(idStep === 0 || (idStep === 1 && cur.state === 'PREPARING')).toBe(true);
     expect(cur.stateElapsedMs).toBeGreaterThanOrEqual(0);
-    expect(cur.stateElapsedMs).toBeLessThanOrEqual(defaultConfig.maxMs[KEY[cur.state as Exclude<GameState, 'IDLE'>]]);
+    expect(cur.stateElapsedMs).toBeLessThanOrEqual(config.maxMs[KEY[cur.state as Exclude<GameState, 'IDLE'>]]);
     prev = cur;
   };
 
@@ -74,6 +88,72 @@ describe('core loop soak', () => {
       }
       if (rand() < 0.05) g.start();
     });
+    expect(cleaned).toHaveLength(ROUNDS);
+    expect(new Set(cleaned).size).toBe(ROUNDS);
+  });
+
+  it('watchdog alone drives 150 rounds when nominal durations exceed the limits', () => {
+    const stuck: GameConfig = {
+      ...defaultConfig,
+      durationsMs: { preparing: 1e9, cooking: 1e9, presenting: 1e9, rewarding: 1e9, nextDessert: 1e9 },
+    };
+    const { cleaned } = soak((g) => g.update(16), stuck);
+    expect(cleaned).toHaveLength(ROUNDS);
+  });
+
+  it('runs 150 rounds through LoopDriver with random stop()/start() and never has a second loop', () => {
+    const rand = mulberry32(777);
+    let nextId = 1;
+    const pending = new Map<number, (t: number) => void>();
+    const raf = (cb: (t: number) => void): number => {
+      const id = nextId++;
+      pending.set(id, cb);
+      return id;
+    };
+    const caf = (id: number): void => void pending.delete(id);
+
+    let driver!: LoopDriver;
+    let updatesThisFrame = 0;
+    const cleaned: number[] = [];
+    const game = new GameManager(defaultConfig, {
+      // Restart the driver from inside a hook (i.e. inside update) now and then.
+      onEnter: () => {
+        if (rand() < 0.2) {
+          driver.stop();
+          driver.start();
+        }
+      },
+      onCleanupRound: (id) => cleaned.push(id),
+    });
+    const realUpdate = game.update.bind(game);
+    game.update = (dt: number): void => {
+      updatesThisFrame++;
+      realUpdate(dt);
+    };
+    driver = new LoopDriver(game, raf, caf);
+    game.start();
+    driver.start();
+
+    let t = 0;
+    for (let frame = 0; game.snapshot().roundsCompleted < ROUNDS; frame++) {
+      expect(frame).toBeLessThan(FRAME_LIMIT);
+      expect(pending.size).toBeLessThanOrEqual(1); // never a second loop
+      if (pending.size === 0) {
+        driver.start(); // after an external stop(), resuming is allowed
+        continue;
+      }
+      if (rand() < 0.02) {
+        driver.stop();
+        expect(pending.size).toBe(0);
+        driver.start();
+      }
+      updatesThisFrame = 0;
+      t += 16;
+      const [[id, cb]] = [...pending.entries()] as [[number, (t: number) => void]];
+      pending.delete(id);
+      cb(t);
+      expect(updatesThisFrame).toBeLessThanOrEqual(1); // one update per frame, never two
+    }
     expect(cleaned).toHaveLength(ROUNDS);
     expect(new Set(cleaned).size).toBe(ROUNDS);
   });
