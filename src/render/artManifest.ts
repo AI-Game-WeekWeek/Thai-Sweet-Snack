@@ -8,6 +8,7 @@ export type Motion =
   | { m: 'slide'; dx: number; dy?: number; speed?: number }
   | { m: 'pulse'; k: number; speed?: number }
   | { m: 'squash'; k: number; speed?: number }
+  | { m: 'gather'; dx: number; dy?: number; speed?: number }
   | { m: 'swing'; a: number; px: number; py: number; speed?: number };
 
 /** One picture in a cooking scene. `fade` cross-fades it in or out across the step (a thing being made or changed). */
@@ -66,18 +67,18 @@ export const COOK_SCENES: Record<ArtId, readonly StageSpec[]> = {
     { layers: [L('lukchup-10', 370, 420, 280), L('lukchup-12', 720, 400, 210), L('lukchup-11', 540, 300, 250, { m: 'slide', dx: 120, dy: 18, speed: 1.8 })] },
     { layers: [L('lukchup-13', 500, 370, 300, { m: 'dip', h: 46, speed: 1.4 })], fx: [{ kind: 'drop', x: 500, y: 330, w: 120, n: 3, color: '#f4c24a' }] },
     { layers: [L('lukchup-14', 500, 390, 350, rock(0.015, 1.2))], fx: [{ kind: 'sparkle', x: 500, y: 360, w: 300, n: 4 }] },
-    { layers: [L('lukchup-15', 500, 390, 340, { m: 'pulse', k: 0.03, speed: 1.3 })], fx: [{ kind: 'sparkle', x: 500, y: 350, w: 320, n: 5 }] },
+    { layers: [L('lukchup-1', 500, 390, 190, { m: 'gather', dx: -300, dy: 10 }, 'out'), L('lukchup-2', 500, 380, 190, { m: 'gather', dx: 0, dy: -170 }, 'out'), L('lukchup-3', 500, 390, 190, { m: 'gather', dx: 300, dy: 10 }, 'out'), L('lukchup-15', 500, 390, 340, undefined, 'in')], fx: [{ kind: 'sparkle', x: 500, y: 350, w: 320, n: 5 }] },
   ],
   thread: [
-    { layers: [L('foithong-3', 500, 410, 290), L('foithong-4', 500, 290, 250, rock(0.1, 1.8))], fx: [{ kind: 'drop', x: 520, y: 330, w: 80, n: 4, color: YOLK }] },
+    { layers: [L('foithong-3', 500, 420, 300), L('foithong-4', 500, 262, 220, { m: 'slide', dx: 22, speed: 1.3 })], fx: [{ kind: 'drop', x: 520, y: 330, w: 80, n: 4, color: YOLK }] },
     { layers: [L('foithong-5', 500, 390, 330, rock(0.01, 2))], fx: [{ kind: 'bubbles', x: 500, y: 360, w: 280, n: 4 }, { kind: 'steam', x: 500, y: 280, w: 240, n: 2 }] },
-    { layers: [L('foithong-6', 500, 380, 340, orbit(10, 0.06, 1.3))], fx: [{ kind: 'bubbles', x: 500, y: 360, w: 280, n: 3 }, { kind: 'steam', x: 500, y: 280, w: 240, n: 2 }] },
-    { layers: [L('foithong-7', 500, 380, 330, { m: 'swing', a: 0.09, px: 0.4, py: -0.45, speed: 1.4 })], fx: [{ kind: 'drop', x: 420, y: 430, w: 80, n: 3, color: YOLK }] },
+    { layers: [L('foithong-6', 500, 385, 340)], fx: [{ kind: 'bubbles', x: 500, y: 360, w: 280, n: 3 }, { kind: 'steam', x: 500, y: 280, w: 240, n: 2 }] },
+    { layers: [L('foithong-7', 500, 380, 330, { m: 'dip', h: 10, speed: 1.1 })], fx: [{ kind: 'drop', x: 420, y: 430, w: 80, n: 3, color: YOLK }] },
     { layers: [L('foithong-8', 500, 380, 340, { m: 'dip', h: 12, speed: 1.2 })], fx: [{ kind: 'drop', x: 500, y: 330, w: 100, n: 4, color: YOLK }] },
     { layers: [L('foithong-2', 500, 395, 330, { m: 'pulse', k: 0.03, speed: 1.2 })], fx: [{ kind: 'sparkle', x: 500, y: 360, w: 300, n: 4 }] },
   ],
   flower: [
-    { layers: [L('thongyipA-4', 500, 395, 300, orbit(8, 0.04, 1.5))], fx: [{ kind: 'sparkle', x: 500, y: 350, w: 240, n: 3 }] },
+    { layers: [L('thongyipA-4', 500, 405, 290, undefined, undefined, 395), L('ktm-4', 548, 315, 230, orbit(28, 0.16, 1.5))], fx: [{ kind: 'sparkle', x: 500, y: 350, w: 240, n: 3 }] },
     { layers: [L('thongyipA-5', 500, 390, 330, rock(0.01, 2))], fx: [{ kind: 'bubbles', x: 500, y: 360, w: 260, n: 3 }, { kind: 'steam', x: 500, y: 280, w: 220, n: 2 }] },
     { layers: [L('thongyipA-6', 500, 395, 330, rock(0.01, 2))], fx: [{ kind: 'drop', x: 500, y: 260, w: 40, n: 2, color: YOLK }, { kind: 'bubbles', x: 500, y: 360, w: 220, n: 2 }] },
     { layers: [L('thongyipA-6', 300, 405, 230, rock(0.01, 2), 'out'), L('thongyipA-7', 560, 385, 300, { m: 'squash', k: 0.08, speed: 2 }, 'out'), L('thongyipA-1', 560, 395, 300, undefined, 'in')], fx: [{ kind: 'sparkle', x: 640, y: 380, w: 220, n: 3 }] },
@@ -98,8 +99,8 @@ export const COOK_SCENES: Record<ArtId, readonly StageSpec[]> = {
     { layers: [L('bualoy-9', 500, 385, 330, { m: 'swing', a: 0.07, px: 0.3, py: -0.2, speed: 1.2 })], fx: [{ kind: 'drop', x: 470, y: 330, w: 20, n: 3, color: '#fff7e2' }] },
   ],
   crepe: [
-    { layers: [L('crepe-4', 500, 395, 310, rock(0.035, 1.6))], fx: [{ kind: 'sparkle', x: 500, y: 350, w: 260, n: 3 }] },
-    { layers: [L('crepe-5', 500, 385, 300, { m: 'pulse', k: 0.05, speed: 1.8 })], fx: [{ kind: 'sparkle', x: 500, y: 330, w: 240, n: 4 }] },
+    { layers: [L('crepe-4', 500, 405, 300, undefined, undefined, 395), L('ktm-4', 548, 315, 230, orbit(28, 0.16, 1.5))], fx: [{ kind: 'sparkle', x: 500, y: 350, w: 260, n: 3 }] },
+    { layers: [L('crepe-5', 500, 400, 290, undefined, undefined, 390), L('ktm-4', 548, 305, 230, orbit(26, 0.16, 1.6))], fx: [{ kind: 'sparkle', x: 500, y: 330, w: 240, n: 4 }] },
     { layers: [L('crepe-6', 500, 400, 340, undefined, 'out'), L('crepe-7', 500, 400, 340, undefined, 'in')], fx: [{ kind: 'steam', x: 500, y: 300, w: 260, n: 3 }] },
     { layers: [L('crepe-7', 500, 400, 340, undefined, 'out'), L('crepe-8', 500, 400, 340, undefined, 'in')], fx: [{ kind: 'steam', x: 500, y: 300, w: 260, n: 2 }, { kind: 'sparkle', x: 500, y: 360, w: 260, n: 4 }] },
     { layers: [L('crepe-8', 500, 400, 340, { m: 'squash', k: 0.03, speed: 2 }, 'out'), L('crepe-9', 500, 400, 340, undefined, 'in')], fx: [{ kind: 'steam', x: 500, y: 300, w: 260, n: 2 }] },

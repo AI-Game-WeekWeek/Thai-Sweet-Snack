@@ -458,7 +458,7 @@ interface Pose {
 const REST: Pose = { dx: 0, dy: 0, rot: 0, sx: 1, sy: 1 };
 
 /** How a picture moves at `time` (ms). Pure; hostile numbers give the rest pose. */
-function poseOf(m: Motion | undefined, size: number, time: number): Pose {
+function poseOf(m: Motion | undefined, size: number, time: number, t = 1): Pose {
   if (!m) return REST;
   const w = (time / 1000) * Math.PI * 2 * (m.speed ?? 1) * 0.9;
   switch (m.m) {
@@ -466,6 +466,10 @@ function poseOf(m: Motion | undefined, size: number, time: number): Pose {
       return { ...REST, rot: m.a * Math.sin(w) };
     case 'orbit':
       return { dx: m.r * Math.cos(w), dy: m.r * 0.45 * Math.sin(w), rot: (m.tilt ?? 0) * Math.sin(w + 1), sx: 1, sy: 1 };
+    case 'gather': {
+      const e = 1 - smooth(c01(t / 0.5)); // slides in during the first half of the step, then stays together
+      return { ...REST, dx: m.dx * e, dy: (m.dy ?? 0) * e };
+    }
     case 'dip':
       return { ...REST, dy: m.h * (0.5 + 0.5 * Math.sin(w)) };
     case 'slide':
@@ -601,7 +605,7 @@ function drawCookPics(ctx: CanvasRenderingContext2D, art: ArtId, a: CookingArt):
     for (const l of prev.layers) {
       if (artImage(l.pic) === null) continue;
       if (layers.some((n) => n.pic === l.pic)) continue; // still on stage: it simply stays
-      const pose = poseOf(l.motion, l.size, time);
+      const pose = poseOf(l.motion, l.size, time, 1);
       ctx.save();
       try {
         ctx.globalAlpha = (1 - blend) * (l.fade === 'in' ? 1 : 1);
@@ -615,7 +619,7 @@ function drawCookPics(ctx: CanvasRenderingContext2D, art: ArtId, a: CookingArt):
     const base = prev && !prev.layers.some((p) => p.pic === l.pic) ? blend : 1;
     const alpha = base * (l.fade === 'in' ? mix : l.fade === 'out' ? 1 - mix : 1);
     if (alpha <= 0.01) continue;
-    const pose = poseOf(l.motion, l.size, time);
+    const pose = poseOf(l.motion, l.size, time, t);
     ctx.save();
     try {
       ctx.globalAlpha = alpha;
@@ -627,7 +631,7 @@ function drawCookPics(ctx: CanvasRenderingContext2D, art: ArtId, a: CookingArt):
   // pictures with a front rim are drawn again below their rim line, so a spoon dipped into a bowl goes behind the rim
   for (const l of layers) {
     if (l.front === undefined || !Number.isFinite(l.front)) continue;
-    const pose = poseOf(l.motion, l.size, time);
+    const pose = poseOf(l.motion, l.size, time, t);
     ctx.save();
     try {
       ctx.beginPath();
