@@ -107,7 +107,7 @@ export class AudioManager {
   }
 
   /** A spoken line (the browser's Thai voice, if there is one). Silent when unsupported or muted; never throws. */
-  speak(text: string, roundId: number): boolean {
+  speak(text: string, roundId: number, pitch = 1.25): boolean {
     void roundId;
     if (this.muted || typeof text !== 'string' || text.length === 0) return false;
     try {
@@ -121,7 +121,7 @@ export class AudioManager {
       u.lang = 'th-TH';
       if (thai) u.voice = thai;
       u.rate = 1.05;
-      u.pitch = 1.25;
+      u.pitch = Number.isFinite(pitch) ? Math.min(2, Math.max(0.1, pitch)) : 1.25;
       u.volume = 1;
       synth.cancel();
       synth.speak(u);

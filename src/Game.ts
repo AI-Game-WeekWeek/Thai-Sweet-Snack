@@ -11,6 +11,7 @@ import type { ProgressionManager } from './reward/ProgressionManager';
 import type { RewardManager } from './reward/RewardManager';
 import type { SaveSystem } from './save/SaveSystem';
 import { dessertForGift } from './cafe/giftMenu';
+import { genderForSeed, politeEnding } from './cafe/gender';
 import type { CafeQueue, Customer, CustomerKind } from './cafe/CafeQueue';
 import type { HeartMeter } from './cooking/HeartMeter';
 import type { VoteManager } from './vote/VoteManager';
@@ -30,7 +31,7 @@ export interface AudioLike {
   play(sound: SoundId, roundId: number): boolean;
   stopRound(roundId: number): number;
   /** Optional spoken line (browser voice). */
-  speak?(text: string, roundId: number): boolean;
+  speak?(text: string, roundId: number, pitch?: number): boolean;
 }
 
 export interface GameFx {
@@ -166,6 +167,7 @@ export class Game {
   private stepSound: SoundId | null = null;
   private soundAcc = 0;
   private rewardMs = 0;
+  private orderSpeak: { text: string; pitch: number; roundId: number; ms: number } | null = null;
   private dripAcc = 0;
   private stepT = 0;
   private presentT: number | null = null;
@@ -257,7 +259,10 @@ export class Game {
     this.fx?.particles?.update(dt);
     this.wobble = Math.max(0, this.wobble - dt / 700);
     this.rewardMs = this.manager.snapshot().state === 'REWARDING' ? this.rewardMs + dt : 0;
-    if (this.cafe) this.tickCafe(dt);
+    if (this.cafe) {
+      this.tickCafe(dt);
+      this.tickOrderSpeak(dt);
+    }
     if (this.stepKind && this.manager.snapshot().state === 'COOKING') {
       this.emitParticles(this.stepKind, dt);
       this.tickStepSound(dt);
@@ -421,6 +426,16 @@ export class Game {
     if (this.current) this.lastCookedId = this.current.id;
   }
 
+  private tickOrderSpeak(dt: number): void {
+    const o = this.orderSpeak;
+    if (!o) return;
+    o.ms -= dt;
+    if (o.ms > 0) return;
+    this.orderSpeak = null;
+    const st = this.manager.snapshot().state;
+    if (st === 'PREPARING' || st === 'COOKING') this.fx?.audio.speak?.(o.text, this.soundRound(o.roundId), o.pitch);
+  }
+
   /** Café: the customer at the counter orders; anonymous customers keep the queue full when nobody is gifting. */
   private openCustomer(): void {
     const cafe = this.cafe;
@@ -434,6 +449,11 @@ export class Game {
     const c = cafe.queue.startNext();
     this.current = (c && this.desserts.get(c.dessertId)) || this.desserts.next();
     if (this.current) this.lastCookedId = this.current.id;
+    if (c && this.current) {
+      // the customer says their order once they have walked up to the counter (a moment after they become the next one)
+      const g = genderForSeed(c.seed);
+      this.orderSpeak = { text: `เอา${this.current.nameTh}${politeEnding(g)}`, pitch: g === 'male' ? 0.85 : 1.35, roundId: this.manager.snapshot().roundId, ms: 1100 };
+    }
   }
 
   private spawnNpc(): void {

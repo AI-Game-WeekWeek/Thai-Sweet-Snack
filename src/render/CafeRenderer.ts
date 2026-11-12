@@ -3,6 +3,7 @@ import { artImage, drawArt } from './artImages';
 import { drawArtServed } from './dessertArt';
 import { CAFE_PICS, ICON_PICS } from './artManifest';
 import { avatarSpec } from '../cafe/avatars';
+import { outfitIndex } from '../cafe/gender';
 import type { CafeView, CustomerView, RenderView } from '../Game';
 import type { AvatarCache } from './AvatarCache';
 import { Renderer } from './Renderer';
@@ -725,7 +726,7 @@ export class CafeRenderer {
     const bob = Math.sin(this.timeMs / 420 + (Number.isFinite(c.seed) ? c.seed : 0)) * 4;
     const y = baseY + bob;
     // body: a painted outfit when loaded (picked by seed), otherwise a rounded rectangle
-    const bodyPic = CAFE_PICS.bodies[Math.abs(Math.floor(Number.isFinite(c.seed) ? c.seed : 0)) % CAFE_PICS.bodies.length] as string;
+    const bodyPic = CAFE_PICS.bodies[outfitIndex(c.seed) % CAFE_PICS.bodies.length] as string;
     const hasBody = drawArt(ctx, bodyPic, x, y + r * 1.75, r * 2.3, r * 2.1, 0, 1, 1, Math.max(2.5, r * 0.05));
     if (!hasBody) {
       ctx.fillStyle = isColor(spec.bg) ? spec.bg : '#e06666';
