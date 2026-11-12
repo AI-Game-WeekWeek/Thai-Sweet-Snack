@@ -4,7 +4,7 @@ cd /d "%~dp0"
 where node >nul 2>nul
 if errorlevel 1 goto nonode
 if not exist node_modules call npm.cmd install
-if exist dist rmdir /s /q dist
+rem live.ts rebuilds the game every time
 call npm.cmd run live
 echo.
 echo The bridge stopped. Read the messages above.

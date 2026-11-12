@@ -8,9 +8,11 @@ import { startTikFinityClient } from './tikfinityClient';
 const port = Number(process.env.BRIDGE_PORT) || 8787;
 const host = '127.0.0.1';
 const tokenFile = '.live-token';
-if (!existsSync('dist/index.html')) {
-  console.log('ยังไม่มีเกมที่ build ไว้ กำลัง build ให้ (ครั้งเดียว)…');
-  const r = spawnSync('npx', ['vite', 'build'], { stdio: 'inherit', shell: process.platform === 'win32' });
+// always build fresh, so an old build never hides a change
+if (existsSync('src') || !existsSync('dist/index.html')) {
+  console.log('กำลัง build เกม (รอสักครู่)…');
+  // the live build: dessert waits for hearts, shortcut keys on (quiet), no simulated viewers
+  const r = spawnSync('npx', ['vite', 'build', '--mode', 'packed'], { stdio: 'inherit', shell: process.platform === 'win32' });
   if (r.status !== 0) {
     console.error('build ไม่สำเร็จ ดูข้อความด้านบน');
     process.exit(1);
