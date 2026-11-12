@@ -92,7 +92,7 @@ export interface CafeView {
   waitingTotal: number;
   /** Customers who ran out of patience since the game started. */
   lost: number;
-  giftMenu: { coins: number; nameTh: string; color: string }[];
+  giftMenu: { coins: number; nameTh: string; color: string; id: string }[];
   coins: number;
   /** Seconds of lucky-cat time left (0 = off). */
   luckyCatSec: number;
@@ -217,7 +217,7 @@ export class Game {
         .sort((a, b) => a.minCoins - b.minCoins)
         .map((t) => {
           const d = desserts.get(t.dessertId);
-          return { coins: t.minCoins, nameTh: d?.nameTh ?? t.dessertId, color: d?.palette[0] ?? '#f5f0e1' };
+          return { coins: t.minCoins, nameTh: d?.nameTh ?? t.dessertId, color: d?.palette[0] ?? '#f5f0e1', id: t.dessertId };
         });
     }
   }

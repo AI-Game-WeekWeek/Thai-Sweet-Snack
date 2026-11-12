@@ -14,6 +14,8 @@ import { SaveSystem, type StorageLike } from './save/SaveSystem';
 import { UIManager } from './ui/UIManager';
 import { AvatarCache } from './render/AvatarCache';
 import { CafeRenderer } from './render/CafeRenderer';
+import { preloadArt } from './render/artImages';
+import { ALL_PIC_NAMES } from './render/artManifest';
 import { Renderer } from './render/Renderer';
 import { VoteRenderer } from './render/VoteRenderer';
 import { VoteManager } from './vote/VoteManager';
@@ -110,7 +112,15 @@ if (mock) {
   mock.steady(Math.min(500, Math.max(1, Number(params.get('rate')) || 20)), 24 * 3600 * 1000);
   setInterval(() => mock.burst('like', 300, Date.now()), 15_000);
 }
-const renderer = cafeMode ? new CafeRenderer(cfg.vote.maxBoost, new AvatarCache(cfg.cafe.avatar)) : voteMode ? new VoteRenderer(cfg.vote.maxBoost) : new Renderer();
+const cafeRenderer = cafeMode ? new CafeRenderer(cfg.vote.maxBoost, new AvatarCache(cfg.cafe.avatar)) : null;
+if (cafeRenderer) {
+  // painted pictures are optional: shapes are drawn until (and unless) they load
+  preloadArt(ALL_PIC_NAMES);
+  const bgParam = params.get('bg');
+  const hour = new Date().getHours();
+  cafeRenderer.background = bgParam === 'rain' || bgParam === 'night' || bgParam === 'day' ? bgParam : hour >= 18 || hour < 6 ? 'night' : 'day';
+}
+const renderer = cafeRenderer ?? (voteMode ? new VoteRenderer(cfg.vote.maxBoost) : new Renderer());
 
 // ?bridge=ws://127.0.0.1:8787&token=... connects to the local bridge (see docs/tiktok-integration.md).
 // Without it the game runs on its own (or with ?mock=1); a dead bridge only changes the connection label.

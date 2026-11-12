@@ -44,10 +44,12 @@ export class Renderer {
    * The cooking station (table, bowl or tray, step effects, particles) in the 1000x600 world. The caller sets the
    * transform, so other layouts (portrait café) can place it anywhere. Draws no background.
    */
-  drawScene(ctx: CanvasRenderingContext2D, view: RenderView, particles: ParticleSystem): void {
-    // table
-    ctx.fillStyle = '#c98f5a';
-    ctx.fillRect(0, 470, WORLD_W, 130);
+  drawScene(ctx: CanvasRenderingContext2D, view: RenderView, particles: ParticleSystem, table = true): void {
+    // table (skipped when the caller already has a painted counter)
+    if (table) {
+      ctx.fillStyle = '#c98f5a';
+      ctx.fillRect(0, 470, WORLD_W, 130);
+    }
 
     const presenting = view.presentT !== null;
     if (presenting) this.drawTray(ctx, view);

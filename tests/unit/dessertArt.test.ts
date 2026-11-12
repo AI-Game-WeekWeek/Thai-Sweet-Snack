@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ART_IDS, type ArtId } from '../../src/dessert/types';
 import { drawArtCooking, drawArtServed } from '../../src/render/dessertArt';
+import { clearArt, registerArt } from '../../src/render/artImages';
+import { ALL_PIC_NAMES } from '../../src/render/artManifest';
 
 /** A canvas context that accepts every call; records a signature of what was drawn and keeps save/restore balanced. */
 function fakeCtx() {
@@ -80,5 +82,44 @@ describe('dessert art', () => {
       expect(some.signature().length, art).toBeGreaterThan(none.signature().length);
       expect(zero.signature().length, art).toBeLessThan(some.signature().length);
     }
+  });
+
+  it('uses painted pictures when loaded, falls back to shapes when not, and never throws on hostile values', () => {
+    const calls: string[] = [];
+    const rec = () => {
+      const f = fakeCtx();
+      const orig = f.ctx as unknown as Record<string, unknown>;
+      return { f, orig };
+    };
+    void rec;
+    clearArt();
+    const none = fakeCtx();
+    drawArtCooking(none.ctx, 'parcel', { stage: 0, stages: 6, t: 0.5, p: 0.5, time: 100 });
+    expect(none.signature()).not.toContain('drawImage');
+    for (const n of ALL_PIC_NAMES) registerArt(n, { width: 100, height: 80 } as unknown as CanvasImageSource & { width: number; height: number });
+    try {
+      for (const art of ART_IDS) {
+        const f = fakeCtx();
+        drawArtCooking(f.ctx, art, { stage: 1, stages: 6, t: 0.5, p: 0.5, time: 100 });
+        expect(f.signature(), `cook ${art}`).toContain('drawImage');
+        expect(f.depth()).toBe(0);
+        const g = fakeCtx();
+        drawArtServed(g.ctx, art, { t: 1, n: 5, cx: 500, cy: 410 });
+        expect(g.signature(), `served ${art}`).toContain('drawImage');
+        expect(g.depth()).toBe(0);
+        const z = fakeCtx();
+        drawArtServed(z.ctx, art, { t: 0, n: 5, cx: 500, cy: 410 });
+        expect(z.signature(), `served t=0 ${art}`).not.toContain('drawImage');
+        for (const t of [NaN, -1, 5, Infinity]) {
+          const h = fakeCtx();
+          expect(() => drawArtCooking(h.ctx, art, { stage: NaN, stages: NaN, t, p: t, time: NaN })).not.toThrow();
+          expect(() => drawArtServed(h.ctx, art, { t, n: NaN, cx: NaN, cy: Infinity })).not.toThrow();
+          expect(h.depth()).toBe(0);
+        }
+      }
+    } finally {
+      clearArt();
+    }
+    void calls;
   });
 });

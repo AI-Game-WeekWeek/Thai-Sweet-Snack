@@ -1,4 +1,6 @@
 import type { ArtId } from '../dessert/types';
+import { artImage, drawArt } from './artImages';
+import { COOK_PICS, SERVED_PICS } from './artManifest';
 
 /**
  * Per-dessert art: each Thai dessert has its own cooking scene (following how it is really made) and its own served
@@ -444,10 +446,32 @@ const SCENES: Record<ArtId, Scene> = {
   crepe: crepeScene,
 };
 
+/** Watercolor pictures for one recipe step; false when none of them is loaded (the shapes are drawn instead). */
+function drawCookPics(ctx: CanvasRenderingContext2D, art: ArtId, a: CookingArt): boolean {
+  const steps = COOK_PICS[art];
+  if (!steps || steps.length === 0) return false;
+  const stages = Number.isFinite(a.stages) ? Math.max(1, Math.floor(a.stages)) : 1;
+  const raw = Number.isFinite(a.stage) ? Math.floor(a.stage) : 0;
+  const stage = Math.min(Math.max(0, raw), Math.max(0, Math.min(stages, steps.length) - 1));
+  const names = (steps[stage] ?? []).filter((n) => artImage(n) !== null);
+  if (names.length === 0) return false;
+  const t = c01(a.t);
+  const time = Number.isFinite(a.time) ? a.time : 0;
+  const pop = 0.9 + 0.1 * spring(Math.min(1, t * 5));
+  const bob = 1 + 0.02 * Math.sin(time / 170);
+  const k = names.length;
+  const box = k === 1 ? 330 : k === 2 ? 270 : 210;
+  names.forEach((n, i) => {
+    drawArt(ctx, n, 500 + (i - (k - 1) / 2) * (box + 10), 360 + Math.sin(time / 260 + i) * 4, box, 300, Math.sin(time / 400 + i) * 0.02, pop * bob, pop / bob);
+  });
+  return true;
+}
+
 /** Draws the cooking scene for one recipe step. Unknown art ids and hostile values draw nothing or clamp. */
 export function drawArtCooking(ctx: CanvasRenderingContext2D, art: ArtId, a: CookingArt): void {
   const scene = SCENES[art];
   if (!scene) return;
+  if (drawCookPics(ctx, art, a)) return;
   const stages = Number.isFinite(a.stages) ? Math.max(1, Math.floor(a.stages)) : 1;
   const raw = Number.isFinite(a.stage) ? Math.floor(a.stage) : 0;
   // scenes are authored with up to 6 stages; map the recipe step onto them
@@ -492,11 +516,34 @@ function parcelItem(ctx: CanvasRenderingContext2D): void {
   oval(ctx, 26, -30, 7, 7, '#8a5a2b');
 }
 
+/** Watercolor pictures on the tray; false when the first picture is not loaded. */
+function drawServedPics(ctx: CanvasRenderingContext2D, art: ArtId, t: number, nRaw: number, cx: number, cy: number): boolean {
+  const names = SERVED_PICS[art];
+  if (!names || names.length === 0 || artImage(names[0] as string) === null) return false;
+  const n = Number.isFinite(nRaw) ? Math.min(8, Math.max(0, Math.floor(nRaw))) : 0;
+  const size = n <= 3 ? 150 : n <= 5 ? 118 : 96;
+  const perRow = n <= 4 ? n : Math.ceil(n / 2);
+  for (let i = 0; i < n; i++) {
+    const s = spring((t * 1.6 - (i / Math.max(1, n)) * 0.6) / 0.4);
+    if (s <= 0) continue;
+    const row = Math.floor(i / Math.max(1, perRow));
+    const inRow = i % Math.max(1, perRow);
+    const rowCount = Math.min(perRow, n - row * perRow);
+    const gap = size * 1.05;
+    const x = cx + (inRow - (rowCount - 1) / 2) * gap;
+    const y = cy - 6 + (n > 4 ? (row - 0.5) * size * 0.62 : 0);
+    const name = names[i % names.length] as string;
+    drawArt(ctx, artImage(name) ? name : (names[0] as string), x, y, size, size, ([-0.08, 0.06, -0.04, 0.09][i % 4] as number), s, Math.max(0.2, 2 - s));
+  }
+  return true;
+}
+
 /** The finished look on the serving tray, popping in with a spring. */
 export function drawArtServed(ctx: CanvasRenderingContext2D, art: ArtId, a: ServedArt): void {
   const t = c01(a.t);
   const cx = Number.isFinite(a.cx) ? a.cx : 500;
   const cy = Number.isFinite(a.cy) ? a.cy : 410;
+  if (drawServedPics(ctx, art, t, a.n, cx, cy)) return;
   const row = (gap: number, wave = 0) => (i: number, n: number): [number, number, number] => [cx + (i - (n - 1) / 2) * gap, cy + (i % 2) * wave, 0];
   switch (art) {
     case 'parcel':

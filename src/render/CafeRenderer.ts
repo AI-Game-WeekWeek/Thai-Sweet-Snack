@@ -1,4 +1,6 @@
 import type { ParticleSystem } from '../anim/ParticleSystem';
+import { artImage, drawArt } from './artImages';
+import { CAFE_PICS, ICON_PICS } from './artManifest';
 import { avatarSpec } from '../cafe/avatars';
 import type { CafeView, CustomerView, RenderView } from '../Game';
 import type { AvatarCache } from './AvatarCache';
@@ -52,7 +54,7 @@ export class CafeRenderer {
         ctx.save();
         try {
           ctx.translate(STATION_X, STATION_Y);
-          this.scene.drawScene(ctx, view, particles);
+          this.scene.drawScene(ctx, view, particles, !artImage(this.backgroundKey()));
         } finally {
           ctx.restore();
         }
@@ -88,7 +90,19 @@ export class CafeRenderer {
 
   // ---- scenery -------------------------------------------------------------------------------------------------
 
+  /** Which painted backdrop to use ('day' | 'rain' | 'night'). */
+  background: 'day' | 'rain' | 'night' = 'day';
+
+  private backgroundKey(): string {
+    return this.background === 'rain' ? CAFE_PICS.bgRain : this.background === 'night' ? CAFE_PICS.bgNight : CAFE_PICS.bgDay;
+  }
+
   private drawBackdrop(ctx: CanvasRenderingContext2D): void {
+    const bg = artImage(this.backgroundKey());
+    if (bg) {
+      ctx.drawImage(bg, 0, 0, CAFE_W, CAFE_H);
+      return;
+    }
     // back wall: warm wood planks
     const wall = ctx.createLinearGradient(0, 165, 0, 1920);
     wall.addColorStop(0, '#8a5a36');
@@ -223,14 +237,17 @@ export class CafeRenderer {
       ctx.lineWidth = 4;
       ctx.stroke();
       this.text(ctx, String(t.coins), x + 30, y + 24, t.coins >= 100 ? 21 : 26, '#fff', '#7a4f12');
-      // empty picture slot (a dessert picture goes here): rounded frame, kept clear on purpose
-      ctx.fillStyle = 'rgba(255,255,255,0.08)';
-      ctx.beginPath();
-      ctx.roundRect(x + 64, y - 2, 52, 48, 10);
-      ctx.fill();
-      ctx.strokeStyle = '#e8b64c';
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      // picture slot: the dessert picture when loaded, otherwise an empty rounded frame
+      const pic = ICON_PICS[t.id];
+      if (!(pic && drawArt(ctx, pic, x + 90, y + 22, 52, 48))) {
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.beginPath();
+        ctx.roundRect(x + 64, y - 2, 52, 48, 10);
+        ctx.fill();
+        ctx.strokeStyle = '#e8b64c';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
       ctx.textAlign = 'left';
       this.text(ctx, clip(t.nameTh, 10), x + 128, y + 24, 30, '#fff', '#1c2e24');
       ctx.textAlign = 'center';
@@ -256,6 +273,12 @@ export class CafeRenderer {
     const ringing = cafe?.phoneRinging === true;
     const x = 110;
     const y = 1452;
+    const pic = ringing ? CAFE_PICS.phoneRing : CAFE_PICS.phoneStill;
+    if (artImage(pic)) {
+      drawArt(ctx, pic, x + (ringing ? Math.sin(this.timeMs / 35) * 4 : 0), y - 14, 150, 130);
+      if (ringing) this.text(ctx, 'โทรศัพท์ดัง!', x + 40, y - 96, 36, '#fff', '#b3261e');
+      return;
+    }
     ctx.save();
     try {
       ctx.translate(x + (ringing ? Math.sin(this.timeMs / 35) * 4 : 0), y);
@@ -294,6 +317,12 @@ export class CafeRenderer {
 
   private drawCat(ctx: CanvasRenderingContext2D, x: number, y: number, luckySec = 0): void {
     const lucky = Number.isFinite(luckySec) && luckySec > 0;
+    const frame = Math.floor(this.timeMs / (lucky ? 260 : 700)) % 2 === 0 ? CAFE_PICS.catUp : CAFE_PICS.catDown;
+    if (artImage(frame)) {
+      if (lucky) drawArt(ctx, CAFE_PICS.glow, x, y + 10, 260 + 20 * Math.sin(this.timeMs / 200), 260);
+      drawArt(ctx, frame, x, y + 10, 170, 170);
+      return;
+    }
     const wave = Math.sin(this.timeMs / (lucky ? 130 : 260)) * 0.35;
     if (lucky) {
       ctx.fillStyle = `rgba(255,214,102,${0.22 + 0.12 * Math.sin(this.timeMs / 200)})`;
@@ -450,13 +479,16 @@ export class CafeRenderer {
     ctx.lineTo(CAFE_W / 2 + 18, y + 94);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = isColor(c.color) ? c.color : '#f5f0e1';
-    ctx.beginPath();
-    ctx.arc(x + 58, y + 48, 26, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    const icon = ICON_PICS[c.dessertId];
+    if (!(icon && drawArt(ctx, icon, x + 58, y + 46, 84, 84))) {
+      ctx.fillStyle = isColor(c.color) ? c.color : '#f5f0e1';
+      ctx.beginPath();
+      ctx.arc(x + 58, y + 48, 26, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
     ctx.textAlign = 'left';
     this.text(ctx, clip(c.dessertNameTh, 12), x + 100, y + 52, 40, INK, '#fffaf0');
     ctx.textAlign = 'center';
@@ -466,14 +498,18 @@ export class CafeRenderer {
     const spec = avatarSpec(c.seed, c.name);
     const bob = Math.sin(this.timeMs / 420 + (Number.isFinite(c.seed) ? c.seed : 0)) * 4;
     const y = baseY + bob;
-    // body
-    ctx.fillStyle = isColor(spec.bg) ? spec.bg : '#e06666';
-    ctx.beginPath();
-    ctx.roundRect(x - r * 1.15, y + r * 0.7, r * 2.3, r * 1.5, r * 0.5);
-    ctx.fill();
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 4;
-    ctx.stroke();
+    // body: a painted outfit when loaded (picked by seed), otherwise a rounded rectangle
+    const bodyPic = CAFE_PICS.bodies[Math.abs(Math.floor(Number.isFinite(c.seed) ? c.seed : 0)) % CAFE_PICS.bodies.length] as string;
+    const hasBody = drawArt(ctx, bodyPic, x, y + r * 1.75, r * 2.3, r * 2.1);
+    if (!hasBody) {
+      ctx.fillStyle = isColor(spec.bg) ? spec.bg : '#e06666';
+      ctx.beginPath();
+      ctx.roundRect(x - r * 1.15, y + r * 0.7, r * 2.3, r * 1.5, r * 0.5);
+      ctx.fill();
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    }
     // head slot: a round frame (gold for a viewer) with the profile picture or a generated face inside
     ctx.fillStyle = spec.skin;
     ctx.beginPath();
@@ -526,6 +562,7 @@ export class CafeRenderer {
   }
 
   private drawCrown(ctx: CanvasRenderingContext2D, x: number, baseY: number, r: number): void {
+    if (drawArt(ctx, CAFE_PICS.crown, x, baseY - r * 0.1, r * 1.5, r * 1.1)) return;
     const w = r * 1.2;
     ctx.beginPath();
     ctx.moveTo(x - w / 2, baseY);
@@ -581,13 +618,16 @@ export class CafeRenderer {
   private drawHud(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined): void {
     if (!cafe) return;
     const coins = Number.isFinite(cafe.coins) ? Math.max(0, Math.floor(cafe.coins)) : 0;
-    ctx.fillStyle = '#e8b64c';
-    ctx.beginPath();
-    ctx.arc(1030, 50, 26, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#a9761f';
-    ctx.lineWidth = 4;
-    ctx.stroke();
+    if (!drawArt(ctx, CAFE_PICS.coin, 1030, 50, 54, 54)) {
+      ctx.fillStyle = '#e8b64c';
+      ctx.beginPath();
+      ctx.arc(1030, 50, 26, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#a9761f';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    }
+    drawArt(ctx, CAFE_PICS.logo, 105, 1262, 180, 170);
     ctx.textAlign = 'right';
     this.text(ctx, coins >= 1e6 ? `${Math.floor(coins / 1e6)}M` : String(coins), 990, 52, 38, '#fff', '#7a4f12');
     ctx.textAlign = 'center';
