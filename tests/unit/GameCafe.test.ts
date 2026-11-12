@@ -230,4 +230,11 @@ describe('Game in café mode', () => {
     g.start();
     expect(g.snapshot().cafe).toBeUndefined();
   });
+
+  it('the first customer arrives with a visible queue behind them (not an empty shop)', () => {
+    const { game, cfg } = mk();
+    game.start();
+    expect(game.snapshot().cafe!.serving).not.toBeNull();
+    expect(game.snapshot().cafe!.waitingTotal).toBeGreaterThanOrEqual(cfg.cafe.npcMinWaiting);
+  });
 });

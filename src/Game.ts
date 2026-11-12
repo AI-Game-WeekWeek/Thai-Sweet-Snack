@@ -390,6 +390,10 @@ export class Game {
     if (!cafe) return;
     cafe.queue.release();
     if (cafe.queue.waiting().length === 0) this.spawnNpc();
+    // Opening time: start with a visible queue instead of an empty shop.
+    if (this.lastCookedId === null) {
+      for (let i = 0; i <= this.config.cafe.npcMinWaiting && cafe.queue.waiting().length < this.config.cafe.npcMinWaiting + 1; i++) this.spawnNpc();
+    }
     const c = cafe.queue.startNext();
     this.current = (c && this.desserts.get(c.dessertId)) || this.desserts.next();
     if (this.current) this.lastCookedId = this.current.id;
