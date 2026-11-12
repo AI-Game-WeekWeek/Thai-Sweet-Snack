@@ -44,7 +44,7 @@ export class Renderer {
    * The cooking station (table, bowl or tray, step effects, particles) in the 1000x600 world. The caller sets the
    * transform, so other layouts (portrait café) can place it anywhere. Draws no background.
    */
-  drawScene(ctx: CanvasRenderingContext2D, view: RenderView, particles: ParticleSystem, table = true): void {
+  drawScene(ctx: CanvasRenderingContext2D, view: RenderView, particles: ParticleSystem, table = true, showServed = true): void {
     // table (skipped when the caller already has a painted counter)
     if (table) {
       ctx.fillStyle = '#c98f5a';
@@ -52,7 +52,7 @@ export class Renderer {
     }
 
     const presenting = view.presentT !== null;
-    if (presenting) this.drawTray(ctx, view);
+    if (presenting) this.drawTray(ctx, view, showServed);
     else if (view.art && view.state === 'COOKING') this.drawCookingArt(ctx, view);
     else this.drawBowl(ctx, view);
 
@@ -169,7 +169,7 @@ export class Renderer {
     ctx.restore();
   }
 
-  private drawTray(ctx: CanvasRenderingContext2D, view: RenderView): void {
+  private drawTray(ctx: CanvasRenderingContext2D, view: RenderView, showServed = true): void {
     const cx = WORLD_W / 2;
     const cy = 410;
     ctx.fillStyle = '#b07a45';
@@ -181,6 +181,6 @@ export class Renderer {
     ctx.roundRect(cx - 245, cy - 56, 490, 112, 18);
     ctx.fill();
 
-    if (view.art) drawArtServed(ctx, view.art, { t: view.presentT ?? 0, n: view.piecesCount, cx, cy });
+    if (view.art && showServed) drawArtServed(ctx, view.art, { t: view.presentT ?? 0, n: view.piecesCount, cx, cy });
   }
 }

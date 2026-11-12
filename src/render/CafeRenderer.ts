@@ -1,5 +1,6 @@
 import type { ParticleSystem } from '../anim/ParticleSystem';
 import { artImage, drawArt } from './artImages';
+import { drawArtServed } from './dessertArt';
 import { CAFE_PICS, ICON_PICS } from './artManifest';
 import { avatarSpec } from '../cafe/avatars';
 import type { CafeView, CustomerView, RenderView } from '../Game';
@@ -75,7 +76,7 @@ export class CafeRenderer {
             ctx.scale(z, z);
             ctx.translate(-500, -330);
           }
-          this.scene.drawScene(ctx, view, particles, !artImage(this.backgroundKey()));
+          this.scene.drawScene(ctx, view, particles, !artImage(this.backgroundKey()), !(view.serveOutT !== undefined && view.serveOutT > 0));
         } finally {
           ctx.restore();
         }
@@ -96,6 +97,7 @@ export class CafeRenderer {
       this.safely('lucky', () => this.drawLuckyPill(ctx, view.cafe));
       this.safely('status', () => this.drawStatus(ctx, view));
       this.safely('queue', () => this.drawQueue(ctx, view.cafe, dt));
+      this.safely('serve', () => this.drawServeOut(ctx, view));
       this.safely('hud', () => this.drawHud(ctx, view.cafe));
     } finally {
       ctx.restore();
@@ -608,6 +610,30 @@ export class CafeRenderer {
     while (this.actors.size > 24) {
       const first = this.actors.keys().next().value as number;
       this.actors.delete(first);
+    }
+  }
+
+  /** The finished dessert slides up to the customer who ordered it, shrinking and fading as it arrives. */
+  private drawServeOut(ctx: CanvasRenderingContext2D, view: RenderView): void {
+    const raw = view.serveOutT;
+    if (!view.art || raw === undefined || !Number.isFinite(raw) || raw <= 0) return;
+    const t = Math.min(1, raw);
+    const e = t * t * (3 - 2 * t);
+    const fromX = STATION_X + 500;
+    const fromY = STATION_Y + 380;
+    const toX = CAFE_W / 2;
+    const toY = 570;
+    const x = fromX + (toX - fromX) * e;
+    const y = fromY + (toY - fromY) * e - Math.sin(Math.PI * e) * 60; // a little arc, like being carried
+    const s = 1 - 0.82 * e;
+    ctx.save();
+    try {
+      ctx.globalAlpha = t < 0.75 ? 1 : Math.max(0, 1 - (t - 0.75) / 0.25);
+      ctx.translate(x, y);
+      ctx.scale(s, s);
+      drawArtServed(ctx, view.art, { t: 1, n: 1, cx: 0, cy: 30 });
+    } finally {
+      ctx.restore();
     }
   }
 

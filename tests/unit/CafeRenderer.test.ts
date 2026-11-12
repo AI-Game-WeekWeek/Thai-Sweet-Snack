@@ -218,3 +218,14 @@ describe('excitement zoom', () => {
     expect((r as unknown as { zoom: number }).zoom).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe('serve to customer', () => {
+  it('while the order is paid the dessert leaves the tray and flies to the customer, shrinking; safe with hostile values', () => {
+    const r = new CafeRenderer(4, avatars());
+    for (const t of [0, 0.2, 0.6, 1, NaN, -1, 9, Infinity]) {
+      const f = fakeCtx();
+      expect(() => r.draw(f.ctx, 720, 1280, view({ state: 'REWARDING', presentT: 1, art: 'bowl', piecesCount: 3, serveOutT: t }), new ParticleSystem(10, 0), 16)).not.toThrow();
+      expect(f.depth()).toBe(0);
+    }
+  });
+});

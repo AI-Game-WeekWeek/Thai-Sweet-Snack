@@ -135,6 +135,8 @@ export interface RenderView {
   art?: ArtId | null;
   stepIndex?: number;
   stepCount?: number;
+  /** 0..1: the finished dessert slides to the customer and shrinks away (café, while the order is being paid). 0 = not leaving. */
+  serveOutT?: number;
   vote?: VoteView;
   cafe?: CafeView;
   heart: number;
@@ -163,6 +165,7 @@ export class Game {
   private stepKind: AnimId | null = null;
   private stepSound: SoundId | null = null;
   private soundAcc = 0;
+  private rewardMs = 0;
   private dripAcc = 0;
   private stepT = 0;
   private presentT: number | null = null;
@@ -253,6 +256,7 @@ export class Game {
     this.fx?.animations.update(dt);
     this.fx?.particles?.update(dt);
     this.wobble = Math.max(0, this.wobble - dt / 700);
+    this.rewardMs = this.manager.snapshot().state === 'REWARDING' ? this.rewardMs + dt : 0;
     if (this.cafe) this.tickCafe(dt);
     if (this.stepKind && this.manager.snapshot().state === 'COOKING') {
       this.emitParticles(this.stepKind, dt);
@@ -326,6 +330,7 @@ export class Game {
       art: this.current?.art ?? null,
       stepIndex: this.cooking.snapshot().active ? this.cooking.snapshot().stepIndex : 0,
       stepCount: this.current?.steps.length ?? 1,
+      serveOutT: this.cafe && this.manager.snapshot().state === 'REWARDING' ? Math.min(1, this.rewardMs / (this.config.durationsMs.rewarding * 0.75)) : 0,
       ...(this.vote ? { vote: this.currentVoteView() } : {}),
       heart: this.vote?.meter.value ?? this.cafe?.meter.value ?? 0,
       ...(this.cafe ? { cafe: this.cafeView() } : {}),
