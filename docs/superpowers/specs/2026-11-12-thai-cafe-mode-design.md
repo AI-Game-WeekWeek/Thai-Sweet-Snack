@@ -1,0 +1,119 @@
+# Thai Café Mode (Round 1) — Design Spec (draft for review)
+
+Date: 2026-11-12 · Status: **waiting for user review, no code written yet**
+Builds on: `2026-11-12-thai-dessert-asmr-design.md` and `2026-11-12-menu-vote-mode-design.md` (both implemented and tested).
+
+## 1. Idea
+
+A portrait (9:16) TikTok-Live game set in the player's own Thai-style café. A queue of customers waits at the counter;
+each customer orders one dessert and has a patience timer. **A viewer's gift puts that viewer in the queue as a customer
+with their profile picture, ordering the dessert that gift is worth.** Viewers' likes (hearts) make the dessert cook
+faster. The finished dessert is served to the customer, who pays and leaves. Then the next customer steps up. Endless,
+and still works with zero viewers or without TikTok (anonymous customers keep the queue full).
+
+Round 1 = this core. Round 2 (separate spec, built only after Round 1 plays well): surprise events for follow
+("lucky cat"), orange heart ("tip rain"), fan club ("VIP customer") and the phone pre-order call.
+
+Why it stays small: still one dessert cooking at a time, still two viewer inputs the audience needs to learn
+(**send a gift to order, tap hearts to speed up**), and no walking staff, no décor, no quests.
+
+## 2. Loop (existing state machine unchanged; one round = one customer)
+
+| State | In café mode |
+|---|---|
+| PREPARING | The next customer steps to the counter; an order bubble shows the dessert (and who it is for). Short beat (~1.5 s). |
+| COOKING | The ordered dessert cooks with the existing recipe steps, animation and ASMR. Hearts speed it up. Customers still waiting lose patience. |
+| PRESENTING | The dessert is placed on the tray and handed over. |
+| REWARDING | The customer pays (coins scale with remaining patience) and leaves happy; existing `RewardManager.award`. |
+| NEXT_DESSERT → PREPARING | Cleanup, auto-unlock, save as today. A new customer may join the queue meanwhile. |
+
+Queue rules (new pure class `CafeQueue`): at most 12 waiting, 5 drawn; waiting customers' patience counts down; one who
+runs out **leaves unhappy** (no pay, small angry effect); the customer being served never leaves mid-cooking (so nothing
+has to be cancelled). A viewer customer is inserted **right behind the current customer** (a small reward for gifting);
+if the queue is full the gift still pays coins to the café (no gift is ever wasted). Anonymous customers spawn on a timer
+whenever the queue is short, so the queue is always visibly long.
+
+## 3. Gifts choose the dessert
+
+A configurable table maps gift value to dessert, default (coins → dessert): 1 → ขนมครก, 5 → บัวลอย, 10 → ทองหยอด,
+20 → ขนมชั้น, 50 → ฝอยทอง, 99 → ทองหยิบ, 199 → ลูกชุบ, 500 → ขนมเบื้อง (highest tier not above the gift value). A dessert
+not yet unlocked falls back to the best unlocked one. The same table is drawn as a **menu board on the café wall** so viewers
+see "gift = dessert" at a glance. Matching is by coin value (provider-independent); gift names are optional extra info.
+Likes (hearts) keep their current meaning: heart meter → cooking speed ×4 max.
+
+## 4. Viewer in the game (profile picture on the customer's head)
+
+Each customer has a round head slot. Viewer customers show the viewer's picture and a short display name; anonymous
+customers show a generated face/colour. Rules:
+- Name and picture come only from **gift events** (new optional fields `displayName`, `avatarUrl` on gift/rose events),
+  live only as long as that customer is on screen, are **never saved**, never leave the page.
+- **Remote pictures are off by default.** Turning them on requires an allowlist of image hosts in config, https only, a
+  5 s timeout, a cache of at most 24 images that is released on eviction, and automatic fallback to a generated avatar on any
+  failure. Reason: an arbitrary image URL would make the streamer's browser contact unknown servers.
+- A config switch `anonymousNames` hides all names (pictures too) for streamers who prefer it.
+- Provider dependency: pictures and names exist only if the event source sends them (not verified for any provider).
+
+## 5. Portrait screen and scene (all drawn procedurally, original art)
+
+World 1080 × 1920, scaled to fit. Top to bottom: **Thai-style awning** with the shop sign and hanging lanterns; **wooden wall**
+with a Thai-pattern frieze and the **gift menu board**; **counter** with the cooking bowl / step animation (existing scene
+reused in a window), the heart meter and the progress bar; the **serving tray** and a **lucky cat** mascot; the **queue** at the
+bottom (front customer large, up to 4 more behind) with order bubbles and patience bars; coin count at the top right.
+Only a few large, outlined elements (readable on a phone at stream resolution). Café mode is the new default
+(`?mode=cafe`); `?mode=vote` and `?mode=classic` stay available and tested.
+
+## 6. Architecture and reuse
+
+Reused unchanged: `GameManager`, `StateMachine`, `LoopDriver`, `CookingSystem`, `ProgressManager`, `HeartMeter`,
+`AnimationManager`, `ParticleSystem`, `AudioManager`, `TikTokEventManager` (extended), `MockEventSource` (extended),
+`WebSocketSource`, bridge, `RewardManager`, `ProgressionManager`, `SaveSystem`, dessert data.
+
+New (small, separate): `src/cafe/CafeQueue.ts` (pure queue + patience), `src/cafe/giftMenu.ts` (coins → dessert),
+`src/cafe/avatars.ts` (generated avatar spec), `src/render/AvatarCache.ts` (allowlist, LRU, timeout), `src/render/CafeRenderer.ts`.
+Additive edits: `Game.ts` (café option: customer = round, order from the queue, gifts enqueue), `gameConfig.ts` (`cafe` section,
+`cafeConfig`), `tiktok/{types,parseLiveEvent,TikTokEventManager,MockEventSource}.ts` (gift details: coins, `displayName`,
+`avatarUrl`, bounded per drain), `main.ts` (`?mode=cafe`, portrait canvas), `index.html`/page styles (portrait layout),
+`server/bridge.ts` (relay new fields via the shared parser), docs.
+Privacy rule change: nicknames are no longer dropped from **gift** events (needed for the queue); they stay out of comments, of
+saves and of all other event types.
+
+## 7. Stability and safety rules
+
+- Everything is round-tagged and cleaned up at round end; customers carry no state across rounds except the queue itself,
+  which is bounded (12) and reset on reload.
+- Idempotent: a customer is paid once (state `WAITING → SERVING → PAID | LEFT`, payment only at `PAID`); one order per
+  customer; a duplicate gift (same event id) is already dropped by the existing dedupe.
+- Caps: 12 queued, 24 cached images, gifts per drain, name length 16 characters, particles.
+- Zero viewers / TikTok down: anonymous customers keep coming; the loop never waits. Mock events cover gifts, hearts, avatars.
+- Existing watchdogs (state and cooking) stay as the backstop.
+
+## 8. Testing and acceptance
+
+Unit: `CafeQueue` (order, patience, leave, cap, viewer insert position, serving customer never leaves, pay once),
+`giftMenu` (tiers, boundaries, invalid coins, locked fallback), gift parsing (details kept only for gifts, truncated, no
+other type keeps a name), `AvatarCache` with a fake loader (allowlist, https only, timeout, eviction releases, bounded),
+`Game` café flow (gift order cooks the matching dessert, queue FIFO with viewer behind current, heart speed-up, unhappy
+leave, zero-viewer loop, TikTok drop), `CafeRenderer` (hostile values never throw, canvas state balanced).
+Soak: ≥150 customers with gift spam, ties of arrival, hostile names/urls, flaky storage; extend the leak/CPU test.
+Browser: portrait screenshots of the full scene and a played round with mock viewers; real bridge with a gift.
+Acceptance: the loop never stalls; progress ≤ 100; no customer paid twice or lost; queue and cache bounded; names and pictures
+never saved; works with no viewers and without TikTok; vote and classic mode tests unchanged.
+
+## 9. Phases
+
+- **C1** pure logic: `CafeQueue`, `giftMenu`, gift detail parsing, `AvatarCache` (all tested).
+- **C2** `Game` café wiring and mock events.
+- **C3** `CafeRenderer` (portrait scene, customers with head slots, gift menu board), `?mode=cafe` default, portrait page.
+- **C4** soak, leak/CPU, browser checks, docs, independent review, fixes.
+
+## 10. Decisions to confirm (defaults in brackets)
+
+1. Gift → dessert table as in §3 [as written; every number is config].
+2. Remote profile pictures [off by default; generated avatars; names shown].
+3. Viewer customer joins right behind the current customer [yes].
+4. Café mode becomes the default; vote and classic stay as options [yes].
+
+## 11. Known limits
+
+Pictures, names and gift values depend on the event provider (none verified); art is procedural and simple; sound and visuals are
+checked by tests and screenshots, not on a live stream; the surprise events and the phone call are Round 2.
