@@ -12,6 +12,7 @@ import { SaveSystem, type StorageLike } from './save/SaveSystem';
 import { UIManager } from './ui/UIManager';
 import { Renderer } from './render/Renderer';
 import { MockEventSource } from './tiktok/MockEventSource';
+import { WebSocketSource } from './tiktok/WebSocketSource';
 import { TikTokEventManager } from './tiktok/TikTokEventManager';
 
 const app = document.getElementById('app');
@@ -55,6 +56,22 @@ if (mock) {
   setInterval(() => mock.burst('like', 300, Date.now()), 15_000);
 }
 const renderer = new Renderer();
+
+// ?bridge=ws://127.0.0.1:8787&token=... connects to the local bridge (see docs/tiktok-integration.md).
+// Without it the game runs on its own (or with ?mock=1); a dead bridge only changes the connection label.
+const bridgeParam = params.get('bridge');
+if (bridgeParam && /^wss?:\/\//i.test(bridgeParam)) {
+  try {
+    const url = new URL(bridgeParam);
+    const token = params.get('token');
+    if (token) url.searchParams.set('token', token);
+    const bridge = new WebSocketSource({ url: url.toString(), sink: (raw) => game.ingestEvent(raw), onState: (s) => events.setConnection(s) });
+    bridge.start();
+    addEventListener('pagehide', () => bridge.stop());
+  } catch (err) {
+    console.warn('[main] invalid ?bridge= URL, running without it', err);
+  }
+}
 
 // Browsers block audio until a user gesture.
 const unlockAudio = (): void => audio.unlock();
