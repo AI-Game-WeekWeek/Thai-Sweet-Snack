@@ -31,6 +31,9 @@ export interface GameConfig {
     maxLikeCountPerEvent: number;
     shareBonusPct: number;
   };
+  reward: { speedParMs: number; speedBonusMaxPct: number; xpBase: number; xpGrowth: number };
+  save: { key: string; backupKey: string };
+  progression: { autoUnlock: boolean };
 }
 
 export const defaultConfig: GameConfig = {
@@ -54,6 +57,9 @@ export const defaultConfig: GameConfig = {
     maxLikeCountPerEvent: 1000,
     shareBonusPct: 10,
   },
+  reward: { speedParMs: 25000, speedBonusMaxPct: 30, xpBase: 100, xpGrowth: 1.25 },
+  save: { key: 'thai-dessert-asmr:save', backupKey: 'thai-dessert-asmr:save.corrupt' },
+  progression: { autoUnlock: true },
 };
 
 /** Real game: CookingSystem drives COOKING; the global watchdog sits above any recipe length. */
