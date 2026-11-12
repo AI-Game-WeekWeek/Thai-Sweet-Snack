@@ -195,6 +195,8 @@ if (cafeMode && (params.get('keys') === '1' || params.get('debug') === '1' || __
     },
     speak: (text, pitch, gender) => void audio.speak(text, 0, pitch, 0.7, gender),
     playSound: (id) => void audio.play(id as never, 0),
+    voiceName: () => audio.lastVoiceName,
+    voiceCount: () => (globalThis as { speechSynthesis?: SpeechSynthesis }).speechSynthesis?.getVoices?.().length ?? 0,
   });
 }
 

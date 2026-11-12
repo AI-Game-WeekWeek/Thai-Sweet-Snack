@@ -8,6 +8,10 @@ export interface DevKeyTargets {
   cycleBackground(): string;
   speak(text: string, pitch: number, gender: 'male' | 'female'): void;
   playSound(id: string): void;
+  /** Name of the voice the browser used for the last spoken line (null = none / not supported). */
+  voiceName?(): string | null;
+  /** How many voices the browser offers (0 = none or not loaded yet / no speech support). */
+  voiceCount?(): number;
 }
 
 export interface DevKey {
@@ -55,7 +59,8 @@ export function devKeys(): DevKey[] {
       t.speak('เอา… ข้าวต้มมัด… ค่ะ', 1.35, 'female');
       setTimeout(() => t.speak('เอา… ข้าวต้มมัด… ครับ', 0.85, 'male'), 2600);
       setTimeout(() => t.speak('ฮือ ๆ… ช่วยด้วย… ผีอยากกินขนม…', 1.9, 'female'), 5400);
-      return 'ทดสอบเสียงพูด 3 แบบ';
+      const n = t.voiceCount?.() ?? 0;
+      return n === 0 ? 'เบราว์เซอร์นี้ไม่มีเสียงพูด (speechSynthesis) เลย' : `ทดสอบเสียงพูด · เครื่องมี ${n} เสียง · ใช้: ${t.voiceName?.() ?? 'เสียงเริ่มต้น'}`;
     } },
     { key: 'j', label: 'เสียงรางวัล', run: (t) => (t.playSound('reward'), 'เสียงรางวัล') },
     { key: 'g', label: 'เสียงผี', run: (t) => (t.playSound('ghost'), 'เสียงผี') },
