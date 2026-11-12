@@ -5,7 +5,7 @@ the counter. A viewer's gift puts that viewer in the line, with their picture on
 that gift is worth. Viewers tap hearts (likes) to make the cooking faster.** The dessert is served, the customer pays and
 leaves, the next one steps up. Two things for viewers to learn, both shown on screen.
 
-Web game: TypeScript, Canvas 2D, Web Audio, Vite. 8 Thai desserts (ขนมชั้น, ลูกชุบ, ฝอยทอง, ทองหยิบ, ทองหยอด, ขนมครก, บัวลอย, ขนมเบื้อง).
+Web game: TypeScript, Canvas 2D, Web Audio, Vite. 9 Thai desserts: ขนมชั้น, ลูกชุบ, ฝอยทอง, ทองหยิบ, ทองหยอด, ขนมครก, บัวลอย, ขนมเบื้อง and the café's everyday **ข้าวต้มมัด**.
 
 ## Run
 
@@ -38,7 +38,8 @@ are entitled to use and check TikTok's and the provider's terms. Details and lim
 
 1. **Queue:** customers line up (the front one large, up to 4 more behind, 12 waiting at most). Each orders one dessert and
    has a patience bar; someone who waits too long leaves unhappy. Anonymous customers keep the queue full, so it works
-   with zero viewers.
+   with zero viewers. **Without gifts they all order ข้าวต้มมัด** (`cafe.defaultDessertId`); every other dessert is
+   ordered only because a viewer sent a gift (or by a VIP). Phone orders also ask for ข้าวต้มมัด.
 2. **Gifts order desserts:** a viewer's gift puts that viewer in the queue **right behind the customer being served**,
    with their name and a round head slot for their picture, ordering the dessert the gift value maps to. The menu board
    on the café wall shows the table (default coins → dessert: 1 ขนมครก, 5 บัวลอย, 10 ทองหยอด, 20 ขนมชั้น, 50 ฝอยทอง,

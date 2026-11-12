@@ -415,7 +415,9 @@ export class Game {
     if (!cafe) return;
     const ids = this.desserts.unlockedIds;
     if (ids.length === 0) return;
-    const id = ids[Math.floor((cafe.rng ?? Math.random)() * ids.length)] ?? ids[0];
+    // Without gifts customers always have the everyday dessert; the rest are earned by gifts. (Falls back if it is somehow locked.)
+    const preferred = this.config.cafe.defaultDessertId;
+    const id = ids.includes(preferred) ? preferred : (ids[Math.floor((cafe.rng ?? Math.random)() * ids.length)] ?? ids[0]);
     if (id) cafe.queue.enqueue({ viewer: false, dessertId: id });
   }
 
@@ -491,8 +493,10 @@ export class Game {
       this.phoneRingMs -= dt;
       if (this.phoneRingMs <= 0) {
         this.phoneRingMs = 0;
+        // A phone order is not a gift, so it asks for the everyday dessert too.
         const ids = this.desserts.unlockedIds;
-        const id = ids[Math.floor((cafe.rng ?? Math.random)() * ids.length)];
+        const preferred = this.config.cafe.defaultDessertId;
+        const id = ids.includes(preferred) ? preferred : ids[Math.floor((cafe.rng ?? Math.random)() * ids.length)];
         if (id) this.enqueueSpecial({ viewer: false, kind: 'phone', dessertId: id, patienceMs: ph.deadlineMs });
       }
       return;

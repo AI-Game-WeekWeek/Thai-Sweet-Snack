@@ -8,6 +8,7 @@ import { thongYod } from './thongYod';
 import { khanomKrok } from './khanomKrok';
 import { buaLoy } from './buaLoy';
 import { khanomBuang } from './khanomBuang';
+import { khaoTomMat } from './khaoTomMat';
 
 export const ALL_DESSERTS: readonly DessertDef[] = [
   khanomChan,
@@ -18,6 +19,7 @@ export const ALL_DESSERTS: readonly DessertDef[] = [
   khanomKrok,
   buaLoy,
   khanomBuang,
+  khaoTomMat,
 ];
 
 // Fail fast at load: a broken recipe must never reach the game loop.

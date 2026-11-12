@@ -74,7 +74,7 @@ describe('cooking soak (real recipes through Game)', () => {
 
   it(`runs ${ROUNDS} rounds, every dessert appears, steps run in recipe order`, () => {
     const { seen, stepsByRound, dessertByRound } = run(false);
-    expect(seen.size).toBe(8);
+    expect(seen.size).toBe(ALL_DESSERTS.length);
     let checked = 0;
     for (const [round, steps] of stepsByRound) {
       const def = ALL_DESSERTS.find((d) => d.nameTh === dessertByRound.get(round));
@@ -88,6 +88,6 @@ describe('cooking soak (real recipes through Game)', () => {
 
   it(`survives ${ROUNDS} rounds with hostile progress injections (NaN, negative, Infinity, 1e12, complete-step)`, () => {
     const { seen } = run(true);
-    expect(seen.size).toBe(8);
+    expect(seen.size).toBe(ALL_DESSERTS.length);
   });
 });

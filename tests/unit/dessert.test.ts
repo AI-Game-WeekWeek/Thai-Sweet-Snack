@@ -4,7 +4,8 @@ import { validateDessert } from '../../src/dessert/validate';
 import type { DessertDef } from '../../src/dessert/types';
 import { ANIM_IDS, SOUND_IDS } from '../../src/dessert/types';
 
-const NAMES = ['ขนมชั้น', 'ลูกชุบ', 'ฝอยทอง', 'ทองหยิบ', 'ทองหยอด', 'ขนมครก', 'บัวลอย', 'ขนมเบื้อง'];
+// The 8 v1 desserts in spec order, then the café's everyday default.
+const NAMES = ['ขนมชั้น', 'ลูกชุบ', 'ฝอยทอง', 'ทองหยิบ', 'ทองหยอด', 'ขนมครก', 'บัวลอย', 'ขนมเบื้อง', 'ข้าวต้มมัด'];
 
 function good(): DessertDef {
   return {
@@ -18,9 +19,9 @@ function good(): DessertDef {
 }
 
 describe('dessert data', () => {
-  it('has the 8 v1 desserts in spec order with unique ids', () => {
+  it('has the 8 v1 desserts in spec order plus ข้าวต้มมัด, with unique ids', () => {
     expect(ALL_DESSERTS.map((d) => d.nameTh)).toEqual(NAMES);
-    expect(new Set(ALL_DESSERTS.map((d) => d.id)).size).toBe(8);
+    expect(new Set(ALL_DESSERTS.map((d) => d.id)).size).toBe(9);
   });
 
   it('every dessert is valid, has >=4 steps and only known anim/sound ids', () => {

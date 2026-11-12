@@ -273,4 +273,11 @@ describe('café surprise events', () => {
     const cleaned = Math.max(...stopped);
     for (const p of played.slice(before)) expect(p.roundId, p.sound).toBeGreaterThan(cleaned);
   });
+
+  it('a phone order asks for the everyday dessert (it is not a gift)', () => {
+    const { game } = mk({ phone: { firstMs: 500, everyMs: 6000, jitter: 0, ringMs: 300, deadlineMs: 30_000 } }, { npcSpawnEveryMs: 1e9 });
+    game.start();
+    runUntil(game, () => game.snapshot().cafe!.waiting.some((c) => c.kind === 'phone'));
+    expect(game.snapshot().cafe!.waiting.find((c) => c.kind === 'phone')!.dessertNameTh).toBe('ข้าวต้มมัด');
+  });
 });

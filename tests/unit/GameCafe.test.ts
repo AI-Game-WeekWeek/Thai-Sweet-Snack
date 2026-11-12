@@ -264,4 +264,34 @@ describe('Game in café mode', () => {
     expect(game.snapshot().cafe!.serving).not.toBeNull();
     expect(game.snapshot().cafe!.waitingTotal).toBeGreaterThanOrEqual(cfg.cafe.npcMinWaiting);
   });
+
+  it('with no gifts every anonymous customer orders ข้าวต้มมัด and nothing else is ever cooked', () => {
+    const { game } = mk({ npcSpawnEveryMs: 1500 }, ALL, { ...{} });
+    game.start();
+    const cooked = new Set<string>();
+    for (let round = 1; round <= 8; round++) {
+      runUntil(game, () => cooking(game) && game.snapshot().roundId === round);
+      cooked.add(game.snapshot().dessertNameTh!);
+      const v = game.snapshot().cafe!;
+      for (const c of [...(v.serving ? [v.serving] : []), ...v.waiting]) expect(c.dessertNameTh).toBe('ข้าวต้มมัด');
+    }
+    expect([...cooked]).toEqual(['ข้าวต้มมัด']);
+  });
+
+  it('gifts still order the other desserts, so those only ever appear because a viewer paid for them', () => {
+    const { game } = mk();
+    game.start();
+    gift(game, 20, { displayName: 'ลูกค้าจ่าย' });
+    game.update(16);
+    const ordered = game.snapshot().cafe!.waiting.filter((c) => c.viewer).map((c) => c.dessertNameTh);
+    expect(ordered).toEqual([nameOf('khanom-chan')]);
+    const anonymous = game.snapshot().cafe!.waiting.filter((c) => !c.viewer);
+    for (const c of anonymous) expect(c.dessertNameTh).toBe('ข้าวต้มมัด');
+  });
+
+  it('the default dessert is always unlocked, even on a save from before it existed', () => {
+    const { game } = mk({}, ['khanom-krok']); // the café must still open if the default is somehow missing
+    game.start();
+    expect(() => runUntil(game, () => game.snapshot().roundsCompleted >= 2)).not.toThrow();
+  });
 });

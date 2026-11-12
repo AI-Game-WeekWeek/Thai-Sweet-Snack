@@ -153,3 +153,6 @@ only the phone call happens, and the café works as before.
   skipped only when every waiting customer is a paying viewer (found by the soak: gift floods kept the queue full, so the phone never
   rang). Surprise sounds are tagged with a live round (the next one when fired during NEXT_DESSERT). `?surprise=1` brings the first
   phone call forward to 6 s for demos and screenshots.
+- **Everyday dessert (user request):** a 9th dessert, ข้าวต้มมัด, is always unlocked. Anonymous customers and phone orders always order it, so
+  with no gifts the café serves only ข้าวต้มมัด; the other eight desserts are ordered by a viewer's gift (gift tiers) or by a VIP
+  (orange heart, 50-coin tier). `cafe.defaultDessertId` sets it; if it is somehow locked the café falls back to a random unlocked dessert.

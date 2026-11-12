@@ -45,6 +45,8 @@ export interface GameConfig {
     npcSpawnEveryMs: number;
     npcMinWaiting: number;
     maxGiftsPerDrain: number;
+    /** What anonymous customers order. Every other dessert is ordered only by a viewer's gift (or a VIP / phone call). */
+    defaultDessertId: string;
     /** Coins the café earns from a gift that finds the queue full (a flat thank-you, not the gift's face value). */
     overflowGiftCoins: number;
     maxNameLength: number;
@@ -114,6 +116,7 @@ export const defaultConfig: GameConfig = {
     npcMinWaiting: 4,
     maxGiftsPerDrain: 20,
     overflowGiftCoins: 2,
+    defaultDessertId: 'khao-tom-mat',
     maxNameLength: 16,
     anonymousNames: false,
     avatar: { hosts: [], max: 24, timeoutMs: 5000 },
