@@ -649,3 +649,20 @@ describe('viewers who join become named customers', () => {
     expect(game.snapshot().cafe!.waitingTotal).toBeLessThanOrEqual(12);
   });
 });
+
+describe('a banished ghost cancels its order', () => {
+  it('when the shaman banishes the ghost at the counter its dessert is cancelled (no reward) and the next customer steps up', () => {
+    const ph = { firstMs: 1e12, everyMs: 1e12, jitter: 0, ringMs: 600, deadlineMs: 600_000, squeezeMs: 1e9 };
+    const { game, rewards } = mk({ phone: ph, vip: {} }, { npcSpawnEveryMs: 700, idleCookRate: 0 }, { maxMs: { ...cafeConfig.maxMs, cooking: 6 * 3600_000 } });
+    game.start();
+    for (let i = 0; i < 200_000 && !game.callGhostNow(); i++) game.update(16);
+    for (let i = 0; i < 600_000 && game.snapshot().cafe!.serving?.kind !== 'phone'; i++) { if (game.snapshot().state === 'COOKING') game.finishCookingNow(); game.update(16); }
+    const rounds = rewards.profile.rounds;
+    game.callShaman(true);
+    let sawHidden = false;
+    for (let i = 0; i < 2000 && game.snapshot().cafe!.serving?.kind === 'phone'; i++) { game.update(16); if (game.renderView().hideServed) sawHidden = true; }
+    expect(game.snapshot().cafe!.serving?.kind).not.toBe('phone');
+    expect(rewards.profile.rounds).toBe(rounds); // the cancelled order paid nothing
+    expect(sawHidden).toBe(true);
+  });
+});

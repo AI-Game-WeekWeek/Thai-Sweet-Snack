@@ -34,7 +34,7 @@ const cafe = (over: Partial<CafeView> = {}): CafeView => ({
   serving: cust(1, { serving: true, patience: 1, viewer: true, name: 'มะลิ', dessertNameTh: 'บัวลอย' }),
   waiting: [cust(2, { viewer: true, name: 'น้ำฝน' }), cust(3), cust(4, { patience: 0.1 }), cust(5)],
   waitingTotal: 7, lost: 2, coins: 345, luckyCatSec: 0, luckyCatBonusPct: 50, phoneRinging: false,
-  giftMenu: [{ coins: 1, nameTh: 'ข้าวต้มมัด', color: '#fdf5e6', id: 'khao-tom-mat' }, { coins: 5, nameTh: 'บัวลอย', color: '#b4a7d6', id: 'bua-loy' }, { coins: 500, nameTh: 'ขนมเบื้อง', color: '#fff', id: 'khanom-buang' }],
+  giftMenu: [{ coins: 1, nameTh: 'ข้าวต้มมัด', color: '#fdf5e6', id: 'khao-tom-mat', giftName: '' }, { coins: 5, nameTh: 'บัวลอย', color: '#b4a7d6', id: 'bua-loy', giftName: 'Rose' }, { coins: 500, nameTh: 'ขนมเบื้อง', color: '#fff', id: 'khanom-buang', giftName: 'Mamma Mia' }],
   ...over,
 });
 const view = (over: Partial<RenderView> = {}): RenderView => ({
@@ -281,5 +281,16 @@ describe('connection status', () => {
     expect(t(true, 'offline')).toContain('ไม่ได้ต่อ TikTok');
     expect(t(true, undefined)).toContain('ไม่ได้ต่อ TikTok');
     expect(t(true, 'weird-value')).toContain('ไม่ได้ต่อ'.slice(0, 5));
+  });
+});
+
+describe('gift names on the boards', () => {
+  it('each row shows the dessert and the gift name; the free slot says ฟรี', () => {
+    const f = draw(view({ cafe: cafe() }));
+    const t = f.texts.join(' | ');
+    expect(t).toContain('บัวลอย');
+    expect(t).toContain('Rose');
+    expect(t).toContain('Mamma Mia');
+    expect(t).toContain('ฟรี');
   });
 });

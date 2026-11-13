@@ -151,10 +151,14 @@ export class TikFinityAdapter {
     const isRose = /^rose$|กุหลาบ/i.test(gname);
     const nick = str(pick(d, ['nickname', 'displayName', 'uniqueId']), 60);
     const avatar = str(pick(d, ['profilePictureUrl', 'avatarUrl', 'profilePicture']), 500);
+    const rep = Math.max(1, Math.floor(num(pick(d, ['repeatCount', 'count', 'amount'])) ?? 1));
+    const each = Math.max(0, num(pick(d, ['diamondCount', 'giftValue', 'diamonds', 'coins', 'giftCoins'])) ?? 1);
     return {
       id: this.id(d, 'gift'),
       type: isRose ? 'rose' : 'gift',
       giftCoins: coins,
+      // extras for the streamer's gift page (the game's validator drops them)
+      meta: { giftName: gname, user: nick ?? '', avatarUrl: avatar ?? '', repeat: rep, diamonds: each * rep },
       ...(nick ? { displayName: nick } : {}),
       ...(avatar ? { avatarUrl: avatar } : {}),
       tsMs: ts,

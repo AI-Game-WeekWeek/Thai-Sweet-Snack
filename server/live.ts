@@ -26,7 +26,7 @@ if (token.length < 16) {
 }
 
 const avatarHosts = (process.env.AVATAR_HOSTS ?? '').split(',').map((h) => h.trim().toLowerCase()).filter((h) => /^[a-z0-9.-]{3,100}$/.test(h));
-const bridge = createBridge({ token, host, port, staticDir: 'dist', avatarHosts });
+const bridge = createBridge({ token, host, port, staticDir: 'dist', avatarHosts, giftFile: 'gift-map.json' });
 const { port: p } = await bridge.start();
 const base = `http://${host}:${p}`;
 const gameUrl = `${base}/live.html`; // no ?query: the token is built into the page, which connects back to the bridge it came from
@@ -35,6 +35,8 @@ console.log('1) ใส่ใน TikTok LIVE Studio แบบ Link  ขนาด 
 console.log('   ' + gameUrl + '\n');
 console.log('0) แผงควบคุม: กดส่งของขวัญ/อีเวนต์/เสกผี เข้าเกมใน LIVE Studio ได้เอง (เปิดในเบราว์เซอร์ธรรมดา):');
 console.log(`   ${base}/panel\n`);
+console.log('G) หน้าของขวัญ: ดูว่าใครส่งอะไร ตั้งป้ายเมนู สลับโหมดอัตโนมัติ/กดเล่นเอง (เปิดในเบราว์เซอร์ธรรมดา):');
+console.log(`   ${base}/gifts?token=${token}\n`);
 console.log('2) หน้าตรวจสอบว่าอีเวนต์เข้ามาไหม (เปิดในเบราว์เซอร์ธรรมดา):');
 console.log(`   ${base}/monitor?token=${token}\n`);
 console.log('3) ถ้า TikFinity ส่งแบบ Webhook / URL ให้ตั้งปลายทางเป็น:');

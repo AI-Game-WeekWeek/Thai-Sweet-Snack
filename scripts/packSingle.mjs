@@ -25,6 +25,7 @@ css = css.replace(/,\s*url\([^)]+\.woff\)\s*format\("woff"\)/g, '');
 const manifest = read('src/render/artManifest.ts');
 const names = new Set([...manifest.matchAll(/'([A-Za-z0-9]+-\d+)'/g)].map((m) => m[1]));
 for (const n of ['bg-day', 'bg-rain', 'bg-night']) names.add(n);
+for (const f of readdirSync('public/art')) if (/^gift-[a-z0-9]+\.webp$/.test(f)) names.add(f.replace('.webp', ''));
 const art = {};
 for (const n of [...names].sort()) {
   const f = join('public/art', `${n}.webp`);

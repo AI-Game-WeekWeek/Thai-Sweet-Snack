@@ -12,6 +12,7 @@ import type { RewardManager } from './reward/RewardManager';
 import type { SaveSystem } from './save/SaveSystem';
 import { dessertForGift } from './cafe/giftMenu';
 import { genderForSeed, politeEnding } from './cafe/gender';
+import { DEFAULT_GIFT_BOARD, type GiftSlot } from './cafe/giftBoard';
 import { cleanName } from './tiktok/cleanName';
 import type { CafeQueue, Customer, CustomerKind } from './cafe/CafeQueue';
 import type { HeartMeter } from './cooking/HeartMeter';
@@ -32,7 +33,7 @@ export interface AudioLike {
   play(sound: SoundId, roundId: number): boolean;
   stopRound(roundId: number): number;
   /** Optional spoken line (browser voice). */
-  speak?(text: string, roundId: number, pitch?: number, rate?: number, gender?: 'male' | 'female', sampleKey?: string): boolean;
+  speak?(text: string, roundId: number, pitch?: number, rate?: number, gender?: 'male' | 'female', sampleKey?: string, priority?: boolean): boolean;
 }
 
 export interface GameFx {
@@ -98,7 +99,7 @@ export interface CafeView {
   waitingTotal: number;
   /** Customers who ran out of patience since the game started. */
   lost: number;
-  giftMenu: { coins: number; nameTh: string; color: string; id: string }[];
+  giftMenu: { coins: number; nameTh: string; color: string; id: string; giftName: string }[];
   coins: number;
   /** Seconds of lucky-cat time left (0 = off). */
   luckyCatSec: number;
@@ -160,6 +161,8 @@ export interface RenderView {
   stepCount?: number;
   /** 0..1: the finished dessert slides to the customer and shrinks away (café, while the order is being paid). 0 = not leaving. */
   serveOutT?: number;
+  /** The order was cancelled (a banished ghost): show no finished dessert. */
+  hideServed?: boolean;
   vote?: VoteView;
   cafe?: CafeView;
   heart: number;
@@ -177,7 +180,7 @@ export const WORLD_W = 1000;
 export const WORLD_H = 600;
 const PRESENT_MS = 900;
 /** The shaman's whole visit: walks in, splashes holy water, walks away. */
-const SHAMAN_MS = 5200;
+const SHAMAN_MS = 8500;
 /** Shares save up shaman visits, at most this many (shown on screen as "สูงสุด 5"). */
 const SHAMAN_MAX_QUOTA = 5;
 /** The ghost's voice: clearly higher and thinner than a normal customer (normal women 1.35, men 0.85). */
@@ -214,6 +217,14 @@ export class Game {
   private lostCustomers = 0;
   private npcTimer = 0;
   private giftMenuView: CafeView['giftMenu'] = [];
+
+  /** Changes which TikTok gift each menu slot shows (from the bridge's /gifts page). Unknown tiers are ignored. */
+  setGiftBoard(slots: readonly GiftSlot[]): void {
+    for (const row of this.giftMenuView) {
+      const s = slots.find((x) => x.coins === row.coins);
+      if (s) row.giftName = s.gift;
+    }
+  }
   // Surprise events (café). Driven by game time (dt), not wall clock; they outlive a single round.
   private luckyCatMs = 0;
   private vipCooldownMs = 0;
@@ -236,6 +247,7 @@ export class Game {
   private readonly returning = new Set<string>();
   private regularCheckMs = 0;
   private shamanFromQuota = false;
+  private orderCancelled = false;
   private ghostTamed = false;
   private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
 
@@ -279,7 +291,7 @@ export class Game {
         .sort((a, b) => a.minCoins - b.minCoins)
         .map((t) => {
           const d = desserts.get(t.dessertId);
-          return { coins: t.minCoins, nameTh: d?.nameTh ?? t.dessertId, color: d?.palette[0] ?? '#f5f0e1', id: t.dessertId };
+          return { coins: t.minCoins, nameTh: d?.nameTh ?? t.dessertId, color: d?.palette[0] ?? '#f5f0e1', id: t.dessertId, giftName: DEFAULT_GIFT_BOARD.find((g) => g.coins === t.minCoins)?.gift ?? '' };
         });
     }
   }
@@ -389,7 +401,8 @@ export class Game {
       art: this.current?.art ?? null,
       stepIndex: this.cooking.snapshot().active ? this.cooking.snapshot().stepIndex : 0,
       stepCount: this.current?.steps.length ?? 1,
-      serveOutT: this.cafe && this.manager.snapshot().state === 'REWARDING' ? Math.min(1, this.rewardMs / (this.config.durationsMs.rewarding * 0.75)) : 0,
+      hideServed: this.orderCancelled || undefined,
+      serveOutT: this.cafe && !this.orderCancelled && this.manager.snapshot().state === 'REWARDING' ? Math.min(1, this.rewardMs / (this.config.durationsMs.rewarding * 0.75)) : 0,
       ...(this.vote ? { vote: this.currentVoteView() } : {}),
       heart: this.vote?.meter.value ?? this.cafe?.meter.value ?? 0,
       ...(this.cafe ? { cafe: this.cafeView() } : {}),
@@ -520,7 +533,7 @@ export class Game {
     this.shamanMs = SHAMAN_MS;
     this.shamanSplashed = false;
     const sr = this.soundRound(this.manager.snapshot().roundId);
-    this.fx?.audio.speak?.('ผีได๋ คือสิมาแข็งข้อกับกู๋', sr, 0.7, 0.8, 'male', 'voice-shaman');
+    this.fx?.audio.speak?.('ผีได๋ คือสิมาแข็งข้อกับกู๋', sr, 0.7, 0.8, 'male', 'voice-shaman', true);
     return true;
   }
 
@@ -543,6 +556,11 @@ export class Game {
         this.squeezed = false;
         this.toastText = 'หมอผีปราบผีแล้ว! ผีหายไป';
         if (this.rewards?.addCoins(15)) this.coinShower();
+        if (this.cafe?.queue.current?.kind === 'phone' && this.manager.snapshot().state === 'COOKING') {
+          // the banished ghost's order is cancelled: its dessert disappears and the next customer steps up
+          this.orderCancelled = true;
+          this.cooking.addProgress(100, this.manager.snapshot().roundId);
+        }
       } else {
         this.toastText = 'หมอผีสาดน้ำมนต์!';
         if (this.shamanFromQuota) this.shamanQuota = Math.min(SHAMAN_MAX_QUOTA, this.shamanQuota + 1); // no ghost to banish: the visit is not used up
@@ -788,7 +806,7 @@ export class Game {
           this.phoneTalkMs = 3400;
           const sr = this.soundRound(this.manager.snapshot().roundId);
           this.fx?.audio.play('ghost', sr);
-          this.fx?.audio.speak?.('ฮือ ๆ… ช่วยด้วย… ผีอยากกินขนม…', sr, GHOST_PITCH, 0.62, 'female', 'voice-ghost-call');
+          this.fx?.audio.speak?.('ฮือ ๆ… ช่วยด้วย… ผีอยากกินขนม…', sr, GHOST_PITCH, 0.62, 'female', 'voice-ghost-call', true);
         }
         // The line filled up with paying viewers during the ring: try again soon instead of waiting a whole interval.
         if (!placed) this.phoneTimerMs = Math.min(this.phoneTimerMs, PHONE_RETRY_MS);
@@ -952,6 +970,11 @@ export class Game {
         who = paid.customer.kind === 'vip' ? 'VIP ' : paid.customer.kind === 'phone' ? (this.squeezed ? 'ผีบีบ! ' : this.ghostTamed ? 'ผีหายไปแล้ว! ' : 'ผีพอใจ! ') : paid.customer.name ? `${paid.customer.name} ` : '';
       }
       if (this.luckyCatMs > 0) this.bonusPct += sur.luckyCat.payBonusPct;
+    }
+    if (this.orderCancelled) {
+      this.orderCancelled = false;
+      this.toastText = 'ผีหายไปแล้ว ออเดอร์ถูกยกเลิก';
+      return;
     }
     if (!this.rewards || !this.current) return;
     const r = this.rewards.award(this.current, { roundId, bonusPct: this.bonusPct, cookMs: this.clockMs - this.roundStart });

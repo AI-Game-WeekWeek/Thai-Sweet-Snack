@@ -17,6 +17,7 @@ import '@fontsource/mali/thai-700.css';
 import '@fontsource/mali/latin-700.css';
 import { CafeRenderer } from './render/CafeRenderer';
 import { installDevKeys } from './devKeys';
+import { DEFAULT_GIFT_BOARD, parseGiftBoard } from './cafe/giftBoard';
 import { voiceFiles } from './audio/voiceFiles';
 import { preloadArt } from './render/artImages';
 import { ALL_PIC_NAMES } from './render/artManifest';
@@ -143,13 +144,21 @@ const bridgeUrl = params.get('bridge') ?? (bridgeToken && /^https?:$/.test(locat
 if (cafeRenderer) cafeRenderer.showConnection = bridgeUrl !== null || params.get('status') === '1';
 const renderer = cafeRenderer ?? (voteMode ? new VoteRenderer(cfg.vote.maxBoost) : new Renderer());
 
+// The gift board (which TikTok gift = which menu slot) comes from the bridge: built into live.html, and pushed when it is edited.
+function applyGiftBoard(raw: unknown): void {
+  const board = parseGiftBoard(raw, DEFAULT_GIFT_BOARD.map((s) => s.coins));
+  if (board) game.setGiftBoard(board);
+}
+applyGiftBoard((globalThis as { __GIFT_BOARD__?: unknown }).__GIFT_BOARD__);
+
 // Commands from the bridge's control panel (/panel): call a ghost kind, the shaman, squeeze now, finish the dessert.
-function isCommand(raw: unknown): raw is { cmd: string; arg?: number } {
+function isCommand(raw: unknown): raw is { cmd: string; arg?: number; board?: unknown } {
   return typeof raw === 'object' && raw !== null && typeof (raw as { cmd?: unknown }).cmd === 'string';
 }
-function runCommand(c: { cmd: string; arg?: number }): void {
+function runCommand(c: { cmd: string; arg?: number; board?: unknown }): void {
   try {
-    if (c.cmd === 'ghost') game.callGhostNow(typeof c.arg === 'number' ? c.arg : undefined);
+    if (c.cmd === 'giftboard') applyGiftBoard(c.board);
+    else if (c.cmd === 'ghost') game.callGhostNow(typeof c.arg === 'number' ? c.arg : undefined);
     else if (c.cmd === 'shaman') game.callShaman(true);
     else if (c.cmd === 'squeeze') game.squeezeNow();
     else if (c.cmd === 'finish') game.finishCookingNow();

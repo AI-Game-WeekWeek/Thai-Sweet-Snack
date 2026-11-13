@@ -1,7 +1,8 @@
 import type { ParticleSystem } from '../anim/ParticleSystem';
 import { artImage, drawArt } from './artImages';
 import { drawArtServed } from './dessertArt';
-import { CAFE_PICS, ICON_PICS } from './artManifest';
+import { CAFE_PICS, GIFT_PICS, ICON_PICS } from './artManifest';
+import { giftKey } from '../cafe/giftBoard';
 import { avatarSpec } from '../cafe/avatars';
 import { outfitIndex } from '../cafe/gender';
 import type { CafeView, CustomerView, RenderView } from '../Game';
@@ -62,8 +63,9 @@ export class CafeRenderer {
       // the hungry ghost squeezes: the whole café is pressed in from the sides and shakes
       const sq = Number.isFinite(view.cafe?.squeeze) ? Math.min(1, Math.max(0, view.cafe?.squeeze as number)) : 0;
       if (sq > 0.05) {
-        const shake = Math.sin(this.timeMs / 45) * (2 + 6 * sq) * (view.cafe?.squeezedNow ? 2 : 1);
-        const sx = 1 - 0.07 * sq - (view.cafe?.squeezedNow ? 0.03 : 0);
+        // gentle: a slow small tremble, not a violent shake
+        const shake = Math.sin(this.timeMs / 90) * (0.6 + 1.6 * sq) * (view.cafe?.squeezedNow ? 1.5 : 1);
+        const sx = 1 - 0.035 * sq - (view.cafe?.squeezedNow ? 0.015 : 0);
         ctx.translate(CAFE_W / 2 + shake, CAFE_H / 2);
         ctx.scale(sx, 1);
         ctx.translate(-CAFE_W / 2, -CAFE_H / 2);
@@ -93,12 +95,12 @@ export class CafeRenderer {
             ctx.scale(z, z);
             ctx.translate(-500, -330);
           }
-          this.scene.drawScene(ctx, view, particles, !artImage(this.backgroundKey()), !(view.serveOutT !== undefined && view.serveOutT > 0));
+          this.scene.drawScene(ctx, view, particles, !artImage(this.backgroundKey()), !(view.hideServed || (view.serveOutT !== undefined && view.serveOutT > 0)));
         } finally {
           ctx.restore();
         }
       });
-      this.safely('logo', () => drawArt(ctx, CAFE_PICS.logo, 105, 1268, 140, 130, 0, 1, 1, 4));
+      this.safely('logo', () => drawArt(ctx, CAFE_PICS.logo, 905, 1640, 170, 158, 0, 1, 1, 3));
       this.safely('excite', () => {
         // a warm pulsing glow at the edges of the cooking window while the hearts are flying
         if (view.state !== 'COOKING' || this.level < 0.25) return;
@@ -544,7 +546,7 @@ export class CafeRenderer {
     this.text(ctx, 'ร้านขนมไทย', CAFE_W / 2, 82, 52, '#ffe9a8');
   }
 
-  /** The gift menu split in two small boards, left and right of the dessert, above where live chat covers the screen. */
+  /** The gift menu split in two small boards, left and right of the dessert, above where live chat covers the screen. Each row: the gift emoji (or the dessert for the free slot) and "dessert / gift name". */
   private drawGiftMenu(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined): void {
     const tiers = (cafe?.giftMenu ?? []).slice(0, 8);
     const boards: { x: number; title: string; items: typeof tiers }[] = [
@@ -552,28 +554,31 @@ export class CafeRenderer {
       { x: 806, title: '= สั่งขนม', items: tiers.slice(4, 8) },
     ];
     const w = 250;
-    const top = 960;
+    const top = 940;
+    const rowH = 74;
     for (const bd of boards) {
       ctx.fillStyle = '#5a3820';
       ctx.beginPath();
-      ctx.roundRect(bd.x, top, w, 262, 20);
+      ctx.roundRect(bd.x, top, w, 352, 20);
       ctx.fill();
       ctx.fillStyle = '#2f4a3a';
       ctx.beginPath();
-      ctx.roundRect(bd.x + 10, top + 10, w - 20, 242, 14);
+      ctx.roundRect(bd.x + 10, top + 10, w - 20, 332, 14);
       ctx.fill();
       this.text(ctx, bd.title, bd.x + w / 2, top + 36, 30, '#ffe9a8', '#1c2e24');
       bd.items.forEach((t, i) => {
-        const y = top + 64 + i * 46;
-        const pic = ICON_PICS[t.id];
-        if (!(pic && drawArt(ctx, pic, bd.x + 44, y + 20, 40, 38, 0, 1, 1, 1.5))) {
+        const y = top + 62 + i * rowH;
+        const giftPic = t.giftName ? GIFT_PICS[giftKey(t.giftName)] : undefined;
+        const pic = giftPic ?? ICON_PICS[t.id]; // the free slot (no gift) keeps the dessert picture
+        if (!(pic && drawArt(ctx, pic, bd.x + 46, y + 32, 52, 50, 0, 1, 1, 1.5))) {
           ctx.fillStyle = 'rgba(255,255,255,0.08)';
           ctx.beginPath();
-          ctx.roundRect(bd.x + 24, y, 40, 38, 8);
+          ctx.roundRect(bd.x + 22, y + 4, 48, 46, 8);
           ctx.fill();
         }
         ctx.textAlign = 'left';
-        this.text(ctx, clip(t.nameTh, 11), bd.x + 72, y + 21, 24, '#fff', '#1c2e24');
+        this.text(ctx, clip(t.nameTh, 11), bd.x + 82, y + 15, 24, '#fff', '#1c2e24');
+        this.text(ctx, clip(t.giftName || 'ฟรี', 18), bd.x + 82, y + 49, 19, t.giftName ? '#ffb3d0' : '#9be8a8', '#1c2e24');
         ctx.textAlign = 'center';
       });
     }
@@ -891,7 +896,7 @@ export class CafeRenderer {
       let fade = 1;
       if (a.c.banished) {
         a.fadeMs = (a.fadeMs ?? 0) + dt;
-        fade = 1 - Math.min(1, a.fadeMs / 600);
+        fade = 1 - Math.min(1, a.fadeMs / 1500);
         if (fade <= 0) continue;
       }
       ctx.save();
@@ -994,7 +999,7 @@ export class CafeRenderer {
     }
     // an uneasy flicker: now and then the ghost fades for a blink
     const flick = 0.78 + 0.22 * Math.sin(this.timeMs / 130 + c.id) * Math.sin(this.timeMs / 530);
-    const sway = Math.sin(t * 0.8 + c.id) * 0.05;
+    const sway = Math.sin(t * 0.8 + c.id) * 0.02;
     ctx.save();
     try {
       // cold glow
