@@ -87,23 +87,23 @@ button{font:inherit;background:#34271d;color:#fff3dc;border:1px solid #6a4a30;bo
 table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #46352a;padding:5px 8px;text-align:left}img{width:34px;height:34px;border-radius:50%;vertical-align:middle;background:#444}input,select{font:inherit;padding:4px 6px;border-radius:6px;border:1px solid #6a4a30;background:#2a1f18;color:#fff}.dim{color:#a8957f}.ok{color:#7ddc8c}</style>
 <h1>ระบบรับของขวัญ</h1>
 <p><button id=mode></button> <span class=dim id=modehelp></span></p>
-<h2>ป้ายเมนู: ของขวัญไหน = ขนมช่องไหน (ชื่อต้องตรงกับชื่อของขวัญใน TikTok ไม่สนตัวพิมพ์ใหญ่เล็ก)</h2>
+<h2>ป้ายเมนู: ของขวัญไหน = ขนมช่องไหน (ใส่ชื่อของขวัญใน TikTok หลายชื่อคั่นด้วยจุลภาคได้ ไม่สนตัวพิมพ์ใหญ่เล็ก ช่องที่ว่าง = ใช้ตามจำนวนเพชร)</h2>
 <table id=board></table><p><button id=save class=p>บันทึกป้ายเมนู</button> <span id=sm class=ok></span></p>
 <h2>ของขวัญที่เข้ามา (ล่าสุดอยู่บน)</h2><table id=log></table>
 <script>const T=new URLSearchParams(location.search).get('token')||'';const H={authorization:'Bearer '+T,'content-type':'application/json'};
-const NAMES={1:'ข้าวต้มมัด (ฟรี)',5:'บัวลอย',10:'ทองหยอด',20:'ขนมชั้น',50:'ฝอยทอง',99:'ทองหยิบ',199:'ลูกชุบ',500:'ขนมเบื้อง'};
+const NAMES={1:'ข้าวต้มมัด',5:'บัวลอย',10:'ทองหยอด',20:'ขนมชั้น',50:'ฝอยทอง',99:'ทองหยิบ',199:'ลูกชุบ',500:'ขนมเบื้อง'};
 let state=null,editing=false;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 async function load(){try{const r=await fetch('/gifts.json?token='+encodeURIComponent(T));if(!r.ok)throw 0;state=await r.json();draw()}catch(e){document.body.insertAdjacentHTML('afterbegin','<p>เปิดหน้านี้ด้วยลิงก์ที่มี ?token=... ที่โปรแกรมแสดงให้</p>')}}
 function draw(){const m=document.getElementById('mode');m.textContent=state.auto?'โหมด: อัตโนมัติ (ของขวัญเข้าเกมทันที)':'โหมด: กดเล่นเอง (ของขวัญรอปุ่ม เล่น)';m.className=state.auto?'on':'';
 document.getElementById('modehelp').textContent='กดเพื่อสลับ';
-if(!editing)document.getElementById('board').innerHTML='<tr><th>ช่อง</th><th>ขนม</th><th>ชื่อของขวัญ</th></tr>'+state.board.map(s=>'<tr><td>'+s.coins+'</td><td>'+NAMES[s.coins]+'</td><td>'+(s.coins===1?'<span class=dim>ฟรี (ไลก์ คนเข้า)</span>':'<input data-c="'+s.coins+'" value="'+esc(s.gift)+'" maxlength=32>')+'</td></tr>').join('');
+if(!editing)document.getElementById('board').innerHTML='<tr><th>ช่อง</th><th>ขนม</th><th>ชื่อของขวัญ</th></tr>'+state.board.map(s=>'<tr><td>'+s.coins+'</td><td>'+NAMES[s.coins]+'</td><td>'+'<input data-c="'+s.coins+'" value="'+esc(s.gift)+'" maxlength=300 style="width:100%">'+'</td></tr>').join('');
 document.getElementById('log').innerHTML='<tr><th></th><th>เวลา</th><th>ผู้ส่ง</th><th>ของขวัญ</th><th>จำนวน</th><th>เพชร</th><th>ช่อง</th><th></th></tr>'+(state.log.length?state.log.map(e=>'<tr><td>'+(e.avatarUrl?'<img src="'+esc(e.avatarUrl)+'" referrerpolicy="no-referrer">':'')+'</td><td>'+new Date(e.atMs).toLocaleTimeString()+'</td><td>'+esc(e.user||'-')+'</td><td>'+esc(e.gift||'?')+'</td><td>'+e.repeat+'</td><td>'+e.diamonds+'</td><td>'+(e.tier===null?'<span class=dim>ไม่อยู่ในป้าย (ใช้ค่าเพชร)</span>':e.tier+' · '+esc(NAMES[e.tier]))+'</td><td>'+(e.played?'<span class=ok>เล่นแล้ว</span>':'<button class=p data-p="'+esc(e.id)+'">เล่น</button>')+'</td></tr>').join(''):'<tr><td class=dim>ยังไม่มีของขวัญเข้ามา</td></tr>')}
 document.addEventListener('input',e=>{if(e.target.dataset.c)editing=true});
 document.addEventListener('click',async e=>{const t=e.target;
 if(t.id==='mode'){await fetch('/gifts/auto',{method:'POST',headers:H,body:JSON.stringify({auto:!state.auto})});load()}
 else if(t.dataset.p){await fetch('/gifts/play',{method:'POST',headers:H,body:JSON.stringify({id:t.dataset.p})});load()}
-else if(t.id==='save'){const board=[{coins:1,gift:''}];document.querySelectorAll('input[data-c]').forEach(i=>board.push({coins:Number(i.dataset.c),gift:i.value.trim()}));
+else if(t.id==='save'){const board=[];document.querySelectorAll('input[data-c]').forEach(i=>board.push({coins:Number(i.dataset.c),gift:i.value.trim()}));
 const r=await fetch('/gifts/board',{method:'POST',headers:H,body:JSON.stringify({board})});document.getElementById('sm').textContent=r.ok?'บันทึกแล้ว':'บันทึกไม่ได้';editing=false;load()}});
 load();setInterval(load,1500);</script>`;
 

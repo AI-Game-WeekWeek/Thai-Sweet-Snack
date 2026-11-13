@@ -16,13 +16,15 @@ describe('GiftDesk', () => {
   const meta = (giftName: string, diamonds = 1) => ({ giftName, user: 'พี่ต้น', avatarUrl: 'https://p.example.com/a.jpg', repeat: 1, diamonds });
   it('maps gifts by name (case/space-insensitive) to a menu slot; unknown gifts keep their diamond value; duplicates are ignored', () => {
     const d = new GiftDesk(COINS);
-    expect(d.tierFor('rose')).toBe(5);
-    expect(d.tierFor("  YOU'RE   awesome ")).toBe(10);
+    expect(d.tierFor('rose')).toBe(1); // all the 1-coin gifts share the first slot
+    expect(d.tierFor("  YOU'RE   awesome ")).toBe(1);
+    expect(d.tierFor('choc chip cookie')).toBe(5);
+    expect(d.tierFor('ICE LOLLY')).toBe(10);
     expect(d.tierFor('Mystery Gift')).toBeNull();
     expect(d.tierFor('')).toBeNull();
     const a = d.record({ id: 'g1', type: 'rose', giftCoins: 1 }, meta('Rose', 1))!;
-    expect(a.tier).toBe(5);
-    expect(a.event.giftCoins).toBe(5);
+    expect(a.tier).toBe(1);
+    expect(a.event.giftCoins).toBe(1);
     const b = d.record({ id: 'g2', type: 'gift', giftCoins: 77 }, meta('Mystery', 77))!;
     expect(b.tier).toBeNull();
     expect(b.event.giftCoins).toBe(77);
@@ -74,21 +76,21 @@ describe('gift page in the bridge', () => {
     return { bridge, url: `http://127.0.0.1:${port}`, msgs };
   }
   const auth = { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' };
-  const gift = { event: 'gift', data: { giftName: 'Rose', diamondCount: 1, repeatCount: 1, nickname: 'พี่ต้น', msgId: 'm1' } };
+  const gift = { event: 'gift', data: { giftName: 'Choc Chip Cookie', diamondCount: 5, repeatCount: 1, nickname: 'พี่ต้น', msgId: 'm1' } };
 
   it('Auto: a mapped gift reaches the game as its slot tier and is logged as played; the page needs the token', async () => {
     const { bridge, url, msgs } = await boot();
     bridge.ingestTikFinity(gift);
     bridge.ingestTikFinity(gift); // same msgId: a duplicate
     await until(() => msgs.length > 0);
-    expect((msgs.flat()[0] as { giftCoins: number; displayName: string })).toMatchObject({ giftCoins: 5, displayName: 'พี่ต้น' });
+    expect((msgs.flat()[0] as { giftCoins: number; displayName: string })).toMatchObject({ giftCoins: 5, displayName: 'พี่ต้น' }); // a 5-coin gift orders slot 5
     expect(msgs.flat().length).toBe(1);
     expect((await fetch(`${url}/gifts.json`)).status).toBe(401);
     expect((await fetch(`${url}/gifts`)).status).toBe(401);
     const j = (await (await fetch(`${url}/gifts.json?token=${TOKEN}`)).json()) as { auto: boolean; log: { gift: string; user: string; tier: number; played: boolean }[] };
     expect(j.auto).toBe(true);
     expect(j.log).toHaveLength(1);
-    expect(j.log[0]).toMatchObject({ gift: 'Rose', user: 'พี่ต้น', tier: 5, played: true });
+    expect(j.log[0]).toMatchObject({ gift: 'Choc Chip Cookie', user: 'พี่ต้น', tier: 5, played: true });
     expect((await fetch(`${url}/gifts?token=${TOKEN}`)).status).toBe(200);
   });
 

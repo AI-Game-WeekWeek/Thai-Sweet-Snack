@@ -52,7 +52,7 @@ describe('CafeRenderer', () => {
   it('draws the shop sign, the gift menu with every tier, the queue and the coin count', () => {
     const t = draw(view()).texts.join(' | ');
     for (const s of ['ร้านขนมไทย', 'ส่งของขวัญ', 'ข้าวต้มมัด', 'บัวลอย', 'ขนมเบื้อง', 'มะลิ', 'น้ำฝน', '345']) expect(t).toContain(s);
-    expect(t).not.toContain('500'); // the gift board has no coin numbers (that space is left empty)
+    expect(t).toContain('Mamma Mia'); // the boards show gift names
   });
 
   it('shows what is happening in each state', () => {
@@ -291,6 +291,6 @@ describe('gift names on the boards', () => {
     expect(t).toContain('บัวลอย');
     expect(t).toContain('Rose');
     expect(t).toContain('Mamma Mia');
-    expect(t).toContain('ฟรี');
+    expect(t).toContain('1 เหรียญ'); // the first slot lists the 1-coin gifts
   });
 });

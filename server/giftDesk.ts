@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs';
-import { DEFAULT_GIFT_BOARD, cleanGiftName, giftKey, parseGiftBoard, type GiftSlot } from '../src/cafe/giftBoard';
+import { DEFAULT_GIFT_BOARD, cleanGiftName, giftKey, giftNames, parseGiftBoard, type GiftSlot } from '../src/cafe/giftBoard';
 
 export interface GiftMeta {
   giftName: string;
@@ -49,7 +49,7 @@ export class GiftDesk {
   tierFor(giftName: string): number | null {
     const k = giftKey(giftName);
     if (k === '') return null;
-    const slot = this.board.find((s) => s.gift !== '' && giftKey(s.gift) === k);
+    const slot = this.board.find((s) => giftNames(s).some((n) => giftKey(n) === k));
     return slot ? slot.coins : null;
   }
 
@@ -71,7 +71,8 @@ export class GiftDesk {
       diamonds: Number.isFinite(meta.diamonds) ? Math.max(0, meta.diamonds) : 0,
       tier,
       played: false,
-      event: { ...event, giftCoins: tier ?? base },
+      // a gift on the board orders at least its slot; a bigger total (a streak) orders higher
+      event: { ...event, giftCoins: tier === null ? base : Math.max(tier, base) },
     };
     this.log.push(entry);
     if (this.log.length > MAX_LOG) this.log.splice(0, this.log.length - MAX_LOG);
@@ -97,7 +98,7 @@ export class GiftDesk {
     // re-map what is already in the log
     for (const e of this.log) {
       e.tier = this.tierFor(e.gift);
-      if (e.tier !== null) e.event = { ...e.event, giftCoins: e.tier };
+      if (e.tier !== null) e.event = { ...e.event, giftCoins: Math.max(e.tier, e.diamonds) };
     }
     this.save();
     return true;

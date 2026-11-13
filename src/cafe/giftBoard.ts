@@ -9,21 +9,32 @@ export interface GiftSlot {
   gift: string;
 }
 
+/** A slot may list several gifts separated by commas (all the 1-coin gifts share the first slot). */
 export const DEFAULT_GIFT_BOARD: readonly GiftSlot[] = [
-  { coins: 1, gift: '' },
-  { coins: 5, gift: 'Rose' },
-  { coins: 10, gift: "You're awesome" },
-  { coins: 20, gift: 'Ice Cream Cone' },
-  { coins: 50, gift: 'Ice Lolly' },
-  // Chili and Steven Wingman cost 1 coin each, so they come early, right after Ice Lolly
-  { coins: 99, gift: 'Chili' },
-  { coins: 199, gift: 'Steven Wingman' },
-  { coins: 500, gift: 'Choc Chip Cookie' },
+  { coins: 1, gift: "Rose, You're awesome, Ice Cream Cone, Chili, Steven Wingman, Mamma Mia, Level-up Sparks" },
+  { coins: 5, gift: 'Choc Chip Cookie' },
+  { coins: 10, gift: 'Ice Lolly' },
+  { coins: 20, gift: '' },
+  { coins: 50, gift: '' },
+  { coins: 99, gift: '' },
+  { coins: 199, gift: '' },
+  { coins: 500, gift: '' },
 ];
+
+/** The gift names of a slot ("A, B" -> ["A", "B"]). */
+export function giftNames(slot: Pick<GiftSlot, 'gift'>): string[] {
+  return String(slot.gift ?? '').split(',').map((n) => n.trim()).filter((n) => n !== '');
+}
 
 /** "Ice Cream Cone" -> "icecreamcone": how a gift name is compared and named in files. */
 export function giftKey(name: string): string {
   return String(name ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/** Cleans a slot's gift list typed by the streamer: printable, a few names. */
+export function cleanGiftList(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  return raw.split(',').slice(0, 12).map(cleanGiftName).filter((n) => n !== '').join(', ').slice(0, 300);
 }
 
 /** Cleans a gift name typed by the streamer or sent by a provider: printable, short. */
@@ -42,7 +53,7 @@ export function parseGiftBoard(raw: unknown, validCoins: readonly number[]): Gif
     const o = r as Record<string, unknown>;
     if (typeof o.coins !== 'number' || !validCoins.includes(o.coins) || seenCoins.has(o.coins)) return null;
     seenCoins.add(o.coins);
-    out.push({ coins: o.coins, gift: cleanGiftName(o.gift) });
+    out.push({ coins: o.coins, gift: cleanGiftList(o.gift) });
   }
   return out;
 }

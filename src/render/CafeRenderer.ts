@@ -2,7 +2,7 @@ import type { ParticleSystem } from '../anim/ParticleSystem';
 import { artImage, drawArt } from './artImages';
 import { drawArtServed } from './dessertArt';
 import { CAFE_PICS, GIFT_PICS, ICON_PICS } from './artManifest';
-import { giftKey } from '../cafe/giftBoard';
+import { giftKey, giftNames } from '../cafe/giftBoard';
 import { avatarSpec } from '../cafe/avatars';
 import { outfitIndex } from '../cafe/gender';
 import type { CafeView, CustomerView, RenderView } from '../Game';
@@ -568,8 +568,10 @@ export class CafeRenderer {
       this.text(ctx, bd.title, bd.x + w / 2, top + 36, 30, '#ffe9a8', '#1c2e24');
       bd.items.forEach((t, i) => {
         const y = top + 62 + i * rowH;
-        const giftPic = t.giftName ? GIFT_PICS[giftKey(t.giftName)] : undefined;
-        const pic = giftPic ?? ICON_PICS[t.id]; // the free slot (no gift) keeps the dessert picture
+        const names = giftNames({ gift: t.giftName });
+        const pics = names.map((n) => GIFT_PICS[giftKey(n)]).filter((p): p is string => !!p);
+        // one gift: its emoji; several gifts (the 1-coin slot): the dessert picture with a row of the gift emoji below; none: the dessert
+        const pic = names.length === 1 && pics[0] ? pics[0] : ICON_PICS[t.id];
         if (!(pic && drawArt(ctx, pic, bd.x + 46, y + 32, 52, 50, 0, 1, 1, 1.5))) {
           ctx.fillStyle = 'rgba(255,255,255,0.08)';
           ctx.beginPath();
@@ -578,7 +580,15 @@ export class CafeRenderer {
         }
         ctx.textAlign = 'left';
         this.text(ctx, clip(t.nameTh, 11), bd.x + 82, y + 15, 24, '#fff', '#1c2e24');
-        this.text(ctx, clip(t.giftName || 'ฟรี', 18), bd.x + 82, y + 49, 19, t.giftName ? '#ffb3d0' : '#9be8a8', '#1c2e24');
+        if (names.length > 1) {
+          // several gifts share this slot: a row of their emoji and the price
+          pics.slice(0, 4).forEach((p, k) => drawArt(ctx, p, bd.x + 92 + k * 26, y + 49, 24, 24, 0, 1, 1, 1));
+          this.text(ctx, '1', bd.x + 92 + Math.min(4, pics.length) * 26 + 6, y + 49, 20, '#9be8a8', '#1c2e24');
+        } else if (names.length === 1) {
+          this.text(ctx, clip(`${names[0]} · ${t.coins}`, 20), bd.x + 82, y + 49, 19, '#ffb3d0', '#1c2e24');
+        } else {
+          this.text(ctx, `${t.coins} เหรียญ`, bd.x + 82, y + 49, 19, '#9be8a8', '#1c2e24');
+        }
         ctx.textAlign = 'center';
       });
     }
