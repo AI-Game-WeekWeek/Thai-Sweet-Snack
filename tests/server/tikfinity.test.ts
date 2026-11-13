@@ -36,7 +36,7 @@ describe('TikFinity route', () => {
     expect(ok.status).toBe(202);
     await until(() => msgs.some((m) => Array.isArray(m)));
     const evs = msgs.flat() as { type: string; giftCoins?: number; displayName?: string }[];
-    expect(evs.find((e) => e.type === 'rose')).toMatchObject({ giftCoins: 5, displayName: 'พี่ต้น' }); // Rose is on the gift board: it orders its slot (5), whatever its diamond value
+    expect(evs.find((e) => e.type === 'rose')).toMatchObject({ giftCoins: 10, displayName: 'พี่ต้น' }); // Rose is on the board (slot 1) but 2 x 5 diamonds is worth more: the bigger value orders
     const viaHeader = await fetch(`${url}/tikfinity`, { method: 'POST', headers: { authorization: `Bearer ${TOKEN}` }, body: JSON.stringify({ event: 'follow', data: {} }) });
     expect(viaHeader.status).toBe(202);
   });
