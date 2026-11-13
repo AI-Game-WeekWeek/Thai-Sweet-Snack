@@ -67,6 +67,7 @@ describe('café soak', () => {
     let sawCat = false;
     let unlockedBefore = rewards.profile.unlocked.length;
     let served = 0;
+    const cancelledRounds = new Set<number>();
     let wasServing = false;
 
     for (let frame = 0; game.snapshot().roundsCompleted < ROUNDS; frame++) {
@@ -126,6 +127,7 @@ describe('café soak', () => {
       // count customers actually paid: the counter empties exactly once per round, at REWARDING
       const hasServing = cafe.serving !== null;
       if (wasServing && !hasServing && s.state === 'REWARDING') served++;
+      if (s.state === 'REWARDING' && s.toast?.includes('ออเดอร์ถูกยกเลิก')) cancelledRounds.add(s.roundId);
       wasServing = hasServing;
       prevLost = cafe.lost;
       prev = s;
@@ -136,7 +138,7 @@ describe('café soak', () => {
     expect(sawVip, 'vip').toBe(true);
     expect(sawPhone, 'phone').toBe(true);
     expect(cookedChecks).toBeGreaterThanOrEqual(ROUNDS);
-    expect(rewards.profile.rounds).toBe(ROUNDS);
+    expect(rewards.profile.rounds + cancelledRounds.size).toBe(ROUNDS); // a banished ghost's order is cancelled and pays nothing
     expect(served).toBe(ROUNDS); // one paid customer leaves the counter per round, never two
     expect(JSON.stringify(rewards.profile)).not.toContain(SECRET_NAME); // viewer data is never saved
     expect(JSON.stringify(rewards.profile)).not.toContain('cdn.example.com');

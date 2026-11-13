@@ -83,3 +83,24 @@ describe('recorded voice lines', () => {
     expect(files.every((f) => /^[a-z0-9-]+\.mp3$/.test(f.file))).toBe(true);
   });
 });
+
+describe('speech never cuts a line', () => {
+  it('a normal line is skipped while another is being spoken; a priority line is queued behind it and nothing is cancelled', () => {
+    const spoken: string[] = [];
+    let cancelled = 0;
+    let busy = true;
+    const g = globalThis as Record<string, unknown>;
+    const old = { s: g.speechSynthesis, u: g.SpeechSynthesisUtterance };
+    g.SpeechSynthesisUtterance = class { text: string; voice: unknown; lang = ''; rate = 1; pitch = 1; volume = 1; constructor(t: string) { this.text = t; } };
+    g.speechSynthesis = { getVoices: () => [{ name: 'Kanya', lang: 'th-TH' }], get speaking() { return busy; }, pending: false, cancel() { cancelled++; }, speak(u: { text: string }) { spoken.push(u.text); } };
+    try {
+      const a = new AudioManager(cafeConfig);
+      expect(a.speak('เอา… ข้าวต้มมัด… ค่ะ', 1, 1.3, 0.7, 'female')).toBe(false); // busy: skipped, not cutting the current line
+      expect(a.speak('ผีได๋ คือสิมาแข็งข้อกับกู๋', 1, 0.7, 0.8, 'male', undefined, true)).toBe(true); // priority: queued
+      busy = false;
+      expect(a.speak('เอา… บัวลอย… ครับ', 1, 0.85, 0.7, 'male')).toBe(true);
+      expect(spoken).toEqual(['ผีได๋ คือสิมาแข็งข้อกับกู๋', 'เอา… บัวลอย… ครับ']);
+      expect(cancelled).toBe(0);
+    } finally { g.speechSynthesis = old.s; g.SpeechSynthesisUtterance = old.u; }
+  });
+});

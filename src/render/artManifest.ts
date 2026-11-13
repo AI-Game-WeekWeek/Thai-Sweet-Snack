@@ -36,6 +36,19 @@ export interface StageSpec {
   fx?: readonly Fx[];
 }
 
+/** Gift emoji pictures by gift key (see giftKey): shown on the menu boards. */
+export const GIFT_PICS: Record<string, string> = {
+  rose: 'gift-rose',
+  youreawesome: 'gift-youreawesome',
+  icecreamcone: 'gift-icecreamcone',
+  icelolly: 'gift-icelolly',
+  chocchipcookie: 'gift-chocchipcookie',
+  chili: 'gift-chili',
+  mammamia: 'gift-mammamia',
+  levelupsparks: 'gift-levelupsparks',
+  stevenwingman: 'gift-stevenwingman',
+};
+
 export const FX_PICS = { steam: ['fx-1', 'fx-2', 'fx-3'], bubbles: ['fx-4', 'fx-5'], sparkle: ['fx-6', 'fx-7'] } as const;
 
 const L = (pic: string, x: number, y: number, size: number, motion?: Motion, fade?: 'in' | 'out', front?: number): Layer => ({ pic, x, y, size, ...(motion ? { motion } : {}), ...(fade ? { fade } : {}), ...(front !== undefined ? { front } : {}) });
@@ -164,6 +177,7 @@ function allNames(): string[] {
   Object.values(FX_PICS).forEach((p) => p.forEach((n) => s.add(n)));
   Object.values(SERVED_PICS).forEach((p) => p.forEach((n) => s.add(n)));
   Object.values(ICON_PICS).forEach((n) => s.add(n));
+  Object.values(GIFT_PICS).forEach((n) => s.add(n));
   Object.values(CAFE_PICS).forEach((v) => (Array.isArray(v) ? v.forEach((n) => s.add(n)) : s.add(v as string)));
   return [...s];
 }

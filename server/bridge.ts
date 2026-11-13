@@ -6,6 +6,8 @@ import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { isChatterComment, parseLiveEvent } from '../src/tiktok/parseLiveEvent';
 import { TikFinityAdapter } from '../src/tiktok/adapters/tikfinity';
+import { DEFAULT_GIFT_BOARD } from '../src/cafe/giftBoard';
+import { GiftDesk, type GiftMeta } from './giftDesk';
 import type { LiveEvent } from '../src/tiktok/types';
 
 export interface BridgeOptions {
@@ -22,6 +24,8 @@ export interface BridgeOptions {
   staticDir?: string;
   /** Hosts the game may load viewer pictures from (built into /live.html). Empty = generated faces only. */
   avatarHosts?: string[];
+  /** Where the gift page saves its settings (gift board + Auto/Manual). Omit for in-memory only. */
+  giftFile?: string;
 }
 
 export interface Bridge {
@@ -77,6 +81,32 @@ mk('e','ติดตาม (แมวกวัก)',()=>ev('follow',{},'ติ�
 mk('s','เสกผีสุ่ม',()=>post('/cmd',{cmd:'ghost'},'เสกผีสุ่ม'));mk('s','เรียกหมอผี',()=>post('/cmd',{cmd:'shaman'},'เรียกหมอผี'),'f');mk('s','ผีบีบทันที',()=>post('/cmd',{cmd:'squeeze'},'ผีบีบ'));mk('s','ทำขนมให้เสร็จ',()=>post('/cmd',{cmd:'finish'},'ขนมเสร็จ'));
 </script>`;
 
+const GIFTS_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ของขวัญ</title>
+<style>body{font:15px/1.45 system-ui,sans-serif;background:#1c1511;color:#f4e6d3;margin:0;padding:14px;max-width:900px}h1{font-size:20px;margin:0 0 8px}h2{font-size:16px;margin:16px 0 6px;color:#ffc878}
+button{font:inherit;background:#34271d;color:#fff3dc;border:1px solid #6a4a30;border-radius:8px;padding:6px 12px;cursor:pointer}button.on{background:#1f6b4a}button.p{border-color:#e8b64c}
+table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #46352a;padding:5px 8px;text-align:left}img{width:34px;height:34px;border-radius:50%;vertical-align:middle;background:#444}input,select{font:inherit;padding:4px 6px;border-radius:6px;border:1px solid #6a4a30;background:#2a1f18;color:#fff}.dim{color:#a8957f}.ok{color:#7ddc8c}</style>
+<h1>ระบบรับของขวัญ</h1>
+<p><button id=mode></button> <span class=dim id=modehelp></span></p>
+<h2>ป้ายเมนู: ของขวัญไหน = ขนมช่องไหน (ชื่อต้องตรงกับชื่อของขวัญใน TikTok ไม่สนตัวพิมพ์ใหญ่เล็ก)</h2>
+<table id=board></table><p><button id=save class=p>บันทึกป้ายเมนู</button> <span id=sm class=ok></span></p>
+<h2>ของขวัญที่เข้ามา (ล่าสุดอยู่บน)</h2><table id=log></table>
+<script>const T=new URLSearchParams(location.search).get('token')||'';const H={authorization:'Bearer '+T,'content-type':'application/json'};
+const NAMES={1:'ข้าวต้มมัด (ฟรี)',5:'บัวลอย',10:'ทองหยอด',20:'ขนมชั้น',50:'ฝอยทอง',99:'ทองหยิบ',199:'ลูกชุบ',500:'ขนมเบื้อง'};
+let state=null,editing=false;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function load(){try{const r=await fetch('/gifts.json?token='+encodeURIComponent(T));if(!r.ok)throw 0;state=await r.json();draw()}catch(e){document.body.insertAdjacentHTML('afterbegin','<p>เปิดหน้านี้ด้วยลิงก์ที่มี ?token=... ที่โปรแกรมแสดงให้</p>')}}
+function draw(){const m=document.getElementById('mode');m.textContent=state.auto?'โหมด: อัตโนมัติ (ของขวัญเข้าเกมทันที)':'โหมด: กดเล่นเอง (ของขวัญรอปุ่ม เล่น)';m.className=state.auto?'on':'';
+document.getElementById('modehelp').textContent='กดเพื่อสลับ';
+if(!editing)document.getElementById('board').innerHTML='<tr><th>ช่อง</th><th>ขนม</th><th>ชื่อของขวัญ</th></tr>'+state.board.map(s=>'<tr><td>'+s.coins+'</td><td>'+NAMES[s.coins]+'</td><td>'+(s.coins===1?'<span class=dim>ฟรี (ไลก์ คนเข้า)</span>':'<input data-c="'+s.coins+'" value="'+esc(s.gift)+'" maxlength=32>')+'</td></tr>').join('');
+document.getElementById('log').innerHTML='<tr><th></th><th>เวลา</th><th>ผู้ส่ง</th><th>ของขวัญ</th><th>จำนวน</th><th>เพชร</th><th>ช่อง</th><th></th></tr>'+(state.log.length?state.log.map(e=>'<tr><td>'+(e.avatarUrl?'<img src="'+esc(e.avatarUrl)+'" referrerpolicy="no-referrer">':'')+'</td><td>'+new Date(e.atMs).toLocaleTimeString()+'</td><td>'+esc(e.user||'-')+'</td><td>'+esc(e.gift||'?')+'</td><td>'+e.repeat+'</td><td>'+e.diamonds+'</td><td>'+(e.tier===null?'<span class=dim>ไม่อยู่ในป้าย (ใช้ค่าเพชร)</span>':e.tier+' · '+esc(NAMES[e.tier]))+'</td><td>'+(e.played?'<span class=ok>เล่นแล้ว</span>':'<button class=p data-p="'+esc(e.id)+'">เล่น</button>')+'</td></tr>').join(''):'<tr><td class=dim>ยังไม่มีของขวัญเข้ามา</td></tr>')}
+document.addEventListener('input',e=>{if(e.target.dataset.c)editing=true});
+document.addEventListener('click',async e=>{const t=e.target;
+if(t.id==='mode'){await fetch('/gifts/auto',{method:'POST',headers:H,body:JSON.stringify({auto:!state.auto})});load()}
+else if(t.dataset.p){await fetch('/gifts/play',{method:'POST',headers:H,body:JSON.stringify({id:t.dataset.p})});load()}
+else if(t.id==='save'){const board=[{coins:1,gift:''}];document.querySelectorAll('input[data-c]').forEach(i=>board.push({coins:Number(i.dataset.c),gift:i.value.trim()}));
+const r=await fetch('/gifts/board',{method:'POST',headers:H,body:JSON.stringify({board})});document.getElementById('sm').textContent=r.ok?'บันทึกแล้ว':'บันทึกไม่ได้';editing=false;load()}});
+load();setInterval(load,1500);</script>`;
+
 const MIME: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.webp': 'image/webp', '.png': 'image/png', '.mp3': 'audio/mpeg', '.woff2': 'font/woff2', '.woff': 'font/woff', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8' };
 
 const MONITOR_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ตรวจสอบอีเวนต์</title>
@@ -108,6 +138,7 @@ export function createBridge(opts: BridgeOptions): Bridge {
   const limit = opts.rateLimit ?? { max: 120, windowMs: 1000 };
   const windows = new Map<string, { start: number; count: number }>();
   const adapter = new TikFinityAdapter();
+  const desk = new GiftDesk(DEFAULT_GIFT_BOARD.map((s) => s.coins), opts.giftFile ?? null);
   const stats: MonitorStats = { startedMs: Date.now(), clients: 0, source: 'ยังไม่มีข้อมูลเข้า', received: {}, lastEvents: [], seenMessages: {}, avatarHosts: {}, dropped: 0 };
   const staticRoot = opts.staticDir ? resolve(opts.staticDir) : null;
 
@@ -172,6 +203,14 @@ export function createBridge(opts: BridgeOptions): Bridge {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
       return void res.end(MONITOR_HTML);
     }
+    if (path === '/gifts' || path === '/gifts.json') {
+      const t = new URL(req.url ?? '/', 'http://localhost').searchParams.get('token') ?? '';
+      if (!(safeEqual(t, opts.token) || bearerOk(req))) return send(res, 401, { error: 'unauthorized' });
+      if (path === '/gifts.json') return send(res, 200, { auto: desk.auto, board: desk.board, log: desk.entries().slice(-100).reverse().map(({ event: _e, ...rest }) => rest) });
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      return void res.end(GIFTS_HTML);
+    }
+    if (path === '/gifts/play' || path === '/gifts/auto' || path === '/gifts/board') return handleGiftApi(req, res, path);
     if (path === '/panel') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
       return void res.end(PANEL_HTML.replace('__TOKEN__', () => JSON.stringify(opts.token)));
@@ -223,6 +262,43 @@ export function createBridge(opts: BridgeOptions): Bridge {
       broadcast(JSON.stringify(valid));
     }
     send(res, 202, { accepted: valid.length, ignored, rejected: items.length - valid.length - ignored });
+  }
+
+  async function handleGiftApi(req: IncomingMessage, res: ServerResponse, path: string): Promise<void> {
+    if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' });
+    if (!bearerOk(req)) return send(res, 401, { error: 'unauthorized' });
+    if (!allowed(req.socket.remoteAddress ?? 'unknown')) return send(res, 429, { error: 'rate limited' });
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of req as AsyncIterable<Buffer>) {
+      size += chunk.length;
+      if (size > 8192) return send(res, 413, { error: 'body too large' });
+      chunks.push(chunk);
+    }
+    let body: Record<string, unknown>;
+    try {
+      const j = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
+      body = typeof j === 'object' && j !== null ? (j as Record<string, unknown>) : {};
+    } catch {
+      return send(res, 400, { error: 'invalid JSON' });
+    }
+    if (path === '/gifts/auto') {
+      desk.setAuto(body.auto === true);
+      return send(res, 200, { auto: desk.auto });
+    }
+    if (path === '/gifts/board') {
+      if (!desk.setBoard(body.board)) return send(res, 400, { error: 'invalid board' });
+      broadcast(JSON.stringify({ cmd: 'giftboard', board: desk.board }));
+      return send(res, 200, { board: desk.board });
+    }
+    const ev = typeof body.id === 'string' ? desk.play(body.id) : null;
+    if (!ev) return send(res, 404, { error: 'unknown or already played' });
+    const e = parseLiveEvent(ev, maxLike);
+    if (e) {
+      note([e]);
+      broadcast(JSON.stringify([e]));
+    }
+    send(res, 200, { played: true });
   }
 
   /** The streamer's own control panel sends test commands (call a ghost, shaman, ...) that are relayed to the game pages. */
@@ -295,7 +371,16 @@ export function createBridge(opts: BridgeOptions): Bridge {
     stats.source = 'มีข้อมูลเข้า ' + new Date().toLocaleTimeString('th-TH');
     const converted = adapter.convert(message);
     const valid: LiveEvent[] = [];
-    for (const raw of converted) {
+    for (let raw of converted) {
+      const meta = (raw as { meta?: GiftMeta }).meta;
+      if (meta && (raw.type === 'gift' || raw.type === 'rose')) {
+        // every gift goes through the gift page: logged, mapped to a menu slot, and sent now (Auto) or held for the Play button (Manual)
+        const entry = desk.record(raw, meta);
+        if (!entry) continue; // a duplicate
+        raw = entry.event;
+        if (!desk.auto) continue;
+        entry.played = true;
+      }
       const e = parseLiveEvent(raw, maxLike);
       if (e?.avatarUrl) {
         try {
@@ -323,7 +408,7 @@ export function createBridge(opts: BridgeOptions): Bridge {
     if (path === '/live.html') {
       try {
         const html = await readFile(join(staticRoot, 'index.html'), 'utf8');
-        const inject = `<script>window.__BRIDGE_TOKEN__=${JSON.stringify(opts.token)};window.__AVATAR_HOSTS__=${JSON.stringify(opts.avatarHosts ?? [])};</script>`;
+        const inject = `<script>window.__BRIDGE_TOKEN__=${JSON.stringify(opts.token)};window.__AVATAR_HOSTS__=${JSON.stringify(opts.avatarHosts ?? [])};window.__GIFT_BOARD__=${JSON.stringify(desk.board)};</script>`;
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-frame-options': 'SAMEORIGIN' });
         return void res.end(req.method === 'HEAD' ? undefined : html.replace('<head>', () => `<head>${inject}`));
       } catch {
