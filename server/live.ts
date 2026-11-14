@@ -25,7 +25,8 @@ if (token.length < 16) {
   writeFileSync(tokenFile, token + '\n', { mode: 0o600 });
 }
 
-const avatarHosts = (process.env.AVATAR_HOSTS ?? '').split(',').map((h) => h.trim().toLowerCase()).filter((h) => /^[a-z0-9.-]{3,100}$/.test(h));
+// the TikTok picture host seen in /monitor is built in, so no setting is needed; AVATAR_HOSTS adds more
+const avatarHosts = ['p16-common-sign.tiktokcdn.com', ...(process.env.AVATAR_HOSTS ?? '').split(',')].map((h) => h.trim().toLowerCase()).filter((h) => /^[a-z0-9.-]{3,100}$/.test(h));
 const bridge = createBridge({ token, host, port, staticDir: 'dist', avatarHosts, giftFile: 'gift-map.json' });
 const { port: p } = await bridge.start();
 const base = `http://${host}:${p}`;
