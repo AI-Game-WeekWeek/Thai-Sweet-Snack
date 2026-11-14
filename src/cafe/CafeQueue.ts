@@ -45,10 +45,10 @@ export interface CafeQueueOptions {
 export const hidesCountdown = (c: Customer): boolean => c.viewer && !c.joined && c.kind === 'normal';
 
 /**
- * Phone orders first (they have a deadline), then viewers who gifted (they paid: a VIP never makes them wait longer), then the
- * VIP, then anonymous filler customers.
+ * Phone orders first (they have a deadline), then viewers who gifted (they cut the line: they paid), then viewers who only
+ * joined the live, then the VIP, then anonymous filler customers.
  */
-const rank = (c: Customer): number => (c.kind === 'phone' ? 0 : c.viewer ? 1 : c.kind === 'vip' ? 2 : 3);
+const rank = (c: Customer): number => (c.kind === 'phone' ? 0 : c.viewer && !c.joined ? 1 : c.viewer ? 2 : c.kind === 'vip' ? 3 : 4);
 
 /**
  * The café queue. Customers are WAITING → SERVING → PAID | LEFT. Only waiting customers lose patience; the one being
@@ -76,6 +76,19 @@ export class CafeQueue {
     return this.list;
   }
 
+  /** Priority rank, first-come first-served within a rank: a combo of gifts cannot jump the line. */
+  private insertByRank(customer: Customer): void {
+    const r = rank(customer);
+    let at = this.list.length;
+    for (let i = 0; i < this.list.length; i++) {
+      if (rank(this.list[i] as Customer) > r) {
+        at = i;
+        break;
+      }
+    }
+    this.list.splice(at, 0, customer);
+  }
+
   /** A viewer already waiting (e.g. came in the live) sends a gift: change that customer's order instead of adding a second one. */
   changeOrder(name: string, dessertId: string, avatarUrl?: string | null, patienceMs?: number): boolean {
     const clean = cleanName(name, this.opts.maxNameLength);
@@ -89,6 +102,9 @@ export class CafeQueue {
       c.patienceMs = patienceMs;
       c.patienceMaxMs = patienceMs;
     } else c.patienceMs = c.patienceMaxMs;
+    // a viewer who now gifted cuts the line like any gifter (after those who gifted before)
+    this.list.splice(this.list.indexOf(c), 1);
+    this.insertByRank(c);
     return true;
   }
 
@@ -110,16 +126,7 @@ export class CafeQueue {
       patienceMaxMs: patience,
       state: 'WAITING',
     };
-    // Priority rank, first-come first-served within a rank: a combo of gifts cannot jump the line.
-    const r = rank(customer);
-    let at = this.list.length;
-    for (let i = 0; i < this.list.length; i++) {
-      if (rank(this.list[i] as Customer) > r) {
-        at = i;
-        break;
-      }
-    }
-    this.list.splice(at, 0, customer);
+    this.insertByRank(customer);
     return 'ok';
   }
 

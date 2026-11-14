@@ -233,4 +233,15 @@ describe('CafeQueue', () => {
     expect(q.tick(4000).map((c) => c.name)).toEqual(['ใจดี']); // gone after its long wait
     expect(q.waiting()).toHaveLength(0);
   });
+
+  it('a gifting viewer cuts the line ahead of viewers who only joined and ahead of anonymous customers, and a joined viewer who gifts moves up', () => {
+    const q = mk();
+    q.enqueue(npc('a'));
+    q.enqueue({ ...viewer('เข้า1', 'j1'), joined: true });
+    q.enqueue({ ...viewer('เข้า2', 'j2'), joined: true });
+    q.enqueue(viewer('ใจดี', 'g1')); // gifted: cuts the line
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g1', 'j1', 'j2', 'a']);
+    expect(q.changeOrder('เข้า2', 'g2')).toBe(true); // joined viewer then gifts: moves up, behind the earlier gifter
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g1', 'g2', 'j1', 'a']);
+  });
 });
