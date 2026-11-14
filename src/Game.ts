@@ -687,7 +687,7 @@ export class Game {
     while (this.regulars.size > 30) this.regulars.delete(this.regulars.keys().next().value as string);
   }
 
-  /** Every so often a remembered viewer who gifted recently walks back in and orders the same dessert again. */
+  /** Every so often a viewer who gifted recently walks back in and orders the free dessert (ข้าวต้มมัด) again. */
   private tickRegulars(dt: number): void {
     const cafe = this.cafe;
     if (!cafe || this.regulars.size === 0) return;
@@ -703,8 +703,10 @@ export class Game {
         continue;
       }
       if (now - r.lastMs < c.regularEveryMs || inCafe.has(name) || cafe.queue.waiting().length >= c.maxWaiting) continue;
-      const dessertId = this.desserts.unlockedIds.includes(r.dessertId) ? r.dessertId : c.defaultDessertId;
-      if (cafe.queue.enqueue({ viewer: true, name, avatarUrl: r.avatarUrl, dessertId }) === 'ok') {
+      // a gift is one order; the viewer then comes back as an everyday customer ordering the free dessert (a new gift changes that order)
+      const ids = this.desserts.unlockedIds;
+      const dessertId = ids.includes(c.defaultDessertId) ? c.defaultDessertId : (ids[0] ?? r.dessertId);
+      if (cafe.queue.enqueue({ viewer: true, name, avatarUrl: r.avatarUrl, dessertId, joined: true }) === 'ok') {
         r.returns += 1;
         r.lastMs = now;
         this.returning.add(name);

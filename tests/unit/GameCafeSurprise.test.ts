@@ -479,18 +479,18 @@ describe('regulars come back, bots fill the line', () => {
   const seenAgain = (g: Game, name: string, ms: number) => { for (let t = 0; t < ms; t += 16) { g.update(16); if (names(g).includes(name)) return true; } return false; };
   const served = (g: Game, name: string) => { runUntil(g, () => g.snapshot().cafe!.serving?.name === name, 400_000); runUntil(g, () => g.snapshot().state === 'NEXT_DESSERT' || g.snapshot().cafe!.serving?.name !== name, 400_000); };
 
-  it('a viewer who gifted comes back with the same order after a while, at most the configured number of times', () => {
+  it('a viewer who gifted comes back ordering the free dessert after a while, at most the configured number of times', () => {
     const { game } = mk({ phone: { firstMs: 1e12, everyMs: 1e12 } }, { npcSpawnEveryMs: 1e9, regularEveryMs: 5000, regularWindowMs: 10 * 60_000, regularMaxReturns: 2 });
     game.start();
     gift(game, 20, 'มะลิ');
     const firstDessert = () => { const c = game.snapshot().cafe!; return [...c.waiting, ...(c.serving ? [c.serving] : [])].find((x) => x.name === 'มะลิ')?.dessertId; };
     runUntil(game, () => names(game).includes('มะลิ'), 200_000);
-    const dessert = firstDessert();
+    expect(firstDessert()).not.toBe('khao-tom-mat'); // the gift's own dessert first
     served(game, 'มะลิ');
     advance(game, 200);
     for (let back = 1; back <= 2; back++) {
       expect(seenAgain(game, 'มะลิ', 60_000), `return ${back}`).toBe(true);
-      expect(firstDessert()).toBe(dessert);
+      expect(firstDessert()).toBe('khao-tom-mat'); // a gift is one order; they return as an everyday customer
       served(game, 'มะลิ');
       advance(game, 200);
     }

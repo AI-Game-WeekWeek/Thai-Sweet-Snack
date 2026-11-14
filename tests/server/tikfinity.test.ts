@@ -123,6 +123,7 @@ describe('control panel', () => {
     expect((await post({ cmd: 'rm -rf' }, auth)).status).toBe(400);
     expect((await post({ cmd: 'ghost', arg: 2 }, auth)).status).toBe(202);
     expect((await post({ cmd: 'shaman' }, auth)).status).toBe(202);
+    expect((await post({ cmd: 'autotap', arg: 3 }, auth)).status).toBe(202);
     expect((await post({ cmd: 'ghost', arg: 99 }, auth)).status).toBe(202); // a bad argument is dropped, the command still valid
     await until(() => msgs.length >= 3);
     expect(msgs[0]).toEqual({ cmd: 'ghost', arg: 2 });
