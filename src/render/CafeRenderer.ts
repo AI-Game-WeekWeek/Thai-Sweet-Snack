@@ -581,9 +581,9 @@ export class CafeRenderer {
         ctx.textAlign = 'left';
         this.text(ctx, clip(t.nameTh, 11), bd.x + 82, y + 15, 24, '#fff', '#1c2e24');
         if (names.length > 1) {
-          // several gifts share this slot: a row of their emoji and the price
-          pics.slice(0, 4).forEach((p, k) => drawArt(ctx, p, bd.x + 92 + k * 26, y + 49, 24, 24, 0, 1, 1, 1));
-          this.text(ctx, '1', bd.x + 92 + Math.min(4, pics.length) * 26 + 6, y + 49, 20, '#9be8a8', '#1c2e24');
+          // several gifts share this slot: the price, then a row of all their emoji (up to 7)
+          this.text(ctx, '1', bd.x + 92, y + 49, 20, '#9be8a8', '#1c2e24');
+          pics.slice(0, 7).forEach((p, k) => drawArt(ctx, p, bd.x + 116 + k * 19, y + 49, 20, 20, 0, 1, 1, 1));
         } else if (names.length === 1) {
           this.text(ctx, clip(`${names[0]} · ${t.coins}`, 20), bd.x + 82, y + 49, 19, '#ffb3d0', '#1c2e24');
         } else {
