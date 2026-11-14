@@ -601,6 +601,10 @@ describe('the ghost is very hard, but never a dead end', () => {
     for (let i = 0; i < 600_000 && game.snapshot().cafe!.serving?.kind !== 'phone'; i++) { if (game.snapshot().state === 'COOKING') game.finishCookingNow(); game.update(16); } // the dessert before it needs taps too
     runUntil(game, () => game.renderView().cafe?.ghostCalm === true, 2_000_000); // no taps at all: it gives up
     expect(game.snapshot().toast ?? '').toContain('ผีเบื่อ');
+    // its dessert is cancelled at once: nothing is made for a ghost that is gone, and the next customer steps up
+    const before = game.snapshot().cafe!.serving?.id;
+    runUntil(game, () => game.snapshot().cafe!.serving?.kind !== 'phone', 20_000);
+    expect(game.snapshot().cafe!.serving?.id).not.toBe(before);
   });
 });
 

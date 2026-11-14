@@ -117,6 +117,7 @@ export class CafeRenderer {
       this.safely('cat', () => this.drawCat(ctx, 975, 1428, view.cafe?.luckyCatSec ?? 0));
       this.safely('lucky', () => this.drawLuckyPill(ctx, view.cafe));
       this.safely('status', () => this.drawStatus(ctx, view));
+      this.orderGone = view.hideServed === true;
       this.holdLeaving = view.serveOutT !== undefined && Number.isFinite(view.serveOutT) && view.serveOutT > 0 && view.serveOutT < 1;
       this.safely('queue', () => this.drawQueue(ctx, view.cafe, dt));
       this.safely('serve', () => this.drawServeOut(ctx, view));
@@ -804,6 +805,8 @@ export class CafeRenderer {
   private readonly actors = new Map<number, Actor>();
   private seenFirstFrame = false;
   private holdLeaving = false;
+  /** The order was cancelled (a banished ghost): its customer vanishes at once. */
+  private orderGone = false;
 
   /** How many customers are currently drawn (walking in, standing, or walking out). For tests. */
   get actorCount(): number {
@@ -846,6 +849,11 @@ export class CafeRenderer {
     for (const [id, a] of this.actors) {
       if (want.has(id)) continue;
       if (!a.leaving) {
+        // someone who gave up while waiting, or whose order was cancelled, disappears at once: no walking out over the queue
+        if (!a.c.serving || this.orderGone) {
+          this.actors.delete(id);
+          continue;
+        }
         a.leaving = true;
         a.c = { ...a.c, serving: true }; // no patience bar or order label while walking away
       }

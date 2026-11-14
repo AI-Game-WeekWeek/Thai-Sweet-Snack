@@ -253,6 +253,7 @@ export class Game {
   private regularCheckMs = 0;
   private shamanFromQuota = false;
   private orderCancelled = false;
+  private cancelPending = false;
   private ghostTamed = false;
   private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
 
@@ -561,11 +562,8 @@ export class Game {
         this.squeezed = false;
         this.toastText = 'หมอผีปราบผีแล้ว! ผีหายไป';
         if (this.rewards?.addCoins(15)) this.coinShower();
-        if (this.cafe?.queue.current?.kind === 'phone' && this.manager.snapshot().state === 'COOKING') {
-          // the banished ghost's order is cancelled: its dessert disappears and the next customer steps up
-          this.orderCancelled = true;
-          this.cooking.addProgress(100, this.manager.snapshot().roundId);
-        }
+        // the banished ghost's order is cancelled: its dessert disappears and the next customer steps up
+        this.cancelGhostOrder();
       } else {
         this.toastText = 'หมอผีสาดน้ำมนต์!';
         if (this.shamanFromQuota) this.shamanQuota = Math.min(SHAMAN_MAX_QUOTA, this.shamanQuota + 1); // no ghost to banish: the visit is not used up
@@ -576,6 +574,13 @@ export class Game {
     }
   }
 
+  /** The ghost is gone (banished or bored): its dessert is cancelled in any state, so nothing is made for nobody. */
+  private cancelGhostOrder(): void {
+    if (this.cafe?.queue.current?.kind !== 'phone') return;
+    this.orderCancelled = true;
+    this.cancelPending = true;
+  }
+
   private ghostCooking(): boolean {
     return !!this.cafe && this.manager.snapshot().state === 'COOKING' && this.cafe.queue.current?.kind === 'phone';
   }
@@ -583,6 +588,10 @@ export class Game {
   /** The hungry ghost squeezes if the dessert is not made quickly: tapping hearts loosens it; if it wins, the bonus is lost and a fine is paid. */
   private tickSqueeze(dt: number): void {
     if (this.squeezeFlashMs > 0) this.squeezeFlashMs = Math.max(0, this.squeezeFlashMs - dt);
+    if (this.cancelPending && this.manager.snapshot().state === 'COOKING') {
+      this.cancelPending = false;
+      this.cooking.addProgress(100, this.manager.snapshot().roundId); // finishes at once; the dessert is not served and nothing is paid
+    }
     if (!this.ghostCooking()) {
       if (this.cafe?.queue.current?.kind !== 'phone') {
         this.ghostCookMs = 0;
@@ -604,6 +613,7 @@ export class Game {
       this.squeeze = 0;
       this.squeezed = false;
       this.toastText = 'ผีเบื่อแล้ว หายไปเอง';
+      this.cancelGhostOrder();
       return;
     }
     if (!this.visitCounted) {
