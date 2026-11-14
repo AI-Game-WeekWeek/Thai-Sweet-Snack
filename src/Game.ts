@@ -872,7 +872,7 @@ export class Game {
       this.recentJoins.delete(name);
       this.recentJoins.set(name, this.clockMs);
       while (this.recentJoins.size > 100) this.recentJoins.delete(this.recentJoins.keys().next().value as string);
-      cafe.queue.enqueue({ viewer: true, name, avatarUrl: j.avatarUrl ?? null, dessertId });
+      cafe.queue.enqueue({ viewer: true, name, avatarUrl: j.avatarUrl ?? null, dessertId, joined: true });
     }
   }
 
@@ -883,6 +883,10 @@ export class Game {
     for (const g of gifts) {
       const dessertId = dessertForGift(g.coins, this.config.cafe.giftTiers, this.desserts.unlockedIds);
       if (!dessertId) continue;
+      if (!anon && g.displayName && cafe.queue.changeOrder(g.displayName, dessertId, g.avatarUrl)) {
+        this.rememberRegular(g.displayName, g.avatarUrl ?? null, dessertId, true);
+        continue; // already waiting from joining: upgrade that order, no second customer
+      }
       const r = cafe.queue.enqueue({ viewer: true, name: anon ? null : (g.displayName ?? null), avatarUrl: anon ? null : (g.avatarUrl ?? null), dessertId });
       if (r === 'full') this.rewards?.addCoins(this.config.cafe.overflowGiftCoins);
       else this.rememberRegular(anon ? '' : (g.displayName ?? ''), anon ? null : (g.avatarUrl ?? null), dessertId, true);

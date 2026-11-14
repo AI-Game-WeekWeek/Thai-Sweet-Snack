@@ -12,6 +12,8 @@ export interface Customer {
   /** Stable per customer, used for the generated face and colours. */
   seed: number;
   dessertId: string;
+  /** Came in by joining the live (no gift yet): a gift from the same viewer changes this order instead of adding a customer. */
+  joined?: boolean;
   patienceMs: number;
   patienceMaxMs: number;
   state: CustomerState;
@@ -26,6 +28,7 @@ export interface NewCustomer {
   name?: string | null;
   avatarUrl?: string | null;
   dessertId: string;
+  joined?: boolean;
   /** Fixes the look (outfit / ghost kind) of this customer. Default: derived from the id. */
   seed?: number;
   /** Joins even when the line is full (a ghost cuts in line). */
@@ -70,6 +73,19 @@ export class CafeQueue {
     return this.list;
   }
 
+  /** A viewer already waiting (e.g. came in the live) sends a gift: change that customer's order instead of adding a second one. */
+  changeOrder(name: string, dessertId: string, avatarUrl?: string | null): boolean {
+    const clean = cleanName(name, this.opts.maxNameLength);
+    if (clean === '') return false;
+    const c = this.list.find((x) => x.joined && x.name === clean);
+    if (!c) return false;
+    c.dessertId = dessertId;
+    delete c.joined; // paid now: a second gift is a second order
+    if (avatarUrl) c.avatarUrl = avatarUrl;
+    c.patienceMs = c.patienceMaxMs;
+    return true;
+  }
+
   /** Viewers queue right behind the customer being served (in order of arrival); anonymous customers join the back. */
   enqueue(n: NewCustomer): 'ok' | 'full' {
     if (this.list.length >= this.opts.maxWaiting && !n.force) return 'full';
@@ -83,6 +99,7 @@ export class CafeQueue {
       avatarUrl: n.avatarUrl ?? null,
       seed: n.seed !== undefined && Number.isFinite(n.seed) ? n.seed : this.nextId,
       dessertId: n.dessertId,
+      ...(n.joined ? { joined: true } : {}),
       patienceMs: patience,
       patienceMaxMs: patience,
       state: 'WAITING',

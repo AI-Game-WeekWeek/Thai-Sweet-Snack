@@ -211,4 +211,15 @@ describe('CafeQueue', () => {
     expect(ph?.patienceMs).toBe(3000); // full speed: a deadline is a deadline
     expect(b?.patienceMs).toBe(9500); // everyone else is slowed
   });
+
+  it('a waiting viewer who sends a gift changes their order instead of becoming a second customer', () => {
+    const q = mk();
+    q.enqueue({ ...viewer('นีออน', 'khao-tom-mat'), joined: true });
+    expect(q.changeOrder('นีออน', 'thong-yod', 'https://x/a.png')).toBe(true);
+    expect(q.waiting()).toHaveLength(1);
+    expect(q.waiting()[0]).toMatchObject({ name: 'นีออน', dessertId: 'thong-yod', avatarUrl: 'https://x/a.png' });
+    expect(q.changeOrder('นีออน', 'bua-loy')).toBe(false); // already paid: a second gift is a second order
+    expect(q.changeOrder('คนอื่น', 'x')).toBe(false);
+    expect(q.changeOrder('', 'x')).toBe(false);
+  });
 });
