@@ -41,12 +41,12 @@ export const GIFT_PICS: Record<string, string> = {
   rose: 'gift-rose',
   youreawesome: 'gift-youreawesome',
   icecreamcone: 'gift-icecreamcone',
-  icelolly: 'gift-icelolly',
-  chocchipcookie: 'gift-chocchipcookie',
-  chili: 'gift-chili',
   mammamia: 'gift-mammamia',
   levelupsparks: 'gift-levelupsparks',
-  stevenwingman: 'gift-stevenwingman',
+  loveyousomuch: 'gift-loveyousomuch',
+  doughnut: 'gift-doughnut',
+  tiktok: 'gift-tiktok',
+  gg: 'gift-gg',
 };
 
 export const FX_PICS = { steam: ['fx-1', 'fx-2', 'fx-3'], bubbles: ['fx-4', 'fx-5'], sparkle: ['fx-6', 'fx-7'] } as const;

@@ -41,8 +41,8 @@ export interface CafeQueueOptions {
   maxNameLength: number;
 }
 
-/** A viewer who gave a gift never runs out of patience (VIP / phone orders and joined-only viewers do). */
-export const waitsForever = (c: Customer): boolean => c.viewer && !c.joined && c.kind === 'normal';
+/** A viewer who gave a gift shows no countdown bar (their wait is long and hidden: someone who left the live must not block the line for ever). */
+export const hidesCountdown = (c: Customer): boolean => c.viewer && !c.joined && c.kind === 'normal';
 
 /**
  * Phone orders first (they have a deadline), then viewers who gifted (they paid: a VIP never makes them wait longer), then the
@@ -77,7 +77,7 @@ export class CafeQueue {
   }
 
   /** A viewer already waiting (e.g. came in the live) sends a gift: change that customer's order instead of adding a second one. */
-  changeOrder(name: string, dessertId: string, avatarUrl?: string | null): boolean {
+  changeOrder(name: string, dessertId: string, avatarUrl?: string | null, patienceMs?: number): boolean {
     const clean = cleanName(name, this.opts.maxNameLength);
     if (clean === '') return false;
     const c = this.list.find((x) => x.joined && x.name === clean);
@@ -85,7 +85,10 @@ export class CafeQueue {
     c.dessertId = dessertId;
     delete c.joined; // paid now: a second gift is a second order
     if (avatarUrl) c.avatarUrl = avatarUrl;
-    c.patienceMs = c.patienceMaxMs;
+    if (patienceMs !== undefined && Number.isFinite(patienceMs) && patienceMs > 0) {
+      c.patienceMs = patienceMs;
+      c.patienceMaxMs = patienceMs;
+    } else c.patienceMs = c.patienceMaxMs;
     return true;
   }
 
@@ -139,10 +142,6 @@ export class CafeQueue {
     const left: Customer[] = [];
     const stay: Customer[] = [];
     for (const c of this.list) {
-      if (waitsForever(c)) {
-        stay.push(c); // a viewer who gifted has paid: no countdown, no leaving
-        continue;
-      }
       c.patienceMs -= c.kind === 'phone' ? dtMs : dtMs * factor; // a phone order's deadline is never stretched
       if (c.patienceMs <= 0) {
         c.state = 'LEFT';

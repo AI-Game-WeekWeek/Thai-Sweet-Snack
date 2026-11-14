@@ -15,10 +15,10 @@ export const DEFAULT_GIFT_BOARD: readonly GiftSlot[] = [
   { coins: 5, gift: 'Rose' },
   { coins: 10, gift: "You're awesome" },
   { coins: 20, gift: 'Ice Cream Cone' },
-  { coins: 50, gift: 'Ice Lolly' },
-  { coins: 99, gift: 'Chili' },
-  { coins: 199, gift: 'Steven Wingman' },
-  { coins: 500, gift: 'Choc Chip Cookie' },
+  { coins: 50, gift: 'Love you so much' },
+  { coins: 99, gift: 'GG' },
+  { coins: 199, gift: 'TikTok' },
+  { coins: 500, gift: 'Doughnut' },
 ];
 
 /** The gift names of a slot ("A, B" -> ["A", "B"]). */

@@ -223,14 +223,14 @@ describe('CafeQueue', () => {
     expect(q.changeOrder('', 'x')).toBe(false);
   });
 
-  it('a viewer who gifted never runs out of patience; joined-only viewers and anonymous customers do', () => {
+  it('a gifting viewer shows no countdown but still leaves after the long hidden wait (e.g. left the live); joined-only and anonymous ones use the normal patience', () => {
     const q = mk(5, 1000);
-    q.enqueue(viewer('ใจดี', 'bua-loy')); // gifted
+    q.enqueue({ ...viewer('ใจดี', 'bua-loy'), patienceMs: 8000 }); // gifted: long wait
     q.enqueue({ ...viewer('คนเข้า', 'khao-tom-mat'), joined: true });
     q.enqueue(npc());
-    const left = q.tick(5000);
-    expect(left.map((c) => c.name)).toEqual(['คนเข้า', null]);
+    expect(q.tick(5000).map((c) => c.name)).toEqual(['คนเข้า', null]);
     expect(q.waiting().map((c) => c.name)).toEqual(['ใจดี']);
-    expect(q.waiting()[0]?.patienceMs).toBe(1000);
+    expect(q.tick(4000).map((c) => c.name)).toEqual(['ใจดี']); // gone after its long wait
+    expect(q.waiting()).toHaveLength(0);
   });
 });

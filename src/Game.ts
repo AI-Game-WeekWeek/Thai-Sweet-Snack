@@ -15,7 +15,7 @@ import { genderForSeed, politeEnding } from './cafe/gender';
 import { DEFAULT_GIFT_BOARD, type GiftSlot } from './cafe/giftBoard';
 import { cleanName } from './tiktok/cleanName';
 import type { CafeQueue, Customer, CustomerKind } from './cafe/CafeQueue';
-import { waitsForever } from './cafe/CafeQueue';
+import { hidesCountdown } from './cafe/CafeQueue';
 import type { HeartMeter } from './cooking/HeartMeter';
 import type { VoteManager } from './vote/VoteManager';
 import type { RewardResult } from './reward/types';
@@ -909,12 +909,12 @@ export class Game {
     for (const g of gifts) {
       const dessertId = dessertForGift(g.coins, this.config.cafe.giftTiers, this.desserts.unlockedIds);
       if (!dessertId) continue;
-      if (!anon && g.displayName && cafe.queue.changeOrder(g.displayName, dessertId, g.avatarUrl)) {
+      if (!anon && g.displayName && cafe.queue.changeOrder(g.displayName, dessertId, g.avatarUrl, this.config.cafe.giftWaitMs)) {
         this.thankGift(g.displayName);
         this.rememberRegular(g.displayName, g.avatarUrl ?? null, dessertId, true);
         continue; // already waiting from joining: upgrade that order, no second customer
       }
-      const r = cafe.queue.enqueue({ viewer: true, name: anon ? null : (g.displayName ?? null), avatarUrl: anon ? null : (g.avatarUrl ?? null), dessertId });
+      const r = cafe.queue.enqueue({ viewer: true, patienceMs: this.config.cafe.giftWaitMs, name: anon ? null : (g.displayName ?? null), avatarUrl: anon ? null : (g.avatarUrl ?? null), dessertId });
       if (!anon) this.thankGift(g.displayName);
       if (r === 'full') this.rewards?.addCoins(this.config.cafe.overflowGiftCoins);
       else this.rememberRegular(anon ? '' : (g.displayName ?? ''), anon ? null : (g.avatarUrl ?? null), dessertId, true);
@@ -935,8 +935,8 @@ export class Game {
         dessertId: c.dessertId,
         dessertNameTh: d?.nameTh ?? c.dessertId,
         color: d?.palette[0] ?? '#f5f0e1',
-        patience: serving || waitsForever(c) ? 1 : Math.min(1, Math.max(0, c.patienceMs / c.patienceMaxMs)),
-        timed: !waitsForever(c),
+        patience: serving || hidesCountdown(c) ? 1 : Math.min(1, Math.max(0, c.patienceMs / c.patienceMaxMs)),
+        timed: !hidesCountdown(c),
         serving,
         ...(c.kind === 'phone' && this.ghostTamed ? { banished: true } : {}),
       };

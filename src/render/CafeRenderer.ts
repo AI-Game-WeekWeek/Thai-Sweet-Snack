@@ -29,7 +29,7 @@ const FONT = '"Mali", "Noto Sans Thai", system-ui, sans-serif';
 const INK = '#3b2a1a';
 const clip = (s: string, max: number): string => (s.length > max ? `${Array.from(s).slice(0, max - 1).join('')}…` : s);
 /** Menu-board label per row (display only): gift next to each dessert; null = the free dessert. */
-const BOARD_GIFTS: (string | null)[] = [null, 'Rose', "You're awesome", 'Ice Cream Cone', 'Ice Lolly', 'Chili', 'Steven Wingman', 'Choc Chip Cookie'];
+const BOARD_GIFTS: (string | null)[] = [null, 'Rose', "You're awesome", 'Ice Cream Cone', 'Love you so much', 'GG', 'TikTok', 'Doughnut'];
 const clamp01 = (n: number): number => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0);
 const isColor = (c: string): boolean => /^#[0-9a-f]{3,8}$/i.test(c);
 

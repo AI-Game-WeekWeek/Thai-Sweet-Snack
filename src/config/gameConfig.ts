@@ -59,6 +59,8 @@ export interface GameConfig {
     defaultDessertId: string;
     /** Coins the café earns from a gift that finds the queue full (a flat thank-you, not the gift's face value). */
     overflowGiftCoins: number;
+    /** A gifting viewer waits this long (no bar shown) before leaving: someone who left the live does not block the line. */
+    giftWaitMs: number;
     maxNameLength: number;
     /** Hide every viewer's name and picture. */
     anonymousNames: boolean;
@@ -140,6 +142,7 @@ export const defaultConfig: GameConfig = {
     regularMaxReturns: 4,
     maxGiftsPerDrain: 20,
     overflowGiftCoins: 2,
+    giftWaitMs: 150_000,
     defaultDessertId: 'khao-tom-mat',
     maxNameLength: 16,
     anonymousNames: false,
