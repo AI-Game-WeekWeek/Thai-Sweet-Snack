@@ -125,10 +125,11 @@ describe('control panel', () => {
     expect((await post({ cmd: 'shaman' }, auth)).status).toBe(202);
     expect((await post({ cmd: 'autotap', arg: 3 }, auth)).status).toBe(202);
     expect((await post({ cmd: 'ghost', arg: 99 }, auth)).status).toBe(202); // a bad argument is dropped, the command still valid
-    await until(() => msgs.length >= 3);
+    await until(() => msgs.length >= 4);
     expect(msgs[0]).toEqual({ cmd: 'ghost', arg: 2 });
     expect(msgs[1]).toEqual({ cmd: 'shaman' });
-    expect(msgs[2]).toEqual({ cmd: 'ghost' });
+    expect(msgs[2]).toEqual({ cmd: 'autotap', arg: 3 });
+    expect(msgs[3]).toEqual({ cmd: 'ghost' });
     expect((await fetch(`${url}/cmd`, { method: 'GET' })).status).toBe(405);
     expect((await fetch(`${url}/cmd`, { method: 'POST', headers: auth, body: 'x'.repeat(5000) })).status).toBe(413);
   });
