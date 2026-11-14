@@ -227,6 +227,8 @@ export class Game {
   }
   // Surprise events (café). Driven by game time (dt), not wall clock; they outlive a single round.
   private luckyCatMs = 0;
+  /** Lucky cat: heart taps cook faster while this runs (a follow starts it). */
+  private tapBoostMs = 0;
   private vipCooldownMs = 0;
   private phoneTimerMs = 0;
   private phoneRingMs = 0;
@@ -720,6 +722,7 @@ export class Game {
     if (!cafe || !this.manager.running) return;
     const sur = this.config.cafe.surprise;
     this.luckyCatMs = Math.max(0, this.luckyCatMs - dt);
+    this.tapBoostMs = Math.max(0, this.tapBoostMs - dt);
     this.vipCooldownMs = Math.max(0, this.vipCooldownMs - dt);
     // Lucky cat: waiting customers are more patient (the one being served never loses patience anyway).
     const left = cafe.queue.tick(dt, this.luckyCatMs > 0 ? sur.luckyCat.patienceSlowdown : 1);
@@ -752,6 +755,7 @@ export class Game {
     const cfg = this.config.cafe.surprise;
     if (sur.follows > 0) {
       this.luckyCatMs = Math.min(cfg.luckyCat.maxMs, this.luckyCatMs + sur.follows * cfg.luckyCat.durationMs);
+      this.tapBoostMs = cfg.luckyCat.tapBoostMs;
       this.sparkle(910, 432, 14);
       this.fx?.audio.play('meow', this.soundRound(roundId));
     }
@@ -878,6 +882,13 @@ export class Game {
     }
   }
 
+  /** "<name> ขอบคุณสำหรับของขวัญ" in the café voice; never cuts a line that is already being spoken. */
+  private thankGift(rawName: string | undefined): void {
+    const name = cleanName(rawName ?? '', this.config.cafe.maxNameLength);
+    if (name === '') return;
+    this.fx?.audio.speak?.(`${name} ขอบคุณสำหรับของขวัญค่ะ`, this.soundRound(this.manager.snapshot().roundId), 1.25, 0.8, 'female');
+  }
+
   private enqueueGifts(gifts: readonly { coins: number; displayName?: string; avatarUrl?: string }[]): void {
     const cafe = this.cafe;
     if (!cafe) return;
@@ -886,10 +897,12 @@ export class Game {
       const dessertId = dessertForGift(g.coins, this.config.cafe.giftTiers, this.desserts.unlockedIds);
       if (!dessertId) continue;
       if (!anon && g.displayName && cafe.queue.changeOrder(g.displayName, dessertId, g.avatarUrl)) {
+        this.thankGift(g.displayName);
         this.rememberRegular(g.displayName, g.avatarUrl ?? null, dessertId, true);
         continue; // already waiting from joining: upgrade that order, no second customer
       }
       const r = cafe.queue.enqueue({ viewer: true, name: anon ? null : (g.displayName ?? null), avatarUrl: anon ? null : (g.avatarUrl ?? null), dessertId });
+      if (!anon) this.thankGift(g.displayName);
       if (r === 'full') this.rewards?.addCoins(this.config.cafe.overflowGiftCoins);
       else this.rememberRegular(anon ? '' : (g.displayName ?? ''), anon ? null : (g.avatarUrl ?? null), dessertId, true);
     }
@@ -1134,7 +1147,8 @@ export class Game {
         }
         if (this.config.cafe.tapPercent > 0 && fx.likeEvents && this.manager.snapshot().state === 'COOKING' && !this.ghostCooking()) {
           // each tap / key press = +tapPercent % on the bar (a ghost's dessert only moves with the hearts)
-          this.cooking.addProgress(Math.min(100, fx.likeEvents * this.config.cafe.tapPercent), m.roundId);
+          const mul = this.tapBoostMs > 0 ? this.config.cafe.surprise.luckyCat.tapBoostMul : 1; // lucky cat: taps count double for a few seconds
+          this.cooking.addProgress(Math.min(100, fx.likeEvents * this.config.cafe.tapPercent * mul), m.roundId);
         }
         if (fx.shareBonus > 0) {
           // exactly one saved visit per share, even when several shares arrive in the same moment

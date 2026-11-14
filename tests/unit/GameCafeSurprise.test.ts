@@ -666,3 +666,28 @@ describe('a banished ghost cancels its order', () => {
     expect(sawHidden).toBe(true);
   });
 });
+
+describe('lucky cat speeds up the heart taps', () => {
+  it('after a follow each tap cooks twice as much for 5 seconds, then back to normal', () => {
+    const run = (withFollow: boolean) => {
+      const { game } = mk({}, { npcSpawnEveryMs: 1e9, idleCookRate: 0, tapPercent: 10 }, { maxMs: { ...cafeConfig.maxMs, cooking: 6 * 3600_000 } });
+      game.start();
+      runUntil(game, () => game.snapshot().state === 'COOKING', 400_000);
+      if (withFollow) follow(game);
+      advance(game, 100);
+      const before = game.snapshot().progress;
+      game.ingestEvent({ id: `tp${++n}`, type: 'like', count: 1, tsMs: game.nowMs });
+      advance(game, 100);
+      const first = game.snapshot().progress - before;
+      advance(game, 6000); // past the 5 s boost
+      const mid = game.snapshot().progress;
+      game.ingestEvent({ id: `tp${++n}`, type: 'like', count: 1, tsMs: game.nowMs });
+      advance(game, 100);
+      return { first, later: game.snapshot().progress - mid };
+    };
+    const a = run(false);
+    const b = run(true);
+    expect(b.first).toBeCloseTo(a.first * 2, 0);
+    expect(b.later).toBeCloseTo(a.later, 0);
+  });
+});
