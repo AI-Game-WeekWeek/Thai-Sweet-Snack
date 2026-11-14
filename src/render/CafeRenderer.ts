@@ -2,7 +2,7 @@ import type { ParticleSystem } from '../anim/ParticleSystem';
 import { artImage, drawArt } from './artImages';
 import { drawArtServed } from './dessertArt';
 import { CAFE_PICS, GIFT_PICS, ICON_PICS } from './artManifest';
-import { giftKey, giftNames } from '../cafe/giftBoard';
+import { giftKey } from '../cafe/giftBoard';
 import { avatarSpec } from '../cafe/avatars';
 import { outfitIndex } from '../cafe/gender';
 import type { CafeView, CustomerView, RenderView } from '../Game';
@@ -28,6 +28,8 @@ const STATION_Y = 910;
 const FONT = '"Mali", "Noto Sans Thai", system-ui, sans-serif';
 const INK = '#3b2a1a';
 const clip = (s: string, max: number): string => (s.length > max ? `${Array.from(s).slice(0, max - 1).join('')}…` : s);
+/** Menu-board label per row (display only): gift next to each dessert; null = the free dessert. */
+const BOARD_GIFTS: (string | null)[] = [null, 'Rose', "You're awesome", 'Ice Cream Cone', 'Ice Lolly', 'Chili', 'Steven Wingman', 'Choc Chip Cookie'];
 const clamp01 = (n: number): number => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0);
 const isColor = (c: string): boolean => /^#[0-9a-f]{3,8}$/i.test(c);
 
@@ -549,9 +551,9 @@ export class CafeRenderer {
   /** The gift menu split in two small boards, left and right of the dessert, above where live chat covers the screen. Each row: the gift emoji (or the dessert for the free slot) and "dessert / gift name". */
   private drawGiftMenu(ctx: CanvasRenderingContext2D, cafe: CafeView | undefined): void {
     const tiers = (cafe?.giftMenu ?? []).slice(0, 8);
-    const boards: { x: number; title: string; items: typeof tiers }[] = [
-      { x: 24, title: 'ส่งของขวัญ', items: tiers.slice(0, 4) },
-      { x: 806, title: '= สั่งขนม', items: tiers.slice(4, 8) },
+    const boards: { x: number; title: string; first: number; items: typeof tiers }[] = [
+      { x: 24, title: 'ส่งของขวัญ', first: 0, items: tiers.slice(0, 4) },
+      { x: 806, title: '= สั่งขนม', first: 4, items: tiers.slice(4, 8) },
     ];
     const w = 250;
     const top = 940;
@@ -568,10 +570,10 @@ export class CafeRenderer {
       this.text(ctx, bd.title, bd.x + w / 2, top + 36, 30, '#ffe9a8', '#1c2e24');
       bd.items.forEach((t, i) => {
         const y = top + 62 + i * rowH;
-        const names = giftNames({ gift: t.giftName });
-        const pics = names.map((n) => GIFT_PICS[giftKey(n)]).filter((p): p is string => !!p);
-        // one gift: its emoji; several gifts (the 1-coin slot): the dessert picture with a row of the gift emoji below; none: the dessert
-        const pic = names.length === 1 && pics[0] ? pics[0] : ICON_PICS[t.id];
+        // sign only: one gift beside each dessert, in a fixed order (the first row is the free dessert)
+        const gift = BOARD_GIFTS[bd.first + i];
+        const gp = gift ? GIFT_PICS[giftKey(gift)] : undefined;
+        const pic = gp ?? ICON_PICS[t.id];
         if (!(pic && drawArt(ctx, pic, bd.x + 46, y + 32, 52, 50, 0, 1, 1, 1.5))) {
           ctx.fillStyle = 'rgba(255,255,255,0.08)';
           ctx.beginPath();
@@ -580,15 +582,8 @@ export class CafeRenderer {
         }
         ctx.textAlign = 'left';
         this.text(ctx, clip(t.nameTh, 11), bd.x + 82, y + 15, 24, '#fff', '#1c2e24');
-        if (names.length > 1) {
-          // several gifts share this slot: a row of their emoji and the price
-          pics.slice(0, 4).forEach((p, k) => drawArt(ctx, p, bd.x + 92 + k * 26, y + 49, 24, 24, 0, 1, 1, 1));
-          this.text(ctx, '1', bd.x + 92 + Math.min(4, pics.length) * 26 + 6, y + 49, 20, '#9be8a8', '#1c2e24');
-        } else if (names.length === 1) {
-          this.text(ctx, clip(`${names[0]} · ${t.coins}`, 20), bd.x + 82, y + 49, 19, '#ffb3d0', '#1c2e24');
-        } else {
-          this.text(ctx, `${t.coins} เหรียญ`, bd.x + 82, y + 49, 19, '#9be8a8', '#1c2e24');
-        }
+        if (gift) this.text(ctx, clip(gift, 20), bd.x + 82, y + 49, 19, '#ffb3d0', '#1c2e24');
+        else this.text(ctx, 'ฟรี', bd.x + 82, y + 49, 19, '#9be8a8', '#1c2e24');
         ctx.textAlign = 'center';
       });
     }
