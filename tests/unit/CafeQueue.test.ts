@@ -211,4 +211,37 @@ describe('CafeQueue', () => {
     expect(ph?.patienceMs).toBe(3000); // full speed: a deadline is a deadline
     expect(b?.patienceMs).toBe(9500); // everyone else is slowed
   });
+
+  it('a waiting viewer who sends a gift changes their order instead of becoming a second customer', () => {
+    const q = mk();
+    q.enqueue({ ...viewer('นีออน', 'khao-tom-mat'), joined: true });
+    expect(q.changeOrder('นีออน', 'thong-yod', 'https://x/a.png')).toBe(true);
+    expect(q.waiting()).toHaveLength(1);
+    expect(q.waiting()[0]).toMatchObject({ name: 'นีออน', dessertId: 'thong-yod', avatarUrl: 'https://x/a.png' });
+    expect(q.changeOrder('นีออน', 'bua-loy')).toBe(false); // already paid: a second gift is a second order
+    expect(q.changeOrder('คนอื่น', 'x')).toBe(false);
+    expect(q.changeOrder('', 'x')).toBe(false);
+  });
+
+  it('a gifting viewer shows no countdown but still leaves after the long hidden wait (e.g. left the live); joined-only and anonymous ones use the normal patience', () => {
+    const q = mk(5, 1000);
+    q.enqueue({ ...viewer('ใจดี', 'bua-loy'), patienceMs: 8000 }); // gifted: long wait
+    q.enqueue({ ...viewer('คนเข้า', 'khao-tom-mat'), joined: true });
+    q.enqueue(npc());
+    expect(q.tick(5000).map((c) => c.name)).toEqual(['คนเข้า', null]);
+    expect(q.waiting().map((c) => c.name)).toEqual(['ใจดี']);
+    expect(q.tick(4000).map((c) => c.name)).toEqual(['ใจดี']); // gone after its long wait
+    expect(q.waiting()).toHaveLength(0);
+  });
+
+  it('a gifting viewer cuts the line ahead of viewers who only joined and ahead of anonymous customers, and a joined viewer who gifts moves up', () => {
+    const q = mk();
+    q.enqueue(npc('a'));
+    q.enqueue({ ...viewer('เข้า1', 'j1'), joined: true });
+    q.enqueue({ ...viewer('เข้า2', 'j2'), joined: true });
+    q.enqueue(viewer('ใจดี', 'g1')); // gifted: cuts the line
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g1', 'j1', 'j2', 'a']);
+    expect(q.changeOrder('เข้า2', 'g2')).toBe(true); // joined viewer then gifts: moves up, behind the earlier gifter
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g1', 'g2', 'j1', 'a']);
+  });
 });

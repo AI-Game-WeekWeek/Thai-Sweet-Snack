@@ -479,18 +479,18 @@ describe('regulars come back, bots fill the line', () => {
   const seenAgain = (g: Game, name: string, ms: number) => { for (let t = 0; t < ms; t += 16) { g.update(16); if (names(g).includes(name)) return true; } return false; };
   const served = (g: Game, name: string) => { runUntil(g, () => g.snapshot().cafe!.serving?.name === name, 400_000); runUntil(g, () => g.snapshot().state === 'NEXT_DESSERT' || g.snapshot().cafe!.serving?.name !== name, 400_000); };
 
-  it('a viewer who gifted comes back with the same order after a while, at most the configured number of times', () => {
+  it('a viewer who gifted comes back ordering the free dessert after a while, at most the configured number of times', () => {
     const { game } = mk({ phone: { firstMs: 1e12, everyMs: 1e12 } }, { npcSpawnEveryMs: 1e9, regularEveryMs: 5000, regularWindowMs: 10 * 60_000, regularMaxReturns: 2 });
     game.start();
     gift(game, 20, 'มะลิ');
     const firstDessert = () => { const c = game.snapshot().cafe!; return [...c.waiting, ...(c.serving ? [c.serving] : [])].find((x) => x.name === 'มะลิ')?.dessertId; };
     runUntil(game, () => names(game).includes('มะลิ'), 200_000);
-    const dessert = firstDessert();
+    expect(firstDessert()).not.toBe('khao-tom-mat'); // the gift's own dessert first
     served(game, 'มะลิ');
     advance(game, 200);
     for (let back = 1; back <= 2; back++) {
       expect(seenAgain(game, 'มะลิ', 60_000), `return ${back}`).toBe(true);
-      expect(firstDessert()).toBe(dessert);
+      expect(firstDessert()).toBe('khao-tom-mat'); // a gift is one order; they return as an everyday customer
       served(game, 'มะลิ');
       advance(game, 200);
     }
@@ -601,6 +601,10 @@ describe('the ghost is very hard, but never a dead end', () => {
     for (let i = 0; i < 600_000 && game.snapshot().cafe!.serving?.kind !== 'phone'; i++) { if (game.snapshot().state === 'COOKING') game.finishCookingNow(); game.update(16); } // the dessert before it needs taps too
     runUntil(game, () => game.renderView().cafe?.ghostCalm === true, 2_000_000); // no taps at all: it gives up
     expect(game.snapshot().toast ?? '').toContain('ผีเบื่อ');
+    // its dessert is cancelled at once: nothing is made for a ghost that is gone, and the next customer steps up
+    const before = game.snapshot().cafe!.serving?.id;
+    runUntil(game, () => game.snapshot().cafe!.serving?.kind !== 'phone', 20_000);
+    expect(game.snapshot().cafe!.serving?.id).not.toBe(before);
   });
 });
 
@@ -664,5 +668,49 @@ describe('a banished ghost cancels its order', () => {
     expect(game.snapshot().cafe!.serving?.kind).not.toBe('phone');
     expect(rewards.profile.rounds).toBe(rounds); // the cancelled order paid nothing
     expect(sawHidden).toBe(true);
+  });
+});
+
+describe('lucky cat speeds up the heart taps', () => {
+  it('after a follow each tap cooks twice as much for 5 seconds, then back to normal', () => {
+    const run = (withFollow: boolean) => {
+      const { game } = mk({}, { npcSpawnEveryMs: 1e9, idleCookRate: 0, tapPercent: 10 }, { maxMs: { ...cafeConfig.maxMs, cooking: 6 * 3600_000 } });
+      game.start();
+      runUntil(game, () => game.snapshot().state === 'COOKING', 400_000);
+      if (withFollow) follow(game);
+      advance(game, 100);
+      const before = game.snapshot().progress;
+      game.ingestEvent({ id: `tp${++n}`, type: 'like', count: 1, tsMs: game.nowMs });
+      advance(game, 100);
+      const first = game.snapshot().progress - before;
+      advance(game, 6000); // past the 5 s boost
+      const mid = game.snapshot().progress;
+      game.ingestEvent({ id: `tp${++n}`, type: 'like', count: 1, tsMs: game.nowMs });
+      advance(game, 100);
+      return { first, later: game.snapshot().progress - mid };
+    };
+    const a = run(false);
+    const b = run(true);
+    expect(b.first).toBeCloseTo(a.first * 2, 0);
+    expect(b.later).toBeCloseTo(a.later, 0);
+  });
+});
+
+describe('taps work on a ghost too', () => {
+  it('with tap mode on, taps move a ghost dessert (60% of a normal tap) and a ghost that is being served is finished by taps alone', () => {
+    const ph = { firstMs: 1e12, everyMs: 1e12, jitter: 0, ringMs: 600, deadlineMs: 600_000, giveUpMs: 1e9 };
+    const { game } = mk({ phone: ph, vip: {} }, { npcSpawnEveryMs: 1e9, idleCookRate: 0, tapPercent: 10 }, { maxMs: { ...cafeConfig.maxMs, cooking: 6 * 3600_000 } });
+    game.start();
+    for (let i = 0; i < 200_000 && !game.callGhostNow(); i++) game.update(16);
+    for (let i = 0; i < 600_000 && game.snapshot().cafe!.serving?.kind !== 'phone'; i++) { if (game.snapshot().state === 'COOKING') game.finishCookingNow(); game.update(16); }
+    runUntil(game, () => game.snapshot().state === 'COOKING', 100_000);
+    const p0 = game.snapshot().progress;
+    game.ingestEvent({ id: `tp${++n}`, type: 'like', count: 1, tsMs: game.nowMs });
+    advance(game, 100);
+    const d = game.snapshot().progress - p0;
+    expect(d).toBeGreaterThan(4);
+    expect(d).toBeLessThan(8);
+    for (let i = 0; i < 40 && game.snapshot().state === 'COOKING'; i++) { game.ingestEvent({ id: `tp${++n}`, type: 'like', count: 1, tsMs: game.nowMs }); advance(game, 100); }
+    expect(game.snapshot().state).not.toBe('COOKING'); // done by taps alone
   });
 });

@@ -294,3 +294,15 @@ describe('gift names on the boards', () => {
     expect(t).not.toContain('เหรียญ ·');
   });
 });
+
+describe('customers who gave up leave the picture at once', () => {
+  it('a waiting customer who disappears from the queue is not drawn walking out over the others', () => {
+    const r = new CafeRenderer(4, avatars());
+    const mkC = (id: number, serving = false) => ({ id, kind: 'normal' as const, name: null, viewer: false, seed: id, avatarUrl: null, dessertId: 'khao-tom-mat', dessertNameTh: 'ข้าวต้มมัด', color: '#fff', patience: 1, serving });
+    const draw = (cafe: Record<string, unknown>) => r.draw(fakeCtx().ctx, 720, 1280, view({ cafe: { ...view().cafe, ...cafe } as never }), new ParticleSystem(10, 0), 16);
+    draw({ serving: mkC(1, true), waiting: [mkC(2), mkC(3)] });
+    expect(r.actorCount).toBe(3);
+    draw({ serving: mkC(1, true), waiting: [mkC(3)] }); // 2 ran out of patience
+    expect(r.actorCount).toBe(2);
+  });
+});

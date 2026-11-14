@@ -12,6 +12,8 @@ export interface Customer {
   /** Stable per customer, used for the generated face and colours. */
   seed: number;
   dessertId: string;
+  /** Came in by joining the live (no gift yet): a gift from the same viewer changes this order instead of adding a customer. */
+  joined?: boolean;
   patienceMs: number;
   patienceMaxMs: number;
   state: CustomerState;
@@ -26,6 +28,7 @@ export interface NewCustomer {
   name?: string | null;
   avatarUrl?: string | null;
   dessertId: string;
+  joined?: boolean;
   /** Fixes the look (outfit / ghost kind) of this customer. Default: derived from the id. */
   seed?: number;
   /** Joins even when the line is full (a ghost cuts in line). */
@@ -38,11 +41,14 @@ export interface CafeQueueOptions {
   maxNameLength: number;
 }
 
+/** A viewer who gave a gift shows no countdown bar (their wait is long and hidden: someone who left the live must not block the line for ever). */
+export const hidesCountdown = (c: Customer): boolean => c.viewer && !c.joined && c.kind === 'normal';
+
 /**
- * Phone orders first (they have a deadline), then viewers who gifted (they paid: a VIP never makes them wait longer), then the
- * VIP, then anonymous filler customers.
+ * Phone orders first (they have a deadline), then viewers who gifted (they cut the line: they paid), then viewers who only
+ * joined the live, then the VIP, then anonymous filler customers.
  */
-const rank = (c: Customer): number => (c.kind === 'phone' ? 0 : c.viewer ? 1 : c.kind === 'vip' ? 2 : 3);
+const rank = (c: Customer): number => (c.kind === 'phone' ? 0 : c.viewer && !c.joined ? 1 : c.viewer ? 2 : c.kind === 'vip' ? 3 : 4);
 
 /**
  * The café queue. Customers are WAITING → SERVING → PAID | LEFT. Only waiting customers lose patience; the one being
@@ -70,6 +76,38 @@ export class CafeQueue {
     return this.list;
   }
 
+  /** Priority rank, first-come first-served within a rank: a combo of gifts cannot jump the line. */
+  private insertByRank(customer: Customer): void {
+    const r = rank(customer);
+    let at = this.list.length;
+    for (let i = 0; i < this.list.length; i++) {
+      if (rank(this.list[i] as Customer) > r) {
+        at = i;
+        break;
+      }
+    }
+    this.list.splice(at, 0, customer);
+  }
+
+  /** A viewer already waiting (e.g. came in the live) sends a gift: change that customer's order instead of adding a second one. */
+  changeOrder(name: string, dessertId: string, avatarUrl?: string | null, patienceMs?: number): boolean {
+    const clean = cleanName(name, this.opts.maxNameLength);
+    if (clean === '') return false;
+    const c = this.list.find((x) => x.joined && x.name === clean);
+    if (!c) return false;
+    c.dessertId = dessertId;
+    delete c.joined; // paid now: a second gift is a second order
+    if (avatarUrl) c.avatarUrl = avatarUrl;
+    if (patienceMs !== undefined && Number.isFinite(patienceMs) && patienceMs > 0) {
+      c.patienceMs = patienceMs;
+      c.patienceMaxMs = patienceMs;
+    } else c.patienceMs = c.patienceMaxMs;
+    // a viewer who now gifted cuts the line like any gifter (after those who gifted before)
+    this.list.splice(this.list.indexOf(c), 1);
+    this.insertByRank(c);
+    return true;
+  }
+
   /** Viewers queue right behind the customer being served (in order of arrival); anonymous customers join the back. */
   enqueue(n: NewCustomer): 'ok' | 'full' {
     if (this.list.length >= this.opts.maxWaiting && !n.force) return 'full';
@@ -83,20 +121,12 @@ export class CafeQueue {
       avatarUrl: n.avatarUrl ?? null,
       seed: n.seed !== undefined && Number.isFinite(n.seed) ? n.seed : this.nextId,
       dessertId: n.dessertId,
+      ...(n.joined ? { joined: true } : {}),
       patienceMs: patience,
       patienceMaxMs: patience,
       state: 'WAITING',
     };
-    // Priority rank, first-come first-served within a rank: a combo of gifts cannot jump the line.
-    const r = rank(customer);
-    let at = this.list.length;
-    for (let i = 0; i < this.list.length; i++) {
-      if (rank(this.list[i] as Customer) > r) {
-        at = i;
-        break;
-      }
-    }
-    this.list.splice(at, 0, customer);
+    this.insertByRank(customer);
     return 'ok';
   }
 

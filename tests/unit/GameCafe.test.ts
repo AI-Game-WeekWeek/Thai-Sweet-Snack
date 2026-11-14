@@ -26,6 +26,8 @@ function mk(over: Partial<GameConfig['cafe']> = {}, unlocked: string[] = ALL, cf
   const game = new Game(cfg, desserts, undefined, events, rewards, undefined, undefined, { queue, meter, rng });
   return { game, queue, meter, rewards, events, cfg };
 }
+/** No phone-ordering ghost: these tests count every paid round (a ghost that gives up is cancelled and pays nothing). */
+const noGhost = (): Partial<GameConfig['cafe']> => ({ surprise: { ...cafeConfig.cafe.surprise, phone: { ...cafeConfig.cafe.surprise.phone, firstMs: 1e12, everyMs: 1e12 } } });
 const cfgCoins = () => cafeConfig.cafe.overflowGiftCoins;
 const gift = (g: Game, coins: number | undefined, extra: Record<string, unknown> = {}) =>
   g.ingestEvent({ id: `g${++n}`, type: 'gift', count: 1, ...(coins !== undefined ? { giftCoins: coins } : {}), displayName: 'มะลิ', tsMs: g.nowMs, ...extra });
@@ -41,7 +43,7 @@ describe('Game in café mode', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('with zero viewers anonymous customers keep coming: many rounds, one customer each', () => {
-    const { game, rewards } = mk();
+    const { game, rewards } = mk(noGhost());
     game.start();
     runUntil(game, () => game.snapshot().roundsCompleted >= 6);
     expect(rewards.profile.rounds).toBe(6);
@@ -168,7 +170,7 @@ describe('Game in café mode', () => {
   });
 
   it('pays exactly once per customer and the happier (less waited) customer pays more', () => {
-    const { game, rewards, queue } = mk();
+    const { game, rewards, queue } = mk(noGhost());
     game.start();
     runUntil(game, () => game.snapshot().state === 'REWARDING');
     const first = game.snapshot().reward.last!;

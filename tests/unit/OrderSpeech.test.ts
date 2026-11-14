@@ -1,3 +1,4 @@
+import { TikTokEventManager } from '../../src/tiktok/TikTokEventManager';
 import { describe, expect, it } from 'vitest';
 import { cafeConfig } from '../../src/config/gameConfig';
 import { CafeQueue } from '../../src/cafe/CafeQueue';
@@ -102,5 +103,24 @@ describe('speech never cuts a line', () => {
       expect(spoken).toEqual(['ผีได๋ คือสิมาแข็งข้อกับกู๋', 'เอา… บัวลอย… ครับ']);
       expect(cancelled).toBe(0);
     } finally { g.speechSynthesis = old.s; g.SpeechSynthesisUtterance = old.u; }
+  });
+
+  it('thanks a gift sender by name: "<name> ขอบคุณสำหรับของขวัญค่ะ"', () => {
+    const lines: string[] = [];
+    const fx: GameFx = {
+      animations: { play: () => 1, isActive: () => false, update() {}, cancelRound: () => 0, activeCount: 0 },
+      audio: { play: () => true, stopRound: () => 0, speak: (t) => { lines.push(t); return true; } },
+      particles: new ParticleSystem(cafeConfig.particles.cap, cafeConfig.particles.gravity),
+    };
+    const ids = ALL_DESSERTS.map((d) => d.id);
+    const cfg = cafeConfig;
+    const rewards = new RewardManager(cfg, defaultProfile(ids));
+    const queue = new CafeQueue({ maxWaiting: cfg.cafe.maxWaiting, patienceMs: cfg.cafe.patienceMs, maxNameLength: cfg.cafe.maxNameLength });
+    const meter = new HeartMeter({ decayPerSec: cfg.vote.heartDecayPerSec, maxBoost: cfg.vote.maxBoost });
+    const game = new Game(cfg, new DessertManager(ALL_DESSERTS, ids, () => 0.3), fx, new TikTokEventManager(cfg), rewards, undefined, undefined, { queue, meter, rng: () => 0.3 });
+    game.start();
+    game.ingestEvent({ id: 'g1', type: 'gift', count: 1, giftCoins: 5, displayName: 'พี่ต้น', tsMs: game.nowMs });
+    for (let i = 0; i < 400; i++) game.update(16);
+    expect(lines).toContain('พี่ต้น ขอบคุณสำหรับของขวัญค่ะ');
   });
 });

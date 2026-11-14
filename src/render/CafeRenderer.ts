@@ -29,7 +29,7 @@ const FONT = '"Mali", "Noto Sans Thai", system-ui, sans-serif';
 const INK = '#3b2a1a';
 const clip = (s: string, max: number): string => (s.length > max ? `${Array.from(s).slice(0, max - 1).join('')}…` : s);
 /** Menu-board label per row (display only): gift next to each dessert; null = the free dessert. */
-const BOARD_GIFTS: (string | null)[] = [null, 'Rose', "You're awesome", 'Ice Cream Cone', 'Ice Lolly', 'Chili', 'Steven Wingman', 'Choc Chip Cookie'];
+const BOARD_GIFTS: (string | null)[] = [null, 'Rose', "You're awesome", 'Ice Cream Cone', 'Love you so much', 'GG', 'TikTok', 'Doughnut'];
 const clamp01 = (n: number): number => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0);
 const isColor = (c: string): boolean => /^#[0-9a-f]{3,8}$/i.test(c);
 
@@ -117,6 +117,7 @@ export class CafeRenderer {
       this.safely('cat', () => this.drawCat(ctx, 975, 1428, view.cafe?.luckyCatSec ?? 0));
       this.safely('lucky', () => this.drawLuckyPill(ctx, view.cafe));
       this.safely('status', () => this.drawStatus(ctx, view));
+      this.orderGone = view.hideServed === true;
       this.holdLeaving = view.serveOutT !== undefined && Number.isFinite(view.serveOutT) && view.serveOutT > 0 && view.serveOutT < 1;
       this.safely('queue', () => this.drawQueue(ctx, view.cafe, dt));
       this.safely('serve', () => this.drawServeOut(ctx, view));
@@ -804,6 +805,8 @@ export class CafeRenderer {
   private readonly actors = new Map<number, Actor>();
   private seenFirstFrame = false;
   private holdLeaving = false;
+  /** The order was cancelled (a banished ghost): its customer vanishes at once. */
+  private orderGone = false;
 
   /** How many customers are currently drawn (walking in, standing, or walking out). For tests. */
   get actorCount(): number {
@@ -846,6 +849,11 @@ export class CafeRenderer {
     for (const [id, a] of this.actors) {
       if (want.has(id)) continue;
       if (!a.leaving) {
+        // someone who gave up while waiting, or whose order was cancelled, disappears at once: no walking out over the queue
+        if (!a.c.serving || this.orderGone) {
+          this.actors.delete(id);
+          continue;
+        }
         a.leaving = true;
         a.c = { ...a.c, serving: true }; // no patience bar or order label while walking away
       }
@@ -997,7 +1005,7 @@ export class CafeRenderer {
       }
       this.text(ctx, 'ผี', x, y + r * 3.6, Math.round(r * 0.5), '#d6e4ff', INK);
       if (!c.serving) {
-        this.drawPatience(ctx, x, y + r * 4.05, r * 2, c.patience);
+        if (c.timed !== false) this.drawPatience(ctx, x, y + r * 4.05, r * 2, c.patience);
         this.text(ctx, clip(c.dessertNameTh, 11), x, y - r - 22, Math.round(r * 0.36), '#fff3dc', INK);
       }
       return;
@@ -1103,7 +1111,7 @@ export class CafeRenderer {
     }
     this.text(ctx, 'ผี', x, y + r * (krasue ? 3.2 : 3.4), Math.round(r * 0.5), '#d6e4ff', INK);
     if (!c.serving) {
-      this.drawPatience(ctx, x, y + r * 3.8, r * 2, c.patience);
+      if (c.timed !== false) this.drawPatience(ctx, x, y + r * 3.8, r * 2, c.patience);
       this.text(ctx, clip(c.dessertNameTh, 11), x, y - r - 22, Math.round(r * 0.36), '#fff3dc', INK);
     }
   }
@@ -1167,7 +1175,7 @@ export class CafeRenderer {
     // name (viewers), VIP label, and patience
     if (c.kind === 'vip') this.text(ctx, 'VIP', x, y + r * 2.45, Math.round(r * 0.6), '#ffe08a', INK);
     else if (c.viewer && c.name) this.text(ctx, clip(c.name, 12), x, y + r * 2.45, Math.round(r * 0.5), '#fff', INK);
-    if (!c.serving) this.drawPatience(ctx, x, y + r * 2.1 + (c.kind === 'vip' || (c.viewer && c.name) ? Math.round(r * 0.5) : 0) + 14, r * 2, c.patience);
+    if (!c.serving && c.timed !== false) this.drawPatience(ctx, x, y + r * 2.1 + (c.kind === 'vip' || (c.viewer && c.name) ? Math.round(r * 0.5) : 0) + 14, r * 2, c.patience);
     if (!c.serving) {
       ctx.textAlign = 'center';
       this.text(ctx, clip(c.dessertNameTh, 11), x, y - r - 22 - (c.kind === 'vip' ? r * 0.6 : 0), Math.round(r * 0.36), '#fff3dc', INK);

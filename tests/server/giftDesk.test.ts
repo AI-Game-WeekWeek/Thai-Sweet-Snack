@@ -18,8 +18,8 @@ describe('GiftDesk', () => {
     const d = new GiftDesk(COINS);
     expect(d.tierFor('rose')).toBe(5); // each gift has its own dessert row
     expect(d.tierFor("  YOU'RE   awesome ")).toBe(10);
-    expect(d.tierFor('choc chip cookie')).toBe(500);
-    expect(d.tierFor('ICE LOLLY')).toBe(50);
+    expect(d.tierFor('doughnut')).toBe(500);
+    expect(d.tierFor('LOVE you so much')).toBe(50);
     expect(d.tierFor('mamma mia')).toBe(1);
     expect(d.tierFor('Mystery Gift')).toBeNull();
     expect(d.tierFor('')).toBeNull();
@@ -77,7 +77,7 @@ describe('gift page in the bridge', () => {
     return { bridge, url: `http://127.0.0.1:${port}`, msgs };
   }
   const auth = { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' };
-  const gift = { event: 'gift', data: { giftName: 'Choc Chip Cookie', diamondCount: 5, repeatCount: 1, nickname: 'พี่ต้น', msgId: 'm1' } };
+  const gift = { event: 'gift', data: { giftName: 'Doughnut', diamondCount: 5, repeatCount: 1, nickname: 'พี่ต้น', msgId: 'm1' } };
 
   it('Auto: a mapped gift reaches the game as its slot tier and is logged as played; the page needs the token', async () => {
     const { bridge, url, msgs } = await boot();
@@ -91,7 +91,7 @@ describe('gift page in the bridge', () => {
     const j = (await (await fetch(`${url}/gifts.json?token=${TOKEN}`)).json()) as { auto: boolean; log: { gift: string; user: string; tier: number; played: boolean }[] };
     expect(j.auto).toBe(true);
     expect(j.log).toHaveLength(1);
-    expect(j.log[0]).toMatchObject({ gift: 'Choc Chip Cookie', user: 'พี่ต้น', tier: 500, played: true });
+    expect(j.log[0]).toMatchObject({ gift: 'Doughnut', user: 'พี่ต้น', tier: 500, played: true });
     expect((await fetch(`${url}/gifts?token=${TOKEN}`)).status).toBe(200);
   });
 

@@ -15,6 +15,7 @@ import { genderForSeed, politeEnding } from './cafe/gender';
 import { DEFAULT_GIFT_BOARD, type GiftSlot } from './cafe/giftBoard';
 import { cleanName } from './tiktok/cleanName';
 import type { CafeQueue, Customer, CustomerKind } from './cafe/CafeQueue';
+import { hidesCountdown } from './cafe/CafeQueue';
 import type { HeartMeter } from './cooking/HeartMeter';
 import type { VoteManager } from './vote/VoteManager';
 import type { RewardResult } from './reward/types';
@@ -87,6 +88,8 @@ export interface CustomerView {
   color: string;
   /** Patience left, 0..1 (1 for the customer being served). */
   patience: number;
+  /** false = a gifting viewer: no countdown bar. */
+  timed?: boolean;
   serving: boolean;
   /** The shaman banished this ghost: it fades away (the order in progress still finishes). */
   banished?: boolean;
@@ -227,6 +230,8 @@ export class Game {
   }
   // Surprise events (café). Driven by game time (dt), not wall clock; they outlive a single round.
   private luckyCatMs = 0;
+  /** Lucky cat: heart taps cook faster while this runs (a follow starts it). */
+  private tapBoostMs = 0;
   private vipCooldownMs = 0;
   private phoneTimerMs = 0;
   private phoneRingMs = 0;
@@ -248,6 +253,7 @@ export class Game {
   private regularCheckMs = 0;
   private shamanFromQuota = false;
   private orderCancelled = false;
+  private cancelPending = false;
   private ghostTamed = false;
   private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
 
@@ -556,11 +562,8 @@ export class Game {
         this.squeezed = false;
         this.toastText = 'หมอผีปราบผีแล้ว! ผีหายไป';
         if (this.rewards?.addCoins(15)) this.coinShower();
-        if (this.cafe?.queue.current?.kind === 'phone' && this.manager.snapshot().state === 'COOKING') {
-          // the banished ghost's order is cancelled: its dessert disappears and the next customer steps up
-          this.orderCancelled = true;
-          this.cooking.addProgress(100, this.manager.snapshot().roundId);
-        }
+        // the banished ghost's order is cancelled: its dessert disappears and the next customer steps up
+        this.cancelGhostOrder();
       } else {
         this.toastText = 'หมอผีสาดน้ำมนต์!';
         if (this.shamanFromQuota) this.shamanQuota = Math.min(SHAMAN_MAX_QUOTA, this.shamanQuota + 1); // no ghost to banish: the visit is not used up
@@ -571,6 +574,13 @@ export class Game {
     }
   }
 
+  /** The ghost is gone (banished or bored): its dessert is cancelled in any state, so nothing is made for nobody. */
+  private cancelGhostOrder(): void {
+    if (this.cafe?.queue.current?.kind !== 'phone') return;
+    this.orderCancelled = true;
+    this.cancelPending = true;
+  }
+
   private ghostCooking(): boolean {
     return !!this.cafe && this.manager.snapshot().state === 'COOKING' && this.cafe.queue.current?.kind === 'phone';
   }
@@ -578,6 +588,10 @@ export class Game {
   /** The hungry ghost squeezes if the dessert is not made quickly: tapping hearts loosens it; if it wins, the bonus is lost and a fine is paid. */
   private tickSqueeze(dt: number): void {
     if (this.squeezeFlashMs > 0) this.squeezeFlashMs = Math.max(0, this.squeezeFlashMs - dt);
+    if (this.cancelPending && this.manager.snapshot().state === 'COOKING') {
+      this.cancelPending = false;
+      this.cooking.addProgress(100, this.manager.snapshot().roundId); // finishes at once; the dessert is not served and nothing is paid
+    }
     if (!this.ghostCooking()) {
       if (this.cafe?.queue.current?.kind !== 'phone') {
         this.ghostCookMs = 0;
@@ -599,6 +613,7 @@ export class Game {
       this.squeeze = 0;
       this.squeezed = false;
       this.toastText = 'ผีเบื่อแล้ว หายไปเอง';
+      this.cancelGhostOrder();
       return;
     }
     if (!this.visitCounted) {
@@ -687,7 +702,7 @@ export class Game {
     while (this.regulars.size > 30) this.regulars.delete(this.regulars.keys().next().value as string);
   }
 
-  /** Every so often a remembered viewer who gifted recently walks back in and orders the same dessert again. */
+  /** Every so often a viewer who gifted recently walks back in and orders the free dessert (ข้าวต้มมัด) again. */
   private tickRegulars(dt: number): void {
     const cafe = this.cafe;
     if (!cafe || this.regulars.size === 0) return;
@@ -703,8 +718,10 @@ export class Game {
         continue;
       }
       if (now - r.lastMs < c.regularEveryMs || inCafe.has(name) || cafe.queue.waiting().length >= c.maxWaiting) continue;
-      const dessertId = this.desserts.unlockedIds.includes(r.dessertId) ? r.dessertId : c.defaultDessertId;
-      if (cafe.queue.enqueue({ viewer: true, name, avatarUrl: r.avatarUrl, dessertId }) === 'ok') {
+      // a gift is one order; the viewer then comes back as an everyday customer ordering the free dessert (a new gift changes that order)
+      const ids = this.desserts.unlockedIds;
+      const dessertId = ids.includes(c.defaultDessertId) ? c.defaultDessertId : (ids[0] ?? r.dessertId);
+      if (cafe.queue.enqueue({ viewer: true, name, avatarUrl: r.avatarUrl, dessertId, joined: true }) === 'ok') {
         r.returns += 1;
         r.lastMs = now;
         this.returning.add(name);
@@ -718,6 +735,7 @@ export class Game {
     if (!cafe || !this.manager.running) return;
     const sur = this.config.cafe.surprise;
     this.luckyCatMs = Math.max(0, this.luckyCatMs - dt);
+    this.tapBoostMs = Math.max(0, this.tapBoostMs - dt);
     this.vipCooldownMs = Math.max(0, this.vipCooldownMs - dt);
     // Lucky cat: waiting customers are more patient (the one being served never loses patience anyway).
     const left = cafe.queue.tick(dt, this.luckyCatMs > 0 ? sur.luckyCat.patienceSlowdown : 1);
@@ -750,6 +768,7 @@ export class Game {
     const cfg = this.config.cafe.surprise;
     if (sur.follows > 0) {
       this.luckyCatMs = Math.min(cfg.luckyCat.maxMs, this.luckyCatMs + sur.follows * cfg.luckyCat.durationMs);
+      this.tapBoostMs = cfg.luckyCat.tapBoostMs;
       this.sparkle(910, 432, 14);
       this.fx?.audio.play('meow', this.soundRound(roundId));
     }
@@ -872,8 +891,15 @@ export class Game {
       this.recentJoins.delete(name);
       this.recentJoins.set(name, this.clockMs);
       while (this.recentJoins.size > 100) this.recentJoins.delete(this.recentJoins.keys().next().value as string);
-      cafe.queue.enqueue({ viewer: true, name, avatarUrl: j.avatarUrl ?? null, dessertId });
+      cafe.queue.enqueue({ viewer: true, name, avatarUrl: j.avatarUrl ?? null, dessertId, joined: true });
     }
+  }
+
+  /** "<name> ขอบคุณสำหรับของขวัญ" in the café voice; never cuts a line that is already being spoken. */
+  private thankGift(rawName: string | undefined): void {
+    const name = cleanName(rawName ?? '', this.config.cafe.maxNameLength);
+    if (name === '') return;
+    this.fx?.audio.speak?.(`${name} ขอบคุณสำหรับของขวัญค่ะ`, this.soundRound(this.manager.snapshot().roundId), 1.25, 0.8, 'female');
   }
 
   private enqueueGifts(gifts: readonly { coins: number; displayName?: string; avatarUrl?: string }[]): void {
@@ -883,7 +909,13 @@ export class Game {
     for (const g of gifts) {
       const dessertId = dessertForGift(g.coins, this.config.cafe.giftTiers, this.desserts.unlockedIds);
       if (!dessertId) continue;
-      const r = cafe.queue.enqueue({ viewer: true, name: anon ? null : (g.displayName ?? null), avatarUrl: anon ? null : (g.avatarUrl ?? null), dessertId });
+      if (!anon && g.displayName && cafe.queue.changeOrder(g.displayName, dessertId, g.avatarUrl, this.config.cafe.giftWaitMs)) {
+        this.thankGift(g.displayName);
+        this.rememberRegular(g.displayName, g.avatarUrl ?? null, dessertId, true);
+        continue; // already waiting from joining: upgrade that order, no second customer
+      }
+      const r = cafe.queue.enqueue({ viewer: true, patienceMs: this.config.cafe.giftWaitMs, name: anon ? null : (g.displayName ?? null), avatarUrl: anon ? null : (g.avatarUrl ?? null), dessertId });
+      if (!anon) this.thankGift(g.displayName);
       if (r === 'full') this.rewards?.addCoins(this.config.cafe.overflowGiftCoins);
       else this.rememberRegular(anon ? '' : (g.displayName ?? ''), anon ? null : (g.avatarUrl ?? null), dessertId, true);
     }
@@ -903,7 +935,8 @@ export class Game {
         dessertId: c.dessertId,
         dessertNameTh: d?.nameTh ?? c.dessertId,
         color: d?.palette[0] ?? '#f5f0e1',
-        patience: serving ? 1 : Math.min(1, Math.max(0, c.patienceMs / c.patienceMaxMs)),
+        patience: serving || hidesCountdown(c) ? 1 : Math.min(1, Math.max(0, c.patienceMs / c.patienceMaxMs)),
+        timed: !hidesCountdown(c),
         serving,
         ...(c.kind === 'phone' && this.ghostTamed ? { banished: true } : {}),
       };
@@ -1123,12 +1156,16 @@ export class Game {
         if (this.manager.running) this.applySurprises(fx.surprises, m.roundId);
         if (this.ghostCooking() && !this.squeezed) {
           const rl = this.config.cafe.surprise.phone.reliefPerLike;
-          const relief = (Number.isFinite(rl) ? rl : 0.012) * (fx.likes + fx.hearts * 3);
+          const tr = this.config.cafe.tapPercent > 0 ? (this.config.cafe.surprise.phone.tapRelief ?? 0) * (fx.likeEvents ?? 0) : 0; // every tap also calms the ghost
+          const relief = (Number.isFinite(rl) ? rl : 0.012) * (fx.likes + fx.hearts * 3) + (Number.isFinite(tr) ? tr : 0);
           this.squeeze = Math.max(0, this.squeeze - (Number.isFinite(relief) ? relief : 0));
         }
-        if (this.config.cafe.tapPercent > 0 && fx.likeEvents && this.manager.snapshot().state === 'COOKING' && !this.ghostCooking()) {
-          // each tap / key press = +tapPercent % on the bar (a ghost's dessert only moves with the hearts)
-          this.cooking.addProgress(Math.min(100, fx.likeEvents * this.config.cafe.tapPercent), m.roundId);
+        if (this.config.cafe.tapPercent > 0 && fx.likeEvents && this.manager.snapshot().state === 'COOKING') {
+          // each tap / key press = +tapPercent % on the bar (a ghost's dessert counts a fraction, so it is harder but never stuck)
+          const boost = this.tapBoostMs > 0 ? this.config.cafe.surprise.luckyCat.tapBoostMul : 1; // lucky cat: taps count double for a few seconds
+          const gm = this.config.cafe.surprise.phone.ghostTapMul;
+          const mul = boost * (this.ghostCooking() && !this.ghostTamed ? (Number.isFinite(gm) ? gm : 1) : 1);
+          this.cooking.addProgress(Math.min(100, fx.likeEvents * this.config.cafe.tapPercent * mul), m.roundId);
         }
         if (fx.shareBonus > 0) {
           // exactly one saved visit per share, even when several shares arrive in the same moment

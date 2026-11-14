@@ -56,7 +56,7 @@ export interface MonitorStats {
 }
 
 /** Commands the control panel may send (test / show actions, not viewer events). */
-export const COMMANDS = ['ghost', 'shaman', 'squeeze', 'finish'] as const;
+export const COMMANDS = ['ghost', 'shaman', 'squeeze', 'finish', 'autotap'] as const;
 
 const PANEL_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>แผงควบคุมร้านขนมไทย</title>
 <style>body{font:15px/1.4 system-ui,sans-serif;background:#1c1511;color:#f4e6d3;margin:0;padding:14px;max-width:680px}h1{font-size:20px;margin:0 0 8px}h2{font-size:15px;margin:14px 0 6px;color:#ffc878}
@@ -66,6 +66,7 @@ button.g{border-color:#e8b64c}button.f{border-color:#b8a0ff}input{font:inherit;p
 <p>ชื่อผู้ชมสำหรับของขวัญ (เว้นว่างได้): <input id=nm maxlength=16 placeholder="เช่น พี่ต้น"></p>
 <h2>ของขวัญ → ลูกค้าสั่งขนม</h2><div class=row id=g></div>
 <h2>อีเวนต์ผู้ชม</h2><div class=row id=e></div>
+<h2>กดหัวใจอัตโนมัติ (ครั้งละ 10% ขณะทำขนม)</h2><div class=row id=a></div>
 <h2>ผีและหมอผี</h2><div class=row id=s></div>
 <div id=msg></div>
 <script>const TOKEN=__TOKEN__;let n=0;const nm=()=>document.getElementById('nm').value.trim();
@@ -79,6 +80,7 @@ mk('e','ไลก์ ×1',()=>ev('like',{count:1},'ไลก์ 1'));mk('e','ไ
 mk('e','ติดตาม (แมวกวัก)',()=>ev('follow',{},'ติดตาม'),'f');mk('e','แชร์ (+โควตาหมอผี)',()=>ev('share',{},'แชร์'),'f');mk('e','หัวใจส้ม (VIP)',()=>ev('orangeHeart',{},'หัวใจส้ม'),'f');
 ['นางรำ','ผีพราย','กระสือ','แม่นาค','ผีหิว'].forEach((t,i)=>mk('s','เสก'+t,()=>post('/cmd',{cmd:'ghost',arg:i},'เสก'+t)));
 mk('s','เสกผีสุ่ม',()=>post('/cmd',{cmd:'ghost'},'เสกผีสุ่ม'));mk('s','เรียกหมอผี',()=>post('/cmd',{cmd:'shaman'},'เรียกหมอผี'),'f');mk('s','ผีบีบทันที',()=>post('/cmd',{cmd:'squeeze'},'ผีบีบ'));mk('s','ทำขนมให้เสร็จ',()=>post('/cmd',{cmd:'finish'},'ขนมเสร็จ'));
+[[0,'ปิด'],[1,'ทุก 1 วิ'],[2,'ทุก 2 วิ'],[3,'ทุก 3 วิ'],[5,'ทุก 5 วิ'],[9,'ทุก 9 วิ']].forEach(([s,t])=>mk('a',t,()=>post('/cmd',{cmd:'autotap',arg:s},s?'กดอัตโนมัติ '+t+' (+10%)':'ปิดกดอัตโนมัติ'),s?'g':''));
 </script>`;
 
 const GIFTS_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ของขวัญ</title>

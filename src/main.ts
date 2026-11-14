@@ -155,9 +155,25 @@ applyGiftBoard((globalThis as { __GIFT_BOARD__?: unknown }).__GIFT_BOARD__);
 function isCommand(raw: unknown): raw is { cmd: string; arg?: number; board?: unknown } {
   return typeof raw === 'object' && raw !== null && typeof (raw as { cmd?: unknown }).cmd === 'string';
 }
+// Admin auto-tap (/panel): one heart tap (+10 %) every N seconds while a dessert cooks; 0 turns it off.
+let autoTapTimer: ReturnType<typeof setInterval> | undefined;
+let autoTapSeq = 0;
+function setAutoTap(seconds: number): void {
+  if (autoTapTimer !== undefined) clearInterval(autoTapTimer);
+  autoTapTimer = undefined;
+  if (!Number.isInteger(seconds) || seconds < 1 || seconds > 9) return;
+  autoTapTimer = setInterval(() => {
+    try {
+      game.ingestEvent({ id: `auto${++autoTapSeq}-${Date.now()}`, type: 'like', count: 1, tsMs: game.nowMs });
+    } catch {
+      /* never break the game */
+    }
+  }, seconds * 1000);
+}
 function runCommand(c: { cmd: string; arg?: number; board?: unknown }): void {
   try {
-    if (c.cmd === 'giftboard') applyGiftBoard(c.board);
+    if (c.cmd === 'autotap') setAutoTap(typeof c.arg === 'number' ? c.arg : 0);
+    else if (c.cmd === 'giftboard') applyGiftBoard(c.board);
     else if (c.cmd === 'ghost') game.callGhostNow(typeof c.arg === 'number' ? c.arg : undefined);
     else if (c.cmd === 'shaman') game.callShaman(true);
     else if (c.cmd === 'squeeze') game.squeezeNow();
