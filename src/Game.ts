@@ -1146,12 +1146,15 @@ export class Game {
         if (this.manager.running) this.applySurprises(fx.surprises, m.roundId);
         if (this.ghostCooking() && !this.squeezed) {
           const rl = this.config.cafe.surprise.phone.reliefPerLike;
-          const relief = (Number.isFinite(rl) ? rl : 0.012) * (fx.likes + fx.hearts * 3);
+          const tr = this.config.cafe.tapPercent > 0 ? (this.config.cafe.surprise.phone.tapRelief ?? 0) * (fx.likeEvents ?? 0) : 0; // every tap also calms the ghost
+          const relief = (Number.isFinite(rl) ? rl : 0.012) * (fx.likes + fx.hearts * 3) + (Number.isFinite(tr) ? tr : 0);
           this.squeeze = Math.max(0, this.squeeze - (Number.isFinite(relief) ? relief : 0));
         }
-        if (this.config.cafe.tapPercent > 0 && fx.likeEvents && this.manager.snapshot().state === 'COOKING' && !this.ghostCooking()) {
-          // each tap / key press = +tapPercent % on the bar (a ghost's dessert only moves with the hearts)
-          const mul = this.tapBoostMs > 0 ? this.config.cafe.surprise.luckyCat.tapBoostMul : 1; // lucky cat: taps count double for a few seconds
+        if (this.config.cafe.tapPercent > 0 && fx.likeEvents && this.manager.snapshot().state === 'COOKING') {
+          // each tap / key press = +tapPercent % on the bar (a ghost's dessert counts a fraction, so it is harder but never stuck)
+          const boost = this.tapBoostMs > 0 ? this.config.cafe.surprise.luckyCat.tapBoostMul : 1; // lucky cat: taps count double for a few seconds
+          const gm = this.config.cafe.surprise.phone.ghostTapMul;
+          const mul = boost * (this.ghostCooking() && !this.ghostTamed ? (Number.isFinite(gm) ? gm : 1) : 1);
           this.cooking.addProgress(Math.min(100, fx.likeEvents * this.config.cafe.tapPercent * mul), m.roundId);
         }
         if (fx.shareBonus > 0) {

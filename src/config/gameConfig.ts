@@ -75,6 +75,8 @@ export interface GameConfig {
       phone: { firstMs: number; everyMs: number; jitter: number; ringMs: number; deadlineMs: number; payBonusPct: number; squeezeMs: number; reliefPerLike: number; fineCoins: number; harderPerVisit: number; minSqueezeMs: number; squeezeSlow: number;
         /** While a ghost is being served: cooking speed is multiplied by this (a heavy dessert), and it eats this much of the heart meter per second. */
         cookRateMul: number; heartDrainPerSec: number;
+        /** A heart tap on a ghost's dessert counts this fraction of a normal tap, and calms the squeeze by tapRelief. */
+        ghostTapMul: number; tapRelief: number;
         /** A ghost that has been served this long without being calmed gets bored and vanishes (so the game can never be stuck on a ghost). */
         giveUpMs: number };
     };
@@ -157,7 +159,7 @@ export const defaultConfig: GameConfig = {
       luckyCat: { durationMs: 20_000, maxMs: 60_000, payBonusPct: 50, patienceSlowdown: 0.5, tapBoostMul: 2, tapBoostMs: 5000 },
       vip: { cooldownMs: 60_000, payBonusPct: 50, minGiftCoins: 50 },
       tip: { perCustomer: 1, max: 12 },
-      phone: { firstMs: 45_000, everyMs: 100_000, jitter: 0.3, ringMs: 3000, deadlineMs: 35_000, payBonusPct: 200, squeezeMs: 5000, reliefPerLike: 0.004, fineCoins: 25, harderPerVisit: 0.25, minSqueezeMs: 2500, squeezeSlow: 0.8, cookRateMul: 0.5, heartDrainPerSec: 0.2, giveUpMs: 90_000 },
+      phone: { firstMs: 45_000, everyMs: 100_000, jitter: 0.3, ringMs: 3000, deadlineMs: 35_000, payBonusPct: 200, squeezeMs: 5000, reliefPerLike: 0.004, fineCoins: 25, harderPerVisit: 0.25, minSqueezeMs: 2500, squeezeSlow: 0.8, cookRateMul: 0.5, heartDrainPerSec: 0.2, giveUpMs: 90_000, ghostTapMul: 0.6, tapRelief: 0.06 },
     },
   },
   vote: { candidates: 3, windowMs: 15_000, maxVoters: 5000, anonVotesPerSec: 50, heartPerLike: 0.012, heartPerFollow: 0.15, heartPerHeart: 0.08, graceMs: 3000, heartDecayPerSec: 0.1, maxBoost: 4, cookRatePerSec: 6 },

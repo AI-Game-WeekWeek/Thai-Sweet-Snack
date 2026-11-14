@@ -691,3 +691,22 @@ describe('lucky cat speeds up the heart taps', () => {
     expect(b.later).toBeCloseTo(a.later, 0);
   });
 });
+
+describe('taps work on a ghost too', () => {
+  it('with tap mode on, taps move a ghost dessert (60% of a normal tap) and a ghost that is being served is finished by taps alone', () => {
+    const ph = { firstMs: 1e12, everyMs: 1e12, jitter: 0, ringMs: 600, deadlineMs: 600_000, giveUpMs: 1e9 };
+    const { game } = mk({ phone: ph, vip: {} }, { npcSpawnEveryMs: 1e9, idleCookRate: 0, tapPercent: 10 }, { maxMs: { ...cafeConfig.maxMs, cooking: 6 * 3600_000 } });
+    game.start();
+    for (let i = 0; i < 200_000 && !game.callGhostNow(); i++) game.update(16);
+    for (let i = 0; i < 600_000 && game.snapshot().cafe!.serving?.kind !== 'phone'; i++) { if (game.snapshot().state === 'COOKING') game.finishCookingNow(); game.update(16); }
+    runUntil(game, () => game.snapshot().state === 'COOKING', 100_000);
+    const p0 = game.snapshot().progress;
+    game.ingestEvent({ id: `tp${++n}`, type: 'like', count: 1, tsMs: game.nowMs });
+    advance(game, 100);
+    const d = game.snapshot().progress - p0;
+    expect(d).toBeGreaterThan(4);
+    expect(d).toBeLessThan(8);
+    for (let i = 0; i < 40 && game.snapshot().state === 'COOKING'; i++) { game.ingestEvent({ id: `tp${++n}`, type: 'like', count: 1, tsMs: game.nowMs }); advance(game, 100); }
+    expect(game.snapshot().state).not.toBe('COOKING'); // done by taps alone
+  });
+});
