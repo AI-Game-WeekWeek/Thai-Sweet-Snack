@@ -15,6 +15,7 @@ import { genderForSeed, politeEnding } from './cafe/gender';
 import { DEFAULT_GIFT_BOARD, type GiftSlot } from './cafe/giftBoard';
 import { cleanName } from './tiktok/cleanName';
 import type { CafeQueue, Customer, CustomerKind } from './cafe/CafeQueue';
+import { waitsForever } from './cafe/CafeQueue';
 import type { HeartMeter } from './cooking/HeartMeter';
 import type { VoteManager } from './vote/VoteManager';
 import type { RewardResult } from './reward/types';
@@ -87,6 +88,8 @@ export interface CustomerView {
   color: string;
   /** Patience left, 0..1 (1 for the customer being served). */
   patience: number;
+  /** false = a gifting viewer: no countdown bar. */
+  timed?: boolean;
   serving: boolean;
   /** The shaman banished this ghost: it fades away (the order in progress still finishes). */
   banished?: boolean;
@@ -922,7 +925,8 @@ export class Game {
         dessertId: c.dessertId,
         dessertNameTh: d?.nameTh ?? c.dessertId,
         color: d?.palette[0] ?? '#f5f0e1',
-        patience: serving ? 1 : Math.min(1, Math.max(0, c.patienceMs / c.patienceMaxMs)),
+        patience: serving || waitsForever(c) ? 1 : Math.min(1, Math.max(0, c.patienceMs / c.patienceMaxMs)),
+        timed: !waitsForever(c),
         serving,
         ...(c.kind === 'phone' && this.ghostTamed ? { banished: true } : {}),
       };

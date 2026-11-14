@@ -997,7 +997,7 @@ export class CafeRenderer {
       }
       this.text(ctx, 'ผี', x, y + r * 3.6, Math.round(r * 0.5), '#d6e4ff', INK);
       if (!c.serving) {
-        this.drawPatience(ctx, x, y + r * 4.05, r * 2, c.patience);
+        if (c.timed !== false) this.drawPatience(ctx, x, y + r * 4.05, r * 2, c.patience);
         this.text(ctx, clip(c.dessertNameTh, 11), x, y - r - 22, Math.round(r * 0.36), '#fff3dc', INK);
       }
       return;
@@ -1103,7 +1103,7 @@ export class CafeRenderer {
     }
     this.text(ctx, 'ผี', x, y + r * (krasue ? 3.2 : 3.4), Math.round(r * 0.5), '#d6e4ff', INK);
     if (!c.serving) {
-      this.drawPatience(ctx, x, y + r * 3.8, r * 2, c.patience);
+      if (c.timed !== false) this.drawPatience(ctx, x, y + r * 3.8, r * 2, c.patience);
       this.text(ctx, clip(c.dessertNameTh, 11), x, y - r - 22, Math.round(r * 0.36), '#fff3dc', INK);
     }
   }
@@ -1167,7 +1167,7 @@ export class CafeRenderer {
     // name (viewers), VIP label, and patience
     if (c.kind === 'vip') this.text(ctx, 'VIP', x, y + r * 2.45, Math.round(r * 0.6), '#ffe08a', INK);
     else if (c.viewer && c.name) this.text(ctx, clip(c.name, 12), x, y + r * 2.45, Math.round(r * 0.5), '#fff', INK);
-    if (!c.serving) this.drawPatience(ctx, x, y + r * 2.1 + (c.kind === 'vip' || (c.viewer && c.name) ? Math.round(r * 0.5) : 0) + 14, r * 2, c.patience);
+    if (!c.serving && c.timed !== false) this.drawPatience(ctx, x, y + r * 2.1 + (c.kind === 'vip' || (c.viewer && c.name) ? Math.round(r * 0.5) : 0) + 14, r * 2, c.patience);
     if (!c.serving) {
       ctx.textAlign = 'center';
       this.text(ctx, clip(c.dessertNameTh, 11), x, y - r - 22 - (c.kind === 'vip' ? r * 0.6 : 0), Math.round(r * 0.36), '#fff3dc', INK);

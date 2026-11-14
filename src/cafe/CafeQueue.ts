@@ -41,6 +41,9 @@ export interface CafeQueueOptions {
   maxNameLength: number;
 }
 
+/** A viewer who gave a gift never runs out of patience (VIP / phone orders and joined-only viewers do). */
+export const waitsForever = (c: Customer): boolean => c.viewer && !c.joined && c.kind === 'normal';
+
 /**
  * Phone orders first (they have a deadline), then viewers who gifted (they paid: a VIP never makes them wait longer), then the
  * VIP, then anonymous filler customers.
@@ -136,6 +139,10 @@ export class CafeQueue {
     const left: Customer[] = [];
     const stay: Customer[] = [];
     for (const c of this.list) {
+      if (waitsForever(c)) {
+        stay.push(c); // a viewer who gifted has paid: no countdown, no leaving
+        continue;
+      }
       c.patienceMs -= c.kind === 'phone' ? dtMs : dtMs * factor; // a phone order's deadline is never stretched
       if (c.patienceMs <= 0) {
         c.state = 'LEFT';

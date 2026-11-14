@@ -222,4 +222,15 @@ describe('CafeQueue', () => {
     expect(q.changeOrder('คนอื่น', 'x')).toBe(false);
     expect(q.changeOrder('', 'x')).toBe(false);
   });
+
+  it('a viewer who gifted never runs out of patience; joined-only viewers and anonymous customers do', () => {
+    const q = mk(5, 1000);
+    q.enqueue(viewer('ใจดี', 'bua-loy')); // gifted
+    q.enqueue({ ...viewer('คนเข้า', 'khao-tom-mat'), joined: true });
+    q.enqueue(npc());
+    const left = q.tick(5000);
+    expect(left.map((c) => c.name)).toEqual(['คนเข้า', null]);
+    expect(q.waiting().map((c) => c.name)).toEqual(['ใจดี']);
+    expect(q.waiting()[0]?.patienceMs).toBe(1000);
+  });
 });
