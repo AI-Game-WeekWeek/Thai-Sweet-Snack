@@ -244,4 +244,21 @@ describe('CafeQueue', () => {
     expect(q.changeOrder('เข้า2', 'g2')).toBe(true); // joined viewer then gifts: moves up, behind the earlier gifter
     expect(q.waiting().map((c) => c.dessertId)).toEqual(['g1', 'g2', 'j1', 'a']);
   });
+
+  it('makeRoom removes a filler first, then the joined-only viewer who has waited longest, never a gifter or VIP', () => {
+    const q = mk(3, 10_000);
+    q.enqueue({ ...viewer('เก่า', 'j'), joined: true });
+    q.enqueue(viewer('ใจดี', 'g'));
+    q.enqueue(npc('a'));
+    expect(q.makeRoom()).toBe(true); // the filler
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g', 'j']);
+    q.enqueue({ ...viewer('ใหม่', 'j2'), joined: true });
+    q.tick(1000); // everyone waits a second ...
+    q.waiting().find((c) => c.name === 'ใหม่')!.patienceMs = 9_500; // ... the newcomer has waited less
+    expect(q.makeRoom()).toBe(true);
+    expect(q.waiting().map((c) => c.name)).toEqual(['ใจดี', 'ใหม่']); // the longest waiter went
+    expect(q.makeRoom()).toBe(true);
+    expect(q.makeRoom()).toBe(false); // only the gifter is left
+    expect(q.waiting().map((c) => c.name)).toEqual(['ใจดี']);
+  });
 });

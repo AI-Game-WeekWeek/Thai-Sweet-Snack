@@ -887,7 +887,8 @@ export class Game {
       const last = this.recentJoins.get(name);
       if (last !== undefined && this.clockMs - last < 60_000) continue;
       const here = cafe.queue.waiting().some((x) => x.name === name) || cafe.queue.current?.name === name;
-      if (here || cafe.queue.waiting().length >= c.maxWaiting) continue;
+      if (here) continue;
+      if (cafe.queue.waiting().length >= c.maxWaiting && !cafe.queue.makeRoom()) continue; // a full line: the newest viewer still gets in
       this.recentJoins.delete(name);
       this.recentJoins.set(name, this.clockMs);
       while (this.recentJoins.size > 100) this.recentJoins.delete(this.recentJoins.keys().next().value as string);
@@ -915,7 +916,9 @@ export class Game {
         this.rememberRegular(g.displayName, g.avatarUrl ?? null, dessertId, true);
         continue; // already waiting from joining: upgrade that order, no second customer
       }
-      const r = cafe.queue.enqueue({ viewer: true, patienceMs: this.config.cafe.giftWaitMs, name: anon ? null : (g.displayName ?? null), avatarUrl: anon ? null : (g.avatarUrl ?? null), dessertId });
+      const order = { viewer: true, patienceMs: this.config.cafe.giftWaitMs, name: anon ? null : (g.displayName ?? null), avatarUrl: anon ? null : (g.avatarUrl ?? null), dessertId };
+      let r = cafe.queue.enqueue(order);
+      if (r === 'full' && cafe.queue.makeRoom()) r = cafe.queue.enqueue(order); // a gifting viewer always gets a place if anyone lower can make room
       if (!anon) this.thankGift(g.displayName);
       if (r === 'full') this.rewards?.addCoins(this.config.cafe.overflowGiftCoins);
       else this.rememberRegular(anon ? '' : (g.displayName ?? ''), anon ? null : (g.avatarUrl ?? null), dessertId, true);

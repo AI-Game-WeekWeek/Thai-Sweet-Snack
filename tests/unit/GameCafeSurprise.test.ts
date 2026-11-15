@@ -652,6 +652,21 @@ describe('viewers who join become named customers', () => {
     advance(game, 500);
     expect(game.snapshot().cafe!.waitingTotal).toBeLessThanOrEqual(12);
   });
+  it('when the line is full of viewers the newest one who joins still gets a place (the one who waited longest steps out); gifters always get in', () => {
+    const { game } = mk({}, { npcSpawnEveryMs: 1e9, maxWaiting: 4, patienceMs: 1e9 });
+    game.start();
+    for (let i = 0; i < 6; i++) { join(game, `คน${i}`); advance(game, 100); }
+    advance(game, 100);
+    const names = () => game.snapshot().cafe!.waiting.map((c) => c.name);
+    join(game, 'คนใหม่');
+    advance(game, 100);
+    expect(names()).toContain('คนใหม่');
+    expect(game.snapshot().cafe!.waitingTotal).toBeLessThanOrEqual(4);
+    game.ingestEvent({ id: `gg${++n}`, type: 'gift', count: 1, giftCoins: 50, displayName: 'ใจดี', tsMs: game.nowMs });
+    advance(game, 100);
+    expect(names()).toContain('ใจดี');
+    expect(game.snapshot().cafe!.waitingTotal).toBeLessThanOrEqual(4);
+  });
 });
 
 describe('a banished ghost cancels its order', () => {

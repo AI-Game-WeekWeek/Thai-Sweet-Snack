@@ -142,6 +142,22 @@ export class CafeQueue {
     return false;
   }
 
+  /**
+   * Makes one place for a viewer when the line is full: a filler customer goes first; otherwise the viewer who only joined the live
+   * and has waited longest (most likely gone by now). Never touches gifting viewers, VIPs or phone orders.
+   */
+  makeRoom(): boolean {
+    if (this.displaceAnonymous()) return true;
+    let at = -1;
+    for (let i = 0; i < this.list.length; i++) {
+      const c = this.list[i] as Customer;
+      if (c.joined && c.kind === 'normal' && (at < 0 || c.patienceMs < (this.list[at] as Customer).patienceMs)) at = i;
+    }
+    if (at < 0) return false;
+    this.list.splice(at, 1);
+    return true;
+  }
+
   /** Customers who ran out of patience this tick (removed from the queue). `slow` (0..1] slows the loss (lucky cat). */
   tick(dtMs: number, slow = 1): Customer[] {
     if (!Number.isFinite(dtMs) || dtMs <= 0) return [];
