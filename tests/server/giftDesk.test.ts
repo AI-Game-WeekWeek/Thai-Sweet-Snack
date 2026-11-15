@@ -20,7 +20,7 @@ describe('GiftDesk', () => {
     expect(d.tierFor("  YOU'RE   awesome ")).toBe(10);
     expect(d.tierFor('doughnut')).toBe(500);
     expect(d.tierFor('LOVE you so much')).toBe(50);
-    expect(d.tierFor('mamma mia')).toBe(1);
+    expect(d.tierFor('mamma mia')).toBeNull(); // the first slot is free: no gift is tied to it
     expect(d.tierFor('Mystery Gift')).toBeNull();
     expect(d.tierFor('')).toBeNull();
     const a = d.record({ id: 'g1', type: 'rose', giftCoins: 1 }, meta('Rose', 1))!;

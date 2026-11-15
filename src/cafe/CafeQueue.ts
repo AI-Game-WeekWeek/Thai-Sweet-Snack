@@ -142,13 +142,39 @@ export class CafeQueue {
     return false;
   }
 
-  /** Customers who ran out of patience this tick (removed from the queue). `slow` (0..1] slows the loss (lucky cat). */
-  tick(dtMs: number, slow = 1): Customer[] {
+  /**
+   * Makes one place for a viewer when the line is full: a filler customer goes first; otherwise the viewer who only joined the live
+   * and has waited longest (most likely gone by now). Never touches gifting viewers, VIPs or phone orders.
+   */
+  makeRoom(): boolean {
+    if (this.displaceAnonymous()) return true;
+    let at = -1;
+    for (let i = 0; i < this.list.length; i++) {
+      const c = this.list[i] as Customer;
+      if (c.joined && c.kind === 'normal' && (at < 0 || c.patienceMs < (this.list[at] as Customer).patienceMs)) at = i;
+    }
+    if (at < 0) return false;
+    this.list.splice(at, 1);
+    return true;
+  }
+
+  /**
+   * Customers who ran out of patience this tick (removed from the queue). `slow` (0..1] slows the loss (lucky cat).
+   * Only the first `active` customers in line (the ones on screen) lose patience: those further back have not "arrived" yet,
+   * so they keep all of theirs until they move up.
+   */
+  tick(dtMs: number, slow = 1, active = Infinity): Customer[] {
     if (!Number.isFinite(dtMs) || dtMs <= 0) return [];
     const factor = Number.isFinite(slow) && slow > 0 && slow <= 1 ? slow : 1;
+    const limit = Number.isFinite(active) ? Math.max(0, Math.floor(active)) : Infinity;
     const left: Customer[] = [];
     const stay: Customer[] = [];
+    let place = 0;
     for (const c of this.list) {
+      if (place++ >= limit) {
+        stay.push(c); // not on screen yet: its patience does not run
+        continue;
+      }
       c.patienceMs -= c.kind === 'phone' ? dtMs : dtMs * factor; // a phone order's deadline is never stretched
       if (c.patienceMs <= 0) {
         c.state = 'LEFT';

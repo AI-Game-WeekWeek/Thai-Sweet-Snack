@@ -738,7 +738,8 @@ export class Game {
     this.tapBoostMs = Math.max(0, this.tapBoostMs - dt);
     this.vipCooldownMs = Math.max(0, this.vipCooldownMs - dt);
     // Lucky cat: waiting customers are more patient (the one being served never loses patience anyway).
-    const left = cafe.queue.tick(dt, this.luckyCatMs > 0 ? sur.luckyCat.patienceSlowdown : 1);
+    // only the customers on screen (the first visible - 1 in line) lose patience; the ones further back wait without a clock
+    const left = cafe.queue.tick(dt, this.luckyCatMs > 0 ? sur.luckyCat.patienceSlowdown : 1, Math.max(0, this.config.cafe.visible - 1));
     if (left.length > 0) {
       this.lostCustomers += left.length;
       for (let i = 0; i < left.length * 5; i++) this.fx?.particles?.spawn({ x: WORLD_W / 2 + (i % 5) * 30 - 60, y: 400, vx: (i % 5) * 20 - 40, vy: -80, lifeMs: 700, size: 6, color: 'rgba(120,120,120,0.7)', g: -0.2 });
@@ -887,7 +888,8 @@ export class Game {
       const last = this.recentJoins.get(name);
       if (last !== undefined && this.clockMs - last < 60_000) continue;
       const here = cafe.queue.waiting().some((x) => x.name === name) || cafe.queue.current?.name === name;
-      if (here || cafe.queue.waiting().length >= c.maxWaiting) continue;
+      if (here) continue;
+      if (cafe.queue.waiting().length >= c.maxWaiting && !cafe.queue.makeRoom()) continue; // a full line: the newest viewer still gets in
       this.recentJoins.delete(name);
       this.recentJoins.set(name, this.clockMs);
       while (this.recentJoins.size > 100) this.recentJoins.delete(this.recentJoins.keys().next().value as string);
@@ -915,7 +917,9 @@ export class Game {
         this.rememberRegular(g.displayName, g.avatarUrl ?? null, dessertId, true);
         continue; // already waiting from joining: upgrade that order, no second customer
       }
-      const r = cafe.queue.enqueue({ viewer: true, patienceMs: this.config.cafe.giftWaitMs, name: anon ? null : (g.displayName ?? null), avatarUrl: anon ? null : (g.avatarUrl ?? null), dessertId });
+      const order = { viewer: true, patienceMs: this.config.cafe.giftWaitMs, name: anon ? null : (g.displayName ?? null), avatarUrl: anon ? null : (g.avatarUrl ?? null), dessertId };
+      let r = cafe.queue.enqueue(order);
+      if (r === 'full' && cafe.queue.makeRoom()) r = cafe.queue.enqueue(order); // a gifting viewer always gets a place if anyone lower can make room
       if (!anon) this.thankGift(g.displayName);
       if (r === 'full') this.rewards?.addCoins(this.config.cafe.overflowGiftCoins);
       else this.rememberRegular(anon ? '' : (g.displayName ?? ''), anon ? null : (g.avatarUrl ?? null), dessertId, true);

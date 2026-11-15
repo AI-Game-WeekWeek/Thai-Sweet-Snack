@@ -115,10 +115,20 @@ describe('Game in café mode', () => {
     }
   });
 
-  it('when the queue is full a gift still pays coins to the café and nothing breaks', () => {
+  it('when the queue is full of fillers a gifting viewer takes a filler\'s place; when it is full of gifters a gift pays coins to the café and nothing breaks', () => {
+    const a = mk({ maxWaiting: 3, npcSpawnEveryMs: 1e9 });
+    a.game.start();
+    for (let i = 0; i < 10; i++) a.queue.enqueue({ viewer: false, dessertId: 'khao-tom-mat' });
+    expect(a.queue.waiting()).toHaveLength(3);
+    gift(a.game, 40);
+    a.game.update(16);
+    expect(a.queue.waiting()).toHaveLength(3);
+    expect(a.queue.waiting().some((c) => c.viewer && c.name === 'มะลิ')).toBe(true); // took a filler's place
+
     const { game, rewards, queue } = mk({ maxWaiting: 3, npcSpawnEveryMs: 1e9 });
     game.start();
-    for (let i = 0; i < 10; i++) queue.enqueue({ viewer: false, dessertId: 'khao-tom-mat' });
+    while (queue.displaceAnonymous()); // no fillers: only gifting viewers
+    for (let i = 0; i < 10; i++) queue.enqueue({ viewer: true, name: `ใจดี${i}`, dessertId: 'khao-tom-mat' });
     expect(queue.waiting()).toHaveLength(3);
     const coins = rewards.profile.coins;
     gift(game, 40);

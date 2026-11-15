@@ -244,4 +244,35 @@ describe('CafeQueue', () => {
     expect(q.changeOrder('เข้า2', 'g2')).toBe(true); // joined viewer then gifts: moves up, behind the earlier gifter
     expect(q.waiting().map((c) => c.dessertId)).toEqual(['g1', 'g2', 'j1', 'a']);
   });
+
+  it('makeRoom removes a filler first, then the joined-only viewer who has waited longest, never a gifter or VIP', () => {
+    const q = mk(3, 10_000);
+    q.enqueue({ ...viewer('เก่า', 'j'), joined: true });
+    q.enqueue(viewer('ใจดี', 'g'));
+    q.enqueue(npc('a'));
+    expect(q.makeRoom()).toBe(true); // the filler
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g', 'j']);
+    q.enqueue({ ...viewer('ใหม่', 'j2'), joined: true });
+    q.tick(1000); // everyone waits a second ...
+    q.waiting().find((c) => c.name === 'ใหม่')!.patienceMs = 9_500; // ... the newcomer has waited less
+    expect(q.makeRoom()).toBe(true);
+    expect(q.waiting().map((c) => c.name)).toEqual(['ใจดี', 'ใหม่']); // the longest waiter went
+    expect(q.makeRoom()).toBe(true);
+    expect(q.makeRoom()).toBe(false); // only the gifter is left
+    expect(q.waiting().map((c) => c.name)).toEqual(['ใจดี']);
+  });
+
+  it('only the customers on screen (the first `active` in line) lose patience; those further back keep all of theirs until they move up', () => {
+    const q = mk(10, 1000);
+    for (let i = 0; i < 6; i++) q.enqueue(npc(`n${i}`));
+    expect(q.tick(1500, 1, 2).map((c) => c.dessertId)).toEqual(['n0', 'n1']); // the two on screen ran out
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['n2', 'n3', 'n4', 'n5']);
+    expect(q.waiting().every((c) => c.patienceMs === 1000)).toBe(true); // nobody behind lost a second
+    expect(q.tick(400, 1, 2)).toHaveLength(0);
+    expect(q.waiting().map((c) => c.patienceMs)).toEqual([600, 600, 1000, 1000]); // now the front two are counting
+    q.tick(700, 1, 2);
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['n4', 'n5']);
+    expect(q.tick(300, 1, 0)).toHaveLength(0); // active 0: nobody counts
+    expect(q.waiting().every((c) => c.patienceMs === 1000)).toBe(true);
+  });
 });
