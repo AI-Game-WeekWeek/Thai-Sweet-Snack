@@ -664,6 +664,30 @@ describe('viewers who join become named customers', () => {
     expect(total1).toBeGreaterThanOrEqual(total0 - 5);
     expect(total1).toBeGreaterThanOrEqual(4);
   });
+  it('someone who cuts in pushes the last person on screen to the 6th place, and from then on that person stops losing patience', () => {
+    const { game, queue } = mk({}, { npcSpawnEveryMs: 1e9, maxWaiting: 12, patienceMs: 60_000, visible: 5 });
+    game.start();
+    while (queue.displaceAnonymous());
+    for (let i = 0; i < 7; i++) join(game, `คน${i}`);
+    advance(game, 200);
+    const w0 = queue.waiting();
+    const last = w0[3]!; // the 4th waiting = the last of the five on screen (with the one being served)
+    const first = w0[0]!;
+    const behind = w0[4]!;
+    advance(game, 5000);
+    const lostBefore = last.patienceMaxMs - last.patienceMs;
+    expect(lostBefore).toBeGreaterThan(4000); // it was on screen: its clock ran
+    expect(behind.patienceMs).toBe(behind.patienceMaxMs); // not on screen: untouched
+    game.ingestEvent({ id: `gg${++n}`, type: 'gift', count: 1, giftCoins: 50, displayName: 'ใจดี', tsMs: game.nowMs }); // a gifter cuts in at the front
+    advance(game, 200);
+    const order = queue.waiting().map((c) => c.name);
+    expect(order[0]).toBe('ใจดี');
+    expect(order.indexOf(last.name as string)).toBe(4); // pushed to the 6th place overall (5th waiting)
+    const frozen = last.patienceMs;
+    advance(game, 8000);
+    expect(last.patienceMs).toBe(frozen); // off screen: no more waiting time counted
+    expect(first.patienceMs).toBeLessThan(first.patienceMaxMs - 8000); // the front keeps counting
+  });
   it('when the line is full of viewers the newest one who joins still gets a place (the one who waited longest steps out); gifters always get in', () => {
     const { game } = mk({}, { npcSpawnEveryMs: 1e9, maxWaiting: 4, patienceMs: 1e9 });
     game.start();
