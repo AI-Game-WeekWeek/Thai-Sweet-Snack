@@ -41,8 +41,6 @@ export const GIFT_PICS: Record<string, string> = {
   rose: 'gift-rose',
   youreawesome: 'gift-youreawesome',
   icecreamcone: 'gift-icecreamcone',
-  mammamia: 'gift-mammamia',
-  levelupsparks: 'gift-levelupsparks',
   loveyousomuch: 'gift-loveyousomuch',
   doughnut: 'gift-doughnut',
   tiktok: 'gift-tiktok',

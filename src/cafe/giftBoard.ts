@@ -11,7 +11,7 @@ export interface GiftSlot {
 
 /** A slot may list several gifts separated by commas (all the 1-coin gifts share the first slot). */
 export const DEFAULT_GIFT_BOARD: readonly GiftSlot[] = [
-  { coins: 1, gift: 'Mamma Mia, Level-up Sparks' },
+  { coins: 1, gift: '' },
   { coins: 5, gift: 'Rose' },
   { coins: 10, gift: "You're awesome" },
   { coins: 20, gift: 'Ice Cream Cone' },
