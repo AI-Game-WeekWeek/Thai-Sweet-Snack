@@ -261,4 +261,18 @@ describe('CafeQueue', () => {
     expect(q.makeRoom()).toBe(false); // only the gifter is left
     expect(q.waiting().map((c) => c.name)).toEqual(['ใจดี']);
   });
+
+  it('only the customers on screen (the first `active` in line) lose patience; those further back keep all of theirs until they move up', () => {
+    const q = mk(10, 1000);
+    for (let i = 0; i < 6; i++) q.enqueue(npc(`n${i}`));
+    expect(q.tick(1500, 1, 2).map((c) => c.dessertId)).toEqual(['n0', 'n1']); // the two on screen ran out
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['n2', 'n3', 'n4', 'n5']);
+    expect(q.waiting().every((c) => c.patienceMs === 1000)).toBe(true); // nobody behind lost a second
+    expect(q.tick(400, 1, 2)).toHaveLength(0);
+    expect(q.waiting().map((c) => c.patienceMs)).toEqual([600, 600, 1000, 1000]); // now the front two are counting
+    q.tick(700, 1, 2);
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['n4', 'n5']);
+    expect(q.tick(300, 1, 0)).toHaveLength(0); // active 0: nobody counts
+    expect(q.waiting().every((c) => c.patienceMs === 1000)).toBe(true);
+  });
 });

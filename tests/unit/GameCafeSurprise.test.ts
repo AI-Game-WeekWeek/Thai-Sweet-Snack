@@ -652,6 +652,18 @@ describe('viewers who join become named customers', () => {
     advance(game, 500);
     expect(game.snapshot().cafe!.waitingTotal).toBeLessThanOrEqual(12);
   });
+  it('viewers waiting further back than the screen shows do not lose patience: only the front of the line has a clock', () => {
+    const { game } = mk({}, { npcSpawnEveryMs: 1e9, maxWaiting: 12, patienceMs: 3000, visible: 5 });
+    game.start();
+    for (let i = 0; i < 10; i++) join(game, `คน${i}`);
+    advance(game, 200);
+    const total0 = game.snapshot().cafe!.waitingTotal;
+    expect(total0).toBeGreaterThanOrEqual(9);
+    advance(game, 3500); // the front four time out ... the others have not started counting
+    const total1 = game.snapshot().cafe!.waitingTotal;
+    expect(total1).toBeGreaterThanOrEqual(total0 - 5);
+    expect(total1).toBeGreaterThanOrEqual(4);
+  });
   it('when the line is full of viewers the newest one who joins still gets a place (the one who waited longest steps out); gifters always get in', () => {
     const { game } = mk({}, { npcSpawnEveryMs: 1e9, maxWaiting: 4, patienceMs: 1e9 });
     game.start();

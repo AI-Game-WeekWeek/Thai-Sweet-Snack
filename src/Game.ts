@@ -738,7 +738,8 @@ export class Game {
     this.tapBoostMs = Math.max(0, this.tapBoostMs - dt);
     this.vipCooldownMs = Math.max(0, this.vipCooldownMs - dt);
     // Lucky cat: waiting customers are more patient (the one being served never loses patience anyway).
-    const left = cafe.queue.tick(dt, this.luckyCatMs > 0 ? sur.luckyCat.patienceSlowdown : 1);
+    // only the customers on screen (the first visible - 1 in line) lose patience; the ones further back wait without a clock
+    const left = cafe.queue.tick(dt, this.luckyCatMs > 0 ? sur.luckyCat.patienceSlowdown : 1, Math.max(0, this.config.cafe.visible - 1));
     if (left.length > 0) {
       this.lostCustomers += left.length;
       for (let i = 0; i < left.length * 5; i++) this.fx?.particles?.spawn({ x: WORLD_W / 2 + (i % 5) * 30 - 60, y: 400, vx: (i % 5) * 20 - 40, vy: -80, lifeMs: 700, size: 6, color: 'rgba(120,120,120,0.7)', g: -0.2 });
