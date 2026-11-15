@@ -89,7 +89,10 @@ function safeStorage(): StorageLike | null {
 }
 const defaultUnlocked = ALL_DESSERTS.filter((d) => 'default' in d.unlock).map((d) => d.id);
 const save = new SaveSystem(cfg, safeStorage(), defaultUnlocked, ALL_DESSERTS.map((d) => d.id));
-const rewards = new RewardManager(cfg, save.load());
+const startProfile = save.load();
+// the live game has every dessert from the start (the menu boards show them all); only the demo keeps the unlock progression
+if (__PACKED__ && cafeMode) startProfile.unlocked = ALL_DESSERTS.map((d) => d.id);
+const rewards = new RewardManager(cfg, startProfile);
 const events = new TikTokEventManager(cfg);
 const game = new Game(
   cfg,

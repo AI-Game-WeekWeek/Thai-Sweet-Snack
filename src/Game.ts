@@ -776,7 +776,7 @@ export class Game {
       this.vipCooldownMs = cfg.vip.cooldownMs;
       const q = cafe.queue;
       if (!q.waiting().some((c) => c.kind === 'vip')) {
-        const dessertId = dessertForGift(cfg.vip.minGiftCoins, this.config.cafe.giftTiers, this.desserts.unlockedIds);
+        const dessertId = dessertForGift(cfg.vip.minGiftCoins, this.config.cafe.giftTiers, this.config.cafe.giftTiers.map((t) => t.dessertId));
         if (dessertId) this.enqueueSpecial({ viewer: false, kind: 'vip', dessertId });
       }
       const tip = Math.min(cfg.tip.max, q.waiting().length * cfg.tip.perCustomer);
@@ -907,7 +907,8 @@ export class Game {
     if (!cafe) return;
     const anon = this.config.cafe.anonymousNames;
     for (const g of gifts) {
-      const dessertId = dessertForGift(g.coins, this.config.cafe.giftTiers, this.desserts.unlockedIds);
+      // a gift orders exactly the dessert on its menu row, even one the café has not unlocked yet (the board shows every row)
+      const dessertId = dessertForGift(g.coins, this.config.cafe.giftTiers, this.config.cafe.giftTiers.map((t) => t.dessertId));
       if (!dessertId) continue;
       if (!anon && g.displayName && cafe.queue.changeOrder(g.displayName, dessertId, g.avatarUrl, this.config.cafe.giftWaitMs)) {
         this.thankGift(g.displayName);

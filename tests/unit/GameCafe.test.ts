@@ -76,7 +76,7 @@ describe('Game in café mode', () => {
     expect(game.snapshot().dessertNameTh).toBe(nameOf('khanom-chan'));
   });
 
-  it('every tier orders its own dessert; a locked dessert falls back to the best unlocked tier', () => {
+  it('every tier orders its own dessert, even one that is not unlocked yet (the board shows every row)', () => {
     const tiers: [number, string][] = [[1, 'khao-tom-mat'], [5, 'bua-loy'], [10, 'thong-yod'], [20, 'khanom-chan'], [50, 'foi-thong'], [99, 'thong-yip'], [199, 'luk-chup'], [500, 'khanom-buang']];
     for (const [coins, id] of tiers) {
       const { game } = mk();
@@ -91,7 +91,7 @@ describe('Game in café mode', () => {
     game.start();
     gift(game, 500);
     game.update(16);
-    expect(game.snapshot().cafe!.waiting.find((c) => c.viewer)?.dessertNameTh).toBe(nameOf('khanom-chan'));
+    expect(game.snapshot().cafe!.waiting.find((c) => c.viewer)?.dessertNameTh).toBe(nameOf('khanom-buang')); // not unlocked, still what the gift's row says
   });
 
   it('a duplicate gift event creates one customer', () => {
