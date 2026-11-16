@@ -64,3 +64,12 @@ The token is in the URL of your OBS browser source: keep that URL private and ke
 
 The page shows `connected | reconnecting | offline`. If the bridge dies the game keeps cooking; the page retries with
 backoff (1 s up to 30 s) and resumes when the bridge returns. Malformed or oversized messages are ignored.
+
+## Who is in the live (viewer count and "still here")
+
+TikTok gives no "viewer left" signal, so the game cannot know **who** left. It keeps the line fresh with two hints, both optional:
+
+- **How many people are in the live** (TikFinity's `roomUser` message). The bridge reads the count (fields tried: `viewerCount`, `viewers`, `total` and a few more; the real field name is not confirmed, `/monitor` shows what arrived) and sends it to the game pages as `{"cmd":"viewers","count":N}`. When more viewers are waiting in the line than `ceil(N * 1.25) + 2`, the excess is cleared: only viewers who merely joined, waited over a minute and are off screen (never the front places, gifting viewers, VIPs or ghosts). A reading older than 90 s is ignored. If no count arrives nothing is removed.
+- **Who is still active**: a like, comment, share, follow, gift or join that carries a viewer name proves that viewer is still here. The bridge passes the names (batched each second, in memory only) as `{"cmd":"present","names":[...]}`; the game remembers when each name was last seen and clears the quietest viewers first. `/monitor` shows only COUNTS per kind (with a name / without), never names, so you can see whether likes and comments carry names at all. Silent watchers look the same as people who left.
+
+By hand: the control panel (`/panel`) has "clear the line" buttons (viewers who joined and fillers, or everybody waiting; gifting viewers, the customer being served and a ghost are kept in the first mode).

@@ -190,4 +190,25 @@ describe('monitor counts', () => {
     bridge.ingestTikFinity({ event: 'roomUser', data: { mystery: 1 } }); // no known count field: the old count stays, nothing is guessed
     expect((await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json() as { viewers: number | null }).viewers).toBe(6);
   });
+
+  it('names from likes and comments tell the game who is still here (batched, in memory only); /monitor shows only counts per kind, never names', async () => {
+    const { url, bridge, port } = await boot({ pingMs: 50 });
+    const { msgs } = await connect(port);
+    bridge.ingestTikFinity({ event: 'like', data: { nickname: 'ชื่อลับมาก', likeCount: 2 } });
+    bridge.ingestTikFinity({ event: 'like', data: { nickname: 'ชื่อลับมาก', likeCount: 1 } }); // the same viewer twice: one name in the batch
+    bridge.ingestTikFinity({ event: 'chat', data: { uniqueId: 'neon', comment: 'สวัสดี' } });
+    bridge.ingestTikFinity({ event: 'like', data: { likeCount: 5 } }); // no name: counted, nothing to pass on
+    await until(() => msgs.some((m) => (m as { cmd?: string }).cmd === 'present'));
+    const batch = msgs.find((m) => (m as { cmd?: string }).cmd === 'present') as { names: string[] };
+    expect(batch.names.sort()).toEqual(['neon', 'ชื่อลับมาก']);
+    const raw = await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).text();
+    const j = JSON.parse(raw) as { presence: Record<string, { named: number; unnamed: number }> };
+    expect(j.presence).toEqual({ like: { named: 2, unnamed: 1 }, chat: { named: 1, unnamed: 0 } });
+    expect(raw).not.toContain('ชื่อลับมาก');
+    expect(raw).not.toContain('neon');
+    // a second batch only when somebody new is seen
+    const before = msgs.filter((m) => (m as { cmd?: string }).cmd === 'present').length;
+    await new Promise((r) => setTimeout(r, 200));
+    expect(msgs.filter((m) => (m as { cmd?: string }).cmd === 'present').length).toBe(before);
+  });
 });

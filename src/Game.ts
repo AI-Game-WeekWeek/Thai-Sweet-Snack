@@ -258,6 +258,8 @@ export class Game {
   private viewerCount: number | null = null;
   private viewerCountAtMs = 0;
   private viewerTrimMs = 0;
+  /** When each viewer last did something in the live (like, comment, share, gift ...), by cleaned name. In memory only: never saved or shown. */
+  private readonly lastSeen = new Map<string, number>();
   private ghostTamed = false;
   private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
 
@@ -741,6 +743,20 @@ export class Game {
     this.viewerCountAtMs = this.clockMs;
   }
 
+  /** These viewers just did something in the live, so they are still here: the clean-up of the line removes the quiet ones first. */
+  markPresent(names: readonly unknown[]): void {
+    if (!Array.isArray(names)) return;
+    const max = this.config.cafe.maxNameLength;
+    for (const raw of names.slice(0, 100)) {
+      if (typeof raw !== 'string') continue;
+      const name = cleanName(raw, max);
+      if (name === '') continue;
+      this.lastSeen.delete(name); // re-insert: the most recent last
+      this.lastSeen.set(name, this.clockMs);
+    }
+    while (this.lastSeen.size > 1000) this.lastSeen.delete(this.lastSeen.keys().next().value as string);
+  }
+
   /** The control panel's "clear the line": 'joined' = viewers who only joined and the fillers, 'all' = everybody waiting (not the one being served). */
   clearQueue(mode: 'joined' | 'all'): number {
     const cafe = this.cafe;
@@ -760,7 +776,12 @@ export class Game {
     if (this.clockMs - this.viewerCountAtMs > 90_000) return; // an old reading is not trusted
     const limit = Math.ceil(this.viewerCount * 1.25) + 2; // the count is approximate and lags behind: leave some room
     const served = cafe.queue.current?.viewer && cafe.queue.current.kind === 'normal' ? 1 : 0;
-    cafe.queue.trimViewers(limit, 60_000, Math.max(0, this.config.cafe.visible - 1), served);
+    // the viewers who have been quiet longest go first: someone who liked or commented lately is plainly still here
+    const idle = (c: { name: string | null; waitedMs: number }): number => {
+      const seen = c.name ? this.lastSeen.get(c.name) : undefined;
+      return seen === undefined ? c.waitedMs : Math.min(c.waitedMs, this.clockMs - seen);
+    };
+    cafe.queue.trimViewers(limit, 60_000, Math.max(0, this.config.cafe.visible - 1), served, idle);
   }
 
   private tickCafe(dt: number): void {

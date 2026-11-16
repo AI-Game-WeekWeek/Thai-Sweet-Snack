@@ -172,30 +172,26 @@ export class CafeQueue {
 
   /**
    * More real viewers in the line than there are people in the live: the extra ones must have left. Removes the viewers who only
-   * joined and have waited longest, never the first `protectFront` places (about to be served), never anyone who has waited less
-   * than `minWaitedMs` (the viewer count lags behind joins), never gifting viewers, VIPs or phone orders. Returns how many went.
-   * `served` is 1 when the customer at the counter is a real viewer (they count too).
+   * joined and have been quiet longest (`idleMs`, default: time in the line), never the first `protectFront` places (about to be
+   * served), never anyone who has waited less than `minWaitedMs` (the viewer count lags behind joins), never gifting viewers,
+   * VIPs or phone orders. Returns how many went. `served` is 1 when the customer at the counter is a real viewer (they count too).
    */
-  trimViewers(limit: number, minWaitedMs: number, protectFront: number, served = 0): number {
+  trimViewers(limit: number, minWaitedMs: number, protectFront: number, served = 0, idleMs?: (c: Customer) => number): number {
     if (!Number.isFinite(limit)) return 0;
     let real = served;
     for (const c of this.list) if (c.viewer && c.kind === 'normal') real++;
-    let removed = 0;
-    while (real > Math.max(0, limit)) {
-      let at = -1;
-      for (let i = Math.max(0, protectFront); i < this.list.length; i++) {
-        const c = this.list[i] as Customer;
-        if (c.joined && c.kind === 'normal' && c.waitedMs >= minWaitedMs) {
-          at = i;
-          break;
-        }
-      }
-      if (at < 0) break;
-      this.list.splice(at, 1);
-      real--;
-      removed++;
+    const excess = real - Math.max(0, limit);
+    if (excess <= 0) return 0;
+    const candidates: { c: Customer; idle: number; i: number }[] = [];
+    for (let i = Math.max(0, protectFront); i < this.list.length; i++) {
+      const c = this.list[i] as Customer;
+      if (c.joined && c.kind === 'normal' && c.waitedMs >= minWaitedMs) candidates.push({ c, i, idle: idleMs ? idleMs(c) : c.waitedMs });
     }
-    return removed;
+    candidates.sort((a, b) => b.idle - a.idle || a.i - b.i); // the quietest first; the earlier arrival on a tie
+    const drop = new Set(candidates.slice(0, excess).map((x) => x.c));
+    if (drop.size === 0) return 0;
+    this.list = this.list.filter((c) => !drop.has(c));
+    return drop.size;
   }
 
   /**

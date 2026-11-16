@@ -332,4 +332,20 @@ describe('CafeQueue', () => {
     expect(b.waiting().map((c) => c.dessertId)).toEqual(['p']);
     expect(b.current?.dessertId).toBe('first');
   });
+
+  it('trimViewers removes the QUIETEST off-screen viewers first when it is told how long each has been idle', () => {
+    const q = mk(30, 100_000);
+    for (let i = 0; i < 6; i++) q.enqueue({ ...viewer(`เข้า${i}`, `j${i}`), joined: true });
+    q.tick(70_000, 1, 0); // everybody has waited 70 s
+    const chatty = new Set(['เข้า1', 'เข้า2']); // these two did something a moment ago
+    const idle = (c: { name: string | null; waitedMs: number }) => (chatty.has(c.name ?? '') ? 5_000 : c.waitedMs);
+    expect(q.trimViewers(4, 60_000, 1, 0, idle)).toBe(2);
+    const left = q.waiting().map((c) => c.name);
+    expect(left).toContain('เข้า1'); // active: kept even though they came earlier than others
+    expect(left).toContain('เข้า2');
+    expect(left).toContain('เข้า0'); // the front place is protected
+    expect(left).not.toContain('เข้า3'); // the quiet ones, earliest first
+    expect(left).not.toContain('เข้า4');
+    expect(left).toContain('เข้า5');
+  });
 });

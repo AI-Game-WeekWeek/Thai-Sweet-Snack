@@ -60,6 +60,8 @@ export interface MonitorStats {
   /** The last roomUser message: its field names with harmless values, and any viewer names it listed. */
   roomUser: Record<string, string>;
   topViewers: string[];
+  /** Per kind of message (like, chat, share ...): how many carried a viewer name (proof that viewer is still here) and how many did not. Counts only, never names. */
+  presence: Record<string, { named: number; unnamed: number }>;
 }
 
 /** Commands the control panel may send (test / show actions, not viewer events). */
@@ -122,7 +124,7 @@ const MIME: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js
 
 const MONITOR_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ตรวจสอบอีเวนต์</title>
 <style>body{font:15px/1.5 system-ui,sans-serif;background:#1c1511;color:#f4e6d3;margin:0;padding:16px;max-width:760px}h1{font-size:20px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #46352a;padding:4px 8px;text-align:left}.ok{color:#7ddc8c}.no{color:#ff8a8a}code{background:#34271d;padding:0 4px;border-radius:4px}</style>
-<h1>ตรวจสอบอีเวนต์จาก TikTok</h1><p id=s>กำลังโหลด…</p><h2>นับตามชนิด</h2><table id=c></table><h2>30 อีเวนต์ล่าสุด</h2><table id=l></table><h2>โฮสต์ของรูปโปรไฟล์ที่ส่งมา (ใช้ตั้ง AVATAR_HOSTS)</h2><table id=h></table><h2>ข้อความที่เข้ามา (ชื่อฟิลด์เท่านั้น ไม่มีค่า)</h2><table id=m></table><h2>ข้อความ roomUser ล่าสุด (จำนวนผู้ชม)</h2><table id=r></table>
+<h1>ตรวจสอบอีเวนต์จาก TikTok</h1><p id=s>กำลังโหลด…</p><h2>นับตามชนิด</h2><table id=c></table><h2>30 อีเวนต์ล่าสุด</h2><table id=l></table><h2>โฮสต์ของรูปโปรไฟล์ที่ส่งมา (ใช้ตั้ง AVATAR_HOSTS)</h2><table id=h></table><h2>ข้อความที่เข้ามา (ชื่อฟิลด์เท่านั้น ไม่มีค่า)</h2><table id=m></table><h2>ข้อความ roomUser ล่าสุด (จำนวนผู้ชม)</h2><table id=r></table><h2>ใครยังอยู่ในไลฟ์ (ดูจากไลก์/คอมเมนต์/แชร์ที่มีชื่อมา)</h2><p id=pp></p><table id=pt></table>
 <script>const q=new URLSearchParams(location.search).get('token')||'';
 async function tick(){try{const r=await fetch('/monitor.json?token='+encodeURIComponent(q));if(!r.ok)throw 0;const j=await r.json();
 document.getElementById('s').innerHTML='เกมต่ออยู่ <b class="'+(j.clients>0?'ok':'no')+'">'+j.clients+'</b> หน้า · แหล่งอีเวนต์: <b>'+j.source+'</b> · ทิ้งข้อมูลที่ไม่เข้าใจ '+j.dropped+' ครั้ง<br>ผู้ชมในไลฟ์ตอนนี้: '+(j.viewers===null?'<b class=no>ยังอ่านจำนวนไม่ได้</b> (ดูตารางล่างสุดว่า roomUser ส่งอะไรมา)':'<b class=ok>'+j.viewers+'</b> คน (เกมใช้เลขนี้เคลียร์คนที่ออกไปแล้วออกจากคิว)')+(j.topViewers&&j.topViewers.length?' · รายชื่อที่ส่งมา: '+j.topViewers.map(function(x){return x.replace(/[<>&]/g,'')}).join(', '):'');
@@ -130,6 +132,9 @@ const kinds=['gift','rose','like','follow','share','orangeHeart','comment','join
 document.getElementById('c').innerHTML=kinds.map(k=>'<tr><td>'+k+'</td><td class="'+(j.received[k]?'ok':'no')+'">'+(j.received[k]||0)+'</td></tr>').join('');
 document.getElementById('l').innerHTML=j.lastEvents.slice().reverse().map(e=>'<tr><td>'+new Date(e.atMs).toLocaleTimeString()+'</td><td>'+e.type+'</td><td>'+(e.count||'')+'</td><td>'+(e.giftCoins??'')+'</td></tr>').join('');
 document.getElementById('h').innerHTML=Object.entries(j.avatarHosts||{}).map(([k,v])=>'<tr><td><code>'+k+'</code></td><td>'+v+'</td></tr>').join('')||'<tr><td>ยังไม่มีรูปส่งมา</td></tr>';
+var PR=j.presence||{},pn=0,pu=0;Object.values(PR).forEach(function(v){pn+=v.named;pu+=v.unnamed});
+document.getElementById('pp').innerHTML=pn>0?'<span class=ok>ใช้ได้: มีข้อความที่มีชื่อ '+pn+' ครั้ง เกมรู้ว่าคนที่ขยับล่าสุดยังอยู่ จะไม่เอาเขาออกจากคิวก่อน</span>':'<span class=no>ยังไม่มีข้อความที่มีชื่อเข้ามา'+(pu>0?' (มี '+pu+' ข้อความที่ไม่มีชื่อ: TikFinity ไม่ส่งชื่อมากับไลก์/คอมเมนต์?)':'')+' วิธีนี้ยังไม่ช่วย</span>';
+document.getElementById('pt').innerHTML=Object.entries(PR).map(([k,v])=>'<tr><td>'+k+'</td><td class=ok>มีชื่อ '+v.named+'</td><td class=no>ไม่มีชื่อ '+v.unnamed+'</td></tr>').join('');
 document.getElementById('r').innerHTML=Object.entries(j.roomUser||{}).map(([k,v])=>'<tr><td><code>'+k+'</code></td><td>'+v+'</td></tr>').join('')||'<tr><td>ยังไม่มีข้อความ roomUser เข้ามา</td></tr>';
 document.getElementById('m').innerHTML=Object.entries(j.seenMessages).map(([k,v])=>'<tr><td>'+k+'</td><td><code>'+v.join('</code> <code>')+'</code></td></tr>').join('');}catch(e){document.getElementById('s').textContent='เปิดหน้านี้ด้วยลิงก์ที่มี ?token=... ที่โปรแกรมแสดงให้';}}
 tick();setInterval(tick,1000);</script>`;
@@ -151,7 +156,7 @@ export function createBridge(opts: BridgeOptions): Bridge {
   const windows = new Map<string, { start: number; count: number }>();
   const adapter = new TikFinityAdapter();
   const desk = new GiftDesk(DEFAULT_GIFT_BOARD.map((s) => s.coins), opts.giftFile ?? null);
-  const stats: MonitorStats = { startedMs: Date.now(), clients: 0, source: 'ยังไม่มีข้อมูลเข้า', received: {}, lastEvents: [], seenMessages: {}, avatarHosts: {}, dropped: 0, viewers: null, viewersAtMs: null, roomUser: {}, topViewers: [] };
+  const stats: MonitorStats = { startedMs: Date.now(), clients: 0, source: 'ยังไม่มีข้อมูลเข้า', received: {}, lastEvents: [], seenMessages: {}, avatarHosts: {}, dropped: 0, viewers: null, viewersAtMs: null, roomUser: {}, topViewers: [], presence: {} };
   const staticRoot = opts.staticDir ? resolve(opts.staticDir) : null;
 
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
@@ -194,6 +199,14 @@ export function createBridge(opts: BridgeOptions): Bridge {
   };
 
   let lastViewersSentMs = 0;
+  // names of viewers who just did something in the live: held for a second, passed to the game pages in one message, never kept
+  let presenceBuf = new Set<string>();
+  const flushPresence = (): void => {
+    if (presenceBuf.size === 0) return;
+    const names = [...presenceBuf].slice(0, 50);
+    presenceBuf = new Set();
+    broadcast(JSON.stringify({ cmd: 'present', names }));
+  };
   const broadcast = (payload: string): number => {
     let n = 0;
     for (const c of wss.clients) {
@@ -382,6 +395,14 @@ export function createBridge(opts: BridgeOptions): Bridge {
       if (Object.keys(stats.seenMessages).length < 40) stats.seenMessages[kind] = Object.keys(d).slice(0, 40);
     }
     stats.source = 'มีข้อมูลเข้า ' + new Date().toLocaleTimeString('th-TH');
+    const who = TikFinityAdapter.presence(message);
+    if (who) {
+      const row = (stats.presence[who.kind] ??= { named: 0, unnamed: 0 });
+      if (who.name) {
+        row.named++;
+        if (presenceBuf.size < 200) presenceBuf.add(who.name);
+      } else row.unnamed++;
+    }
     const room = readRoomUser(message);
     if (room) {
       stats.roomUser = room.fields;
@@ -504,6 +525,7 @@ export function createBridge(opts: BridgeOptions): Bridge {
           const pingMs = opts.pingMs ?? 15_000;
           pingTimer = setInterval(() => {
             broadcast('{"ping":true}');
+            flushPresence();
             for (const raw of adapter.flush()) {
               const e = parseLiveEvent(raw, maxLike);
               if (e) {

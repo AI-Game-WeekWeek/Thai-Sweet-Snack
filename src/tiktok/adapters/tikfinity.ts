@@ -7,6 +7,17 @@
  */
 const MAX_LIKES = 1000;
 
+/** Message names that show a viewer is still in the live, grouped by kind. */
+const PRESENCE_KINDS: Record<string, string> = {
+  like: 'like', likes: 'like', tap: 'like',
+  chat: 'chat', comment: 'chat', message: 'chat',
+  share: 'share', shared: 'share',
+  follow: 'follow', followed: 'follow',
+  gift: 'gift', giftevent: 'gift',
+  join: 'join', joined: 'join', member: 'join', memberjoin: 'join',
+  subscribe: 'subscribe', subscription: 'subscribe', superfan: 'subscribe', sub: 'subscribe', fanclub: 'subscribe', orangeheart: 'subscribe',
+};
+
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 const num = (v: unknown): number | undefined => {
@@ -50,6 +61,21 @@ export class TikFinityAdapter {
   private id(o: Obj, kind: string): string {
     const m = str(pick(o, ['msgId', 'eventId', 'id']), 64);
     return m ? `tf-${kind}-${m}` : `tf-${kind}-${this.now()}-${++this.seq}`;
+  }
+
+  /**
+   * Who just did something in the live (a like, a comment, a share, a follow, a gift, a join): proof that this viewer is still
+   * here. Returns the kind and the viewer's name (null when the message carries none), or null for anything else. Only the
+   * name is read, and the bridge passes it on in memory: it is never saved or shown.
+   */
+  static presence(message: unknown): { kind: string; name: string | null } | null {
+    if (!isObj(message)) return null;
+    const raw = pick(message, ['event', 'type', 'eventName', 'action']);
+    const key = typeof raw === 'string' ? raw.toLowerCase().replace(/[^a-z]/g, '') : '';
+    const kind = PRESENCE_KINDS[key];
+    if (kind === undefined) return null;
+    const d: Obj = isObj(message.data) ? message.data : message;
+    return { kind, name: str(pick(d, ['nickname', 'displayName', 'uniqueId']), 60)?.replace(/[\u0000-\u001f\u007f]/g, '').trim() || null };
   }
 
   /** Status messages the game has no use for (not an error, so the monitor does not count them as dropped). */

@@ -82,3 +82,23 @@ describe('join events', () => {
     expect(a.convert({ event: 'join', data: {} })).toEqual([]);
   });
 });
+
+describe('presence (who is still here)', () => {
+  it('reads the viewer name from likes, comments, shares, follows, gifts, joins and subscriptions, with the kind; null when there is no name', () => {
+    expect(TikFinityAdapter.presence({ event: 'like', data: { nickname: 'พี่ต้น', likeCount: 3 } })).toEqual({ kind: 'like', name: 'พี่ต้น' });
+    expect(TikFinityAdapter.presence({ event: 'chat', data: { uniqueId: 'neon', comment: 'สวัสดี' } })).toEqual({ kind: 'chat', name: 'neon' });
+    expect(TikFinityAdapter.presence({ type: 'share', nickname: 'น้ำฝน' })).toEqual({ kind: 'share', name: 'น้ำฝน' });
+    expect(TikFinityAdapter.presence({ event: 'member', data: { displayName: 'ใหม่' } })).toEqual({ kind: 'join', name: 'ใหม่' });
+    expect(TikFinityAdapter.presence({ event: 'follow', data: { nickname: 'ติดตาม' } })).toEqual({ kind: 'follow', name: 'ติดตาม' });
+    expect(TikFinityAdapter.presence({ event: 'gift', data: { nickname: 'ใจดี' } })).toEqual({ kind: 'gift', name: 'ใจดี' });
+    expect(TikFinityAdapter.presence({ event: 'subscribe', data: { nickname: 'ซับ' } })).toEqual({ kind: 'subscribe', name: 'ซับ' });
+    expect(TikFinityAdapter.presence({ event: 'like', data: { likeCount: 3 } })).toEqual({ kind: 'like', name: null });
+    expect(TikFinityAdapter.presence({ event: 'like', data: { nickname: '' } })).toEqual({ kind: 'like', name: null });
+  });
+  it('ignores status messages and anything else, strips control characters, caps the length, and never throws', () => {
+    for (const m of [null, undefined, 5, 'like', [], {}, { event: 'roomUser', data: { nickname: 'x' } }, { event: 'config' }, { event: 'emote', data: { nickname: 'x' } }]) expect(TikFinityAdapter.presence(m)).toBeNull();
+    expect(TikFinityAdapter.presence({ event: 'like', data: { nickname: 'a\u0000b\nc' } })?.name).toBe('abc');
+    expect(TikFinityAdapter.presence({ event: 'like', data: { nickname: 'ก'.repeat(500) } })?.name?.length).toBe(60);
+    expect(TikFinityAdapter.presence({ event: 'like', data: { nickname: 42 } })).toEqual({ kind: 'like', name: null });
+  });
+});

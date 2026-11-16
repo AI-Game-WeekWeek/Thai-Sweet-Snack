@@ -796,6 +796,19 @@ describe('clearing the line of people who left the live', () => {
     advance(game, 2000);
     expect(real(queue)).toBeLessThanOrEqual(4);
   });
+  it('viewers who did something lately (like, comment ...) are kept; the quiet ones are cleared first', () => {
+    const { game, queue } = setup();
+    advance(game, 61_000);
+    const names = queue.waiting().map((c) => c.name as string);
+    const active = [names[6], names[8]] as string[]; // two off-screen viewers who were not the quietest
+    game.markPresent(active);
+    game.markPresent([42, null, '', '   ', { x: 1 }] as unknown[]); // junk is ignored
+    game.setViewerCount(4); // room for ceil(4 * 1.25) + 2 = 7 in all: the front four, then the two who just moved, then one more
+    advance(game, 2000);
+    const left = queue.waiting().map((c) => c.name);
+    for (const a of active) expect(left, a).toContain(a);
+    expect(left.length).toBe(7);
+  });
   it('clearQueue("joined") clears joined viewers and fillers but keeps a gifting viewer; clearQueue("all") clears everybody waiting', () => {
     const { game, queue } = setup();
     game.ingestEvent({ id: `gg${++n}`, type: 'gift', count: 1, giftCoins: 50, displayName: 'ใจดี', tsMs: game.nowMs });
