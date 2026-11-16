@@ -128,7 +128,9 @@ export const defaultConfig: GameConfig = {
   save: { key: 'thai-dessert-asmr:save', backupKey: 'thai-dessert-asmr:save.corrupt' },
   progression: { autoUnlock: true },
   cafe: {
-    maxWaiting: 20,
+    // a safety ceiling only (memory and speed), far above any real live: nobody who comes in is turned away. Fillers, then the viewer
+    // who has waited longest off screen, make way when it is reached.
+    maxWaiting: 500,
     visible: 5,
     patienceMs: 70_000,
     npcSpawnEveryMs: 700,

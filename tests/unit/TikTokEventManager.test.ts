@@ -203,4 +203,16 @@ describe('TikTokEventManager', () => {
       expect(m.drain(ROUND, 3000).progressAdd).toBe(0);
     });
   });
+
+  it('joins beyond the per-drain cap are deferred to the next drain, not lost', () => {
+    const m = mk();
+    const round = { ...ROUND, acceptsGifts: true };
+    for (let i = 0; i < 12; i++) m.ingest(ev({ type: 'join', displayName: `คน${i}` }));
+    const names: string[] = [];
+    for (let k = 0; k < 4; k++) names.push(...m.drain(round, 3000 + k).joins.map((j) => j.displayName ?? ''));
+    expect(names).toHaveLength(12);
+    expect(new Set(names).size).toBe(12);
+    expect(names[0]).toBe('คน0'); // in order
+    expect(m.drain(round, 4000).joins).toHaveLength(0);
+  });
 });
