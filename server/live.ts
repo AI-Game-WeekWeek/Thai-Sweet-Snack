@@ -27,7 +27,9 @@ if (token.length < 16) {
 
 // the TikTok picture host seen in /monitor is built in, so no setting is needed; AVATAR_HOSTS adds more
 const avatarHosts = ['p16-common-sign.tiktokcdn.com', ...(process.env.AVATAR_HOSTS ?? '').split(',')].map((h) => h.trim().toLowerCase()).filter((h) => /^[a-z0-9.-]{3,100}$/.test(h));
-const bridge = createBridge({ token, host, port, staticDir: 'dist', avatarHosts, giftFile: 'gift-map.json' });
+// who becomes a customer on screen: ORDER_ON=action (default: whoever likes, follows, shares, comments ...; 'like' means the same) | join | both | auto
+const orderOn = (['auto', 'action', 'like', 'join', 'both'] as const).find((m) => m === (process.env.ORDER_ON ?? '').toLowerCase()) ?? 'action';
+const bridge = createBridge({ token, host, port, staticDir: 'dist', avatarHosts, giftFile: 'gift-map.json', orderOn });
 const { port: p } = await bridge.start();
 const base = `http://${host}:${p}`;
 const gameUrl = `${base}/live.html`; // no ?query: the token is built into the page, which connects back to the bridge it came from
@@ -45,6 +47,7 @@ console.log(`   ${base}/tikfinity?token=${token}\n`);
 const ws = process.env.TIKFINITY_WS ?? 'ws://localhost:21213';
 const client = process.argv.includes('--no-tikfinity') ? null : startTikFinityClient(bridge, ws, (m) => console.log('[tikfinity]', m));
 console.log(client ? `4) กำลังลองต่อ TikFinity ที่ ${ws} (ไม่ใช่พอร์ตที่ยืนยันแล้ว: เปลี่ยนด้วย TIKFINITY_WS หรือปิดด้วย --no-tikfinity)\n` : '4) ปิดการต่อ TikFinity อัตโนมัติ\n');
+console.log(`5) ใครขึ้นจอเป็นลูกค้า: ${orderOn === 'action' || orderOn === 'like' ? 'คนที่ทำอะไรสักอย่างในไลฟ์ (กดไลก์ ติดตาม แชร์ คอมเมนต์ ซับ ส่งของขวัญ ที่มีชื่อ) คนที่แค่เข้าไลฟ์ไม่ขึ้นจอ' : orderOn === 'join' ? 'คนที่เข้าไลฟ์' : orderOn === 'both' ? 'ทั้งคนที่ทำกิจกรรมและคนที่เข้าไลฟ์' : 'อัตโนมัติ: คนที่ทำกิจกรรม ถ้า TikFinity ไม่ส่งชื่อมา จะใช้การเข้าไลฟ์แทน'} (เปลี่ยนด้วย ORDER_ON=action|join|both|auto)\n`);
 console.log('กด Ctrl+C เพื่อหยุด');
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   process.on(sig, () => {

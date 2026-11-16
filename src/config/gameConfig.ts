@@ -70,7 +70,7 @@ export interface GameConfig {
     payBonusMaxPct: number;
     giftTiers: { minCoins: number; dessertId: string }[];
     surprise: {
-      luckyCat: { durationMs: number; maxMs: number; payBonusPct: number; /** Waiting customers lose patience at this fraction of normal speed. */ patienceSlowdown: number; /** After a follow, heart taps cook this many times faster... */ tapBoostMul: number; /** ...for this long. */ tapBoostMs: number };
+      luckyCat: { durationMs: number; maxMs: number; payBonusPct: number; /** Waiting customers lose patience at this fraction of normal speed. */ patienceSlowdown: number; /** After a follow, each heart tap counts this many times as much (400 = one tap finishes the dessert)... */ tapBoostMul: number; /** ...for this long. */ tapBoostMs: number };
       vip: { cooldownMs: number; payBonusPct: number; /** The VIP orders the best unlocked tier worth at least this many coins. */ minGiftCoins: number };
       tip: { perCustomer: number; max: number };
       /** The phone caller is a hungry Thai ghost: squeezeMs = time until it squeezes (if nobody taps), reliefPerLike = how much each tap loosens it, fineCoins = coins lost when squeezed. */
@@ -128,7 +128,9 @@ export const defaultConfig: GameConfig = {
   save: { key: 'thai-dessert-asmr:save', backupKey: 'thai-dessert-asmr:save.corrupt' },
   progression: { autoUnlock: true },
   cafe: {
-    maxWaiting: 12,
+    // a safety ceiling only (memory and speed), far above any real live: nobody who comes in is turned away. Fillers, then the viewer
+    // who has waited longest off screen, make way when it is reached.
+    maxWaiting: 500,
     visible: 5,
     patienceMs: 70_000,
     npcSpawnEveryMs: 700,
@@ -159,7 +161,7 @@ export const defaultConfig: GameConfig = {
       { minCoins: 500, dessertId: 'khanom-buang' },
     ],
     surprise: {
-      luckyCat: { durationMs: 20_000, maxMs: 60_000, payBonusPct: 50, patienceSlowdown: 0.5, tapBoostMul: 2, tapBoostMs: 5000 },
+      luckyCat: { durationMs: 20_000, maxMs: 60_000, payBonusPct: 50, patienceSlowdown: 0.5, tapBoostMul: 400, tapBoostMs: 5000 },
       vip: { cooldownMs: 60_000, payBonusPct: 50, minGiftCoins: 50 },
       tip: { perCustomer: 1, max: 12 },
       phone: { firstMs: 45_000, everyMs: 100_000, jitter: 0.3, ringMs: 3000, deadlineMs: 35_000, payBonusPct: 200, squeezeMs: 5000, reliefPerLike: 0.004, fineCoins: 25, harderPerVisit: 0.25, minSqueezeMs: 2500, squeezeSlow: 0.8, cookRateMul: 0.5, heartDrainPerSec: 0.2, giveUpMs: 90_000, ghostTapMul: 0.6, tapRelief: 0.06 },

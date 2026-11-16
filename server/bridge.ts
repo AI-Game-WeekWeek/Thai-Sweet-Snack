@@ -7,6 +7,7 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { isChatterComment, parseLiveEvent } from '../src/tiktok/parseLiveEvent';
 import { TikFinityAdapter } from '../src/tiktok/adapters/tikfinity';
 import { DEFAULT_GIFT_BOARD } from '../src/cafe/giftBoard';
+import { readRoomUser } from './roomUser';
 import { GiftDesk, type GiftMeta } from './giftDesk';
 import type { LiveEvent } from '../src/tiktok/types';
 
@@ -26,6 +27,13 @@ export interface BridgeOptions {
   avatarHosts?: string[];
   /** Where the gift page saves its settings (gift board + Auto/Manual). Omit for in-memory only. */
   giftFile?: string;
+  /**
+   * Who becomes a customer who orders the free dessert and appears on screen: 'action' (default; 'like' is the same) = a viewer who DOES
+   * something with their name on it (a like, a follow, a share, a comment, a subscription ...: whoever wants to be on screen does
+   * something), 'join' = a viewer who comes into the live, 'both', or 'auto' = actions once one has arrived with a name, joins until
+   * then (a safety net for a source whose messages carry no names).
+   */
+  orderOn?: 'auto' | 'action' | 'like' | 'join' | 'both';
 }
 
 export interface Bridge {
@@ -53,10 +61,20 @@ export interface MonitorStats {
   /** Hosts (never full URLs) of viewer pictures that arrived, with a count: shows which host to allow. */
   avatarHosts: Record<string, number>;
   dropped: number;
+  /** People in the live now (from the source's roomUser message), null until one arrives with a known count field. */
+  viewers: number | null;
+  viewersAtMs: number | null;
+  /** The last roomUser message: its field names with harmless values, and any viewer names it listed. */
+  roomUser: Record<string, string>;
+  topViewers: string[];
+  /** Per kind of message (like, chat, share ...): how many carried a viewer name (proof that viewer is still here) and how many did not. Counts only, never names. */
+  presence: Record<string, { named: number; unnamed: number }>;
+  /** Who is turned into a customer right now (shown on /monitor). */
+  orderBy: string;
 }
 
 /** Commands the control panel may send (test / show actions, not viewer events). */
-export const COMMANDS = ['ghost', 'shaman', 'squeeze', 'finish', 'autotap'] as const;
+export const COMMANDS = ['ghost', 'shaman', 'squeeze', 'finish', 'autotap', 'clearqueue'] as const;
 
 const PANEL_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>แผงควบคุมร้านขนมไทย</title>
 <style>body{font:15px/1.4 system-ui,sans-serif;background:#1c1511;color:#f4e6d3;margin:0;padding:14px;max-width:680px}h1{font-size:20px;margin:0 0 8px}h2{font-size:15px;margin:14px 0 6px;color:#ffc878}
@@ -67,6 +85,7 @@ button.g{border-color:#e8b64c}button.f{border-color:#b8a0ff}input{font:inherit;p
 <h2>ของขวัญ → ลูกค้าสั่งขนม</h2><div class=row id=g></div>
 <h2>อีเวนต์ผู้ชม</h2><div class=row id=e></div>
 <h2>กดหัวใจอัตโนมัติ (ครั้งละ 10% ขณะทำขนม)</h2><div class=row id=a></div>
+<h2>เคลียร์คิว (คนที่ออกจากไลฟ์ไปแล้วจะได้ไม่ค้าง)</h2><div class=row id=q></div>
 <h2>ผีและหมอผี</h2><div class=row id=s></div>
 <div id=msg></div>
 <script>const TOKEN=__TOKEN__;let n=0;const nm=()=>document.getElementById('nm').value.trim();
@@ -81,6 +100,7 @@ mk('e','ติดตาม (แมวกวัก)',()=>ev('follow',{},'ติ�
 ['นางรำ','ผีพราย','กระสือ','แม่นาค','ผีหิว'].forEach((t,i)=>mk('s','เสก'+t,()=>post('/cmd',{cmd:'ghost',arg:i},'เสก'+t)));
 mk('s','เสกผีสุ่ม',()=>post('/cmd',{cmd:'ghost'},'เสกผีสุ่ม'));mk('s','เรียกหมอผี',()=>post('/cmd',{cmd:'shaman'},'เรียกหมอผี'),'f');mk('s','ผีบีบทันที',()=>post('/cmd',{cmd:'squeeze'},'ผีบีบ'));mk('s','ทำขนมให้เสร็จ',()=>post('/cmd',{cmd:'finish'},'ขนมเสร็จ'));
 [[0,'ปิด'],[1,'ทุก 1 วิ'],[2,'ทุก 2 วิ'],[3,'ทุก 3 วิ'],[5,'ทุก 5 วิ'],[9,'ทุก 9 วิ']].forEach(([s,t])=>mk('a',t,()=>post('/cmd',{cmd:'autotap',arg:s},s?'กดอัตโนมัติ '+t+' (+10%)':'ปิดกดอัตโนมัติ'),s?'g':''));
+mk('q','เคลียร์คิวคนเข้าไลฟ์และบอท',()=>post('/cmd',{cmd:'clearqueue',arg:0},'เคลียร์คิวแล้ว (คนส่งของขวัญยังอยู่)'));mk('q','เคลียร์คิวทั้งหมด',()=>post('/cmd',{cmd:'clearqueue',arg:1},'เคลียร์คิวทั้งหมดแล้ว'),'f');
 </script>`;
 
 const GIFTS_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ของขวัญ</title>
@@ -113,14 +133,18 @@ const MIME: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js
 
 const MONITOR_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ตรวจสอบอีเวนต์</title>
 <style>body{font:15px/1.5 system-ui,sans-serif;background:#1c1511;color:#f4e6d3;margin:0;padding:16px;max-width:760px}h1{font-size:20px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #46352a;padding:4px 8px;text-align:left}.ok{color:#7ddc8c}.no{color:#ff8a8a}code{background:#34271d;padding:0 4px;border-radius:4px}</style>
-<h1>ตรวจสอบอีเวนต์จาก TikTok</h1><p id=s>กำลังโหลด…</p><h2>นับตามชนิด</h2><table id=c></table><h2>30 อีเวนต์ล่าสุด</h2><table id=l></table><h2>โฮสต์ของรูปโปรไฟล์ที่ส่งมา (ใช้ตั้ง AVATAR_HOSTS)</h2><table id=h></table><h2>ข้อความที่เข้ามา (ชื่อฟิลด์เท่านั้น ไม่มีค่า)</h2><table id=m></table>
+<h1>ตรวจสอบอีเวนต์จาก TikTok</h1><p id=s>กำลังโหลด…</p><h2>นับตามชนิด</h2><table id=c></table><h2>30 อีเวนต์ล่าสุด</h2><table id=l></table><h2>โฮสต์ของรูปโปรไฟล์ที่ส่งมา (ใช้ตั้ง AVATAR_HOSTS)</h2><table id=h></table><h2>ข้อความที่เข้ามา (ชื่อฟิลด์เท่านั้น ไม่มีค่า)</h2><table id=m></table><h2>ข้อความ roomUser ล่าสุด (จำนวนผู้ชม)</h2><table id=r></table><h2>ใครยังอยู่ในไลฟ์ (ดูจากไลก์/คอมเมนต์/แชร์ที่มีชื่อมา)</h2><p id=pp></p><table id=pt></table>
 <script>const q=new URLSearchParams(location.search).get('token')||'';
 async function tick(){try{const r=await fetch('/monitor.json?token='+encodeURIComponent(q));if(!r.ok)throw 0;const j=await r.json();
-document.getElementById('s').innerHTML='เกมต่ออยู่ <b class="'+(j.clients>0?'ok':'no')+'">'+j.clients+'</b> หน้า · แหล่งอีเวนต์: <b>'+j.source+'</b> · ทิ้งข้อมูลที่ไม่เข้าใจ '+j.dropped+' ครั้ง';
+document.getElementById('s').innerHTML='เกมต่ออยู่ <b class="'+(j.clients>0?'ok':'no')+'">'+j.clients+'</b> หน้า · แหล่งอีเวนต์: <b>'+j.source+'</b> · ทิ้งข้อมูลที่ไม่เข้าใจ '+j.dropped+' ครั้ง<br>ใครได้เป็นลูกค้าที่สั่งอาหาร: <b>'+j.orderBy+'</b><br>ผู้ชมในไลฟ์ตอนนี้: '+(j.viewers===null?'<b class=no>ยังอ่านจำนวนไม่ได้</b> (ดูตารางล่างสุดว่า roomUser ส่งอะไรมา)':'<b class=ok>'+j.viewers+'</b> คน (เกมใช้เลขนี้เคลียร์คนที่ออกไปแล้วออกจากคิว)')+(j.topViewers&&j.topViewers.length?' · รายชื่อที่ส่งมา: '+j.topViewers.map(function(x){return x.replace(/[<>&]/g,'')}).join(', '):'');
 const kinds=['gift','rose','like','follow','share','orangeHeart','comment','join'];
 document.getElementById('c').innerHTML=kinds.map(k=>'<tr><td>'+k+'</td><td class="'+(j.received[k]?'ok':'no')+'">'+(j.received[k]||0)+'</td></tr>').join('');
 document.getElementById('l').innerHTML=j.lastEvents.slice().reverse().map(e=>'<tr><td>'+new Date(e.atMs).toLocaleTimeString()+'</td><td>'+e.type+'</td><td>'+(e.count||'')+'</td><td>'+(e.giftCoins??'')+'</td></tr>').join('');
 document.getElementById('h').innerHTML=Object.entries(j.avatarHosts||{}).map(([k,v])=>'<tr><td><code>'+k+'</code></td><td>'+v+'</td></tr>').join('')||'<tr><td>ยังไม่มีรูปส่งมา</td></tr>';
+var PR=j.presence||{},pn=0,pu=0;Object.values(PR).forEach(function(v){pn+=v.named;pu+=v.unnamed});
+document.getElementById('pp').innerHTML=pn>0?'<span class=ok>ใช้ได้: มีข้อความที่มีชื่อ '+pn+' ครั้ง เกมรู้ว่าคนที่ขยับล่าสุดยังอยู่ จะไม่เอาเขาออกจากคิวก่อน</span>':'<span class=no>ยังไม่มีข้อความที่มีชื่อเข้ามา'+(pu>0?' (มี '+pu+' ข้อความที่ไม่มีชื่อ: TikFinity ไม่ส่งชื่อมากับไลก์/คอมเมนต์?)':'')+' วิธีนี้ยังไม่ช่วย</span>';
+document.getElementById('pt').innerHTML=Object.entries(PR).map(([k,v])=>'<tr><td>'+k+'</td><td class=ok>มีชื่อ '+v.named+'</td><td class=no>ไม่มีชื่อ '+v.unnamed+'</td></tr>').join('');
+document.getElementById('r').innerHTML=Object.entries(j.roomUser||{}).map(([k,v])=>'<tr><td><code>'+k+'</code></td><td>'+v+'</td></tr>').join('')||'<tr><td>ยังไม่มีข้อความ roomUser เข้ามา</td></tr>';
 document.getElementById('m').innerHTML=Object.entries(j.seenMessages).map(([k,v])=>'<tr><td>'+k+'</td><td><code>'+v.join('</code> <code>')+'</code></td></tr>').join('');}catch(e){document.getElementById('s').textContent='เปิดหน้านี้ด้วยลิงก์ที่มี ?token=... ที่โปรแกรมแสดงให้';}}
 tick();setInterval(tick,1000);</script>`;
 
@@ -141,7 +165,7 @@ export function createBridge(opts: BridgeOptions): Bridge {
   const windows = new Map<string, { start: number; count: number }>();
   const adapter = new TikFinityAdapter();
   const desk = new GiftDesk(DEFAULT_GIFT_BOARD.map((s) => s.coins), opts.giftFile ?? null);
-  const stats: MonitorStats = { startedMs: Date.now(), clients: 0, source: 'ยังไม่มีข้อมูลเข้า', received: {}, lastEvents: [], seenMessages: {}, avatarHosts: {}, dropped: 0 };
+  const stats: MonitorStats = { startedMs: Date.now(), clients: 0, source: 'ยังไม่มีข้อมูลเข้า', received: {}, lastEvents: [], seenMessages: {}, avatarHosts: {}, dropped: 0, viewers: null, viewersAtMs: null, roomUser: {}, topViewers: [], presence: {}, orderBy: '' };
   const staticRoot = opts.staticDir ? resolve(opts.staticDir) : null;
 
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
@@ -183,6 +207,32 @@ export function createBridge(opts: BridgeOptions): Bridge {
     if (stats.lastEvents.length > 30) stats.lastEvents.splice(0, stats.lastEvents.length - 30);
   };
 
+  let lastViewersSentMs = 0;
+  // who becomes a customer (see BridgeOptions.orderOn)
+  const orderMode = opts.orderOn === 'like' || opts.orderOn === undefined ? 'action' : opts.orderOn;
+  let actionsHaveNames = false;
+  const allowOrder = (via: string): boolean => {
+    if (orderMode === 'both') return true;
+    if (orderMode === 'action') return via !== 'join';
+    if (orderMode === 'join') return via === 'join';
+    return via === 'join' ? !actionsHaveNames : true; // auto
+  };
+  const orderBy = (): string => {
+    const acts = orderMode === 'action' || orderMode === 'both' || (orderMode === 'auto' && actionsHaveNames);
+    const joins = orderMode === 'join' || orderMode === 'both' || (orderMode === 'auto' && !actionsHaveNames);
+    const parts = [acts ? 'ทำอะไรสักอย่างในไลฟ์ (ไลก์/ติดตาม/แชร์/คอมเมนต์/ซับ ที่มีชื่อ + ส่งของขวัญ)' : '', joins ? 'เข้าไลฟ์' : ''].filter(Boolean).join(' + ');
+    if (orderMode === 'auto' && !actionsHaveNames) return `${parts} (โหมดอัตโนมัติ: ยังไม่เห็นข้อความที่มีชื่อ)`;
+    if (orderMode === 'action' && !actionsHaveNames) return `${parts} (ยังไม่เห็นไลก์/ติดตาม/แชร์ที่มีชื่อ: ถ้า TikFinity ไม่ส่งชื่อมา จะไม่มีใครขึ้นจอ ให้ตั้ง ORDER_ON=auto)`;
+    return parts;
+  };
+  // names of viewers who just did something in the live: held for a second, passed to the game pages in one message, never kept
+  let presenceBuf = new Set<string>();
+  const flushPresence = (): void => {
+    if (presenceBuf.size === 0) return;
+    const names = [...presenceBuf].slice(0, 50);
+    presenceBuf = new Set();
+    broadcast(JSON.stringify({ cmd: 'present', names }));
+  };
   const broadcast = (payload: string): number => {
     let n = 0;
     for (const c of wss.clients) {
@@ -201,6 +251,7 @@ export function createBridge(opts: BridgeOptions): Bridge {
       const t = new URL(req.url ?? '/', 'http://localhost').searchParams.get('token') ?? '';
       if (!(safeEqual(t, opts.token) || bearerOk(req))) return send(res, 401, { error: 'unauthorized' });
       stats.clients = [...wss.clients].filter((c) => c.readyState === WebSocket.OPEN).length;
+      stats.orderBy = orderBy();
       if (path === '/monitor.json') return send(res, 200, stats);
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
       return void res.end(MONITOR_HTML);
@@ -371,9 +422,35 @@ export function createBridge(opts: BridgeOptions): Bridge {
       if (Object.keys(stats.seenMessages).length < 40) stats.seenMessages[kind] = Object.keys(d).slice(0, 40);
     }
     stats.source = 'มีข้อมูลเข้า ' + new Date().toLocaleTimeString('th-TH');
+    const who = TikFinityAdapter.presence(message);
+    if (who) {
+      const row = Object.keys(stats.presence).length < 20 || who.kind in stats.presence ? (stats.presence[who.kind] ??= { named: 0, unnamed: 0 }) : { named: 0, unnamed: 0 };
+      if (who.name) {
+        if (who.kind !== 'join' && who.kind !== 'gift') actionsHaveNames = true;
+        row.named++;
+        if (presenceBuf.size < 200) presenceBuf.add(who.name);
+      } else row.unnamed++;
+    }
+    const room = readRoomUser(message);
+    if (room) {
+      stats.roomUser = room.fields;
+      stats.topViewers = room.names;
+      if (room.count !== null) {
+        const now = Date.now();
+        const changed = room.count !== stats.viewers;
+        stats.viewers = room.count;
+        // tell the game pages when the count changes (and now and then, so the reading never looks old to them)
+        if (changed || now - lastViewersSentMs > 15_000) {
+          lastViewersSentMs = now;
+          stats.viewersAtMs = now;
+          broadcast(JSON.stringify({ cmd: 'viewers', count: room.count }));
+        }
+      }
+    }
     const converted = adapter.convert(message);
     const valid: LiveEvent[] = [];
     for (let raw of converted) {
+      if (raw.type === 'join' && !allowOrder(String((raw as { via?: unknown }).via ?? 'join'))) continue; // not the way customers are made right now
       const meta = (raw as { meta?: GiftMeta }).meta;
       if (meta && (raw.type === 'gift' || raw.type === 'rose')) {
         // every gift goes through the gift page: logged, mapped to a menu slot, and sent now (Auto) or held for the Play button (Manual)
@@ -451,6 +528,7 @@ export function createBridge(opts: BridgeOptions): Bridge {
       ws.on('error', () => {}); // oversize or malformed frames only drop that client
       ws.on('message', () => {}); // clients are receive-only
       wss.emit('connection', ws, req);
+      if (stats.viewers !== null) ws.send(JSON.stringify({ cmd: 'viewers', count: stats.viewers })); // a page that opens later learns the count at once
     });
   });
 
@@ -464,7 +542,7 @@ export function createBridge(opts: BridgeOptions): Bridge {
       return e ? broadcast(JSON.stringify([e])) : 0;
     },
     ingestTikFinity: ingest,
-    stats: () => ({ ...stats, clients: [...wss.clients].filter((c) => c.readyState === WebSocket.OPEN).length }),
+    stats: () => ({ ...stats, orderBy: orderBy(), clients: [...wss.clients].filter((c) => c.readyState === WebSocket.OPEN).length }),
     setSourceState(state: string) {
       stats.source = state;
     },
@@ -476,6 +554,7 @@ export function createBridge(opts: BridgeOptions): Bridge {
           const pingMs = opts.pingMs ?? 15_000;
           pingTimer = setInterval(() => {
             broadcast('{"ping":true}');
+            flushPresence();
             for (const raw of adapter.flush()) {
               const e = parseLiveEvent(raw, maxLike);
               if (e) {

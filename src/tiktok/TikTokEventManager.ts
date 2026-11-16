@@ -2,6 +2,9 @@ import type { GameConfig } from '../config/gameConfig';
 import { parseLiveEvent } from './parseLiveEvent';
 import type { ConnectionState, Counters, EventEffects, LiveEvent } from './types';
 
+/** Viewers who joined that become customers per game moment (the rest wait for the next moment). */
+const MAX_JOINS_PER_DRAIN = 5;
+
 export interface RoundInfo {
   roundId: number;
   /** Source-clock time at which the active round started. Older events are stale. */
@@ -78,6 +81,11 @@ export class TikTokEventManager {
           deferred.push(e);
           continue;
         }
+        // Joins beyond the per-drain cap wait for the next drain instead of being lost: nobody who comes into the live is dropped.
+        if (e.type === 'join' && round.acceptsGifts && fx.joins.length >= MAX_JOINS_PER_DRAIN) {
+          deferred.push(e);
+          continue;
+        }
         if (e.type === 'comment') {
           if (round.voting && e.tsMs >= round.startedAtMs && e.vote !== undefined) {
             fx.votes.push({ vote: e.vote, ...(e.userId !== undefined ? { userKey: e.userId } : {}) });
@@ -94,7 +102,7 @@ export class TikTokEventManager {
           });
         }
         if (e.type === 'join') {
-          if (round.acceptsGifts && fx.joins.length < 5) fx.joins.push({ ...(e.displayName !== undefined ? { displayName: e.displayName } : {}), ...(e.avatarUrl !== undefined ? { avatarUrl: e.avatarUrl } : {}) });
+          if (round.acceptsGifts && fx.joins.length < MAX_JOINS_PER_DRAIN) fx.joins.push({ ...(e.displayName !== undefined ? { displayName: e.displayName } : {}), ...(e.avatarUrl !== undefined ? { avatarUrl: e.avatarUrl } : {}) });
           continue;
         }
         if (round.acceptsGifts) {

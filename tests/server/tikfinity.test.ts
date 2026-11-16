@@ -124,12 +124,14 @@ describe('control panel', () => {
     expect((await post({ cmd: 'ghost', arg: 2 }, auth)).status).toBe(202);
     expect((await post({ cmd: 'shaman' }, auth)).status).toBe(202);
     expect((await post({ cmd: 'autotap', arg: 3 }, auth)).status).toBe(202);
+    expect((await post({ cmd: 'clearqueue', arg: 1 }, auth)).status).toBe(202);
     expect((await post({ cmd: 'ghost', arg: 99 }, auth)).status).toBe(202); // a bad argument is dropped, the command still valid
-    await until(() => msgs.length >= 4);
+    await until(() => msgs.length >= 5);
     expect(msgs[0]).toEqual({ cmd: 'ghost', arg: 2 });
     expect(msgs[1]).toEqual({ cmd: 'shaman' });
     expect(msgs[2]).toEqual({ cmd: 'autotap', arg: 3 });
-    expect(msgs[3]).toEqual({ cmd: 'ghost' });
+    expect(msgs[3]).toEqual({ cmd: 'clearqueue', arg: 1 });
+    expect(msgs[4]).toEqual({ cmd: 'ghost' });
     expect((await fetch(`${url}/cmd`, { method: 'GET' })).status).toBe(405);
     expect((await fetch(`${url}/cmd`, { method: 'POST', headers: auth, body: 'x'.repeat(5000) })).status).toBe(413);
   });
@@ -159,12 +161,129 @@ describe('avatar hosts', () => {
 
 describe('monitor counts', () => {
   it('status messages are not counted as dropped; a member message becomes a join with a name', async () => {
-    const { bridge, url } = await boot();
+    const { bridge, url } = await boot({ orderOn: 'join' }); // (the default makes customers from hearts, not joins)
     for (const m of [{ event: 'config', data: { events: [] } }, { event: 'roomUser', data: { viewerCount: 3 } }, { event: 'liveStatusChange', data: { isLive: true } }]) bridge.ingestTikFinity(m);
     bridge.ingestTikFinity({ event: 'member', data: { nickname: 'พี่ต้น', profilePictureUrl: 'https://p.example.com/a.jpg', userId: '1' } });
     bridge.ingestTikFinity({ event: 'mystery', data: {} });
     const j = (await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json()) as { dropped: number; received: Record<string, number> };
     expect(j.received.join).toBe(1);
     expect(j.dropped).toBe(1); // only the mystery message
+  });
+
+  it('a roomUser message gives the viewer count: shown on /monitor, sent to game pages when it changes (and to a page that opens later)', async () => {
+    const { url, bridge, port } = await boot();
+    const first = await connect(port);
+    bridge.ingestTikFinity({ event: 'roomUser', data: { viewerCount: 4, topViewers: [{ nickname: 'พี่ต้น' }] } });
+    await until(() => first.msgs.some((m) => (m as { cmd?: string }).cmd === 'viewers'));
+    expect(first.msgs.filter((m) => (m as { cmd?: string }).cmd === 'viewers')).toEqual([{ cmd: 'viewers', count: 4 }]);
+    bridge.ingestTikFinity({ event: 'roomUser', data: { viewerCount: 4 } }); // same count: not sent again
+    bridge.ingestTikFinity({ event: 'roomUser', data: { viewerCount: 6 } });
+    await until(() => first.msgs.filter((m) => (m as { cmd?: string }).cmd === 'viewers').length >= 2);
+    expect(first.msgs.filter((m) => (m as { cmd?: string }).cmd === 'viewers')).toEqual([{ cmd: 'viewers', count: 4 }, { cmd: 'viewers', count: 6 }]);
+    const late = await connect(port);
+    await until(() => late.msgs.length > 0);
+    expect(late.msgs[0]).toEqual({ cmd: 'viewers', count: 6 }); // a page opened later learns the count at once
+    const j = (await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json()) as { viewers: number | null; roomUser: Record<string, string>; dropped: number };
+    expect(j.viewers).toBe(6);
+    expect(j.roomUser).toMatchObject({ viewerCount: '6' });
+    expect(j.dropped).toBe(0); // it is a status message, not a dropped one
+    bridge.ingestTikFinity({ event: 'roomUser', data: { mystery: 1 } }); // no known count field: the old count stays, nothing is guessed
+    expect((await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json() as { viewers: number | null }).viewers).toBe(6);
+  });
+
+  it('names from likes and comments tell the game who is still here (batched, in memory only); /monitor shows only counts per kind, never names', async () => {
+    const { url, bridge, port } = await boot({ pingMs: 50 });
+    const { msgs } = await connect(port);
+    bridge.ingestTikFinity({ event: 'like', data: { nickname: 'ชื่อลับมาก', likeCount: 2 } });
+    bridge.ingestTikFinity({ event: 'like', data: { nickname: 'ชื่อลับมาก', likeCount: 1 } }); // the same viewer twice: one name in the batch
+    bridge.ingestTikFinity({ event: 'chat', data: { uniqueId: 'neon', comment: 'สวัสดี' } });
+    bridge.ingestTikFinity({ event: 'like', data: { likeCount: 5 } }); // no name: counted, nothing to pass on
+    await until(() => msgs.some((m) => (m as { cmd?: string }).cmd === 'present'));
+    const batch = msgs.find((m) => (m as { cmd?: string }).cmd === 'present') as { names: string[] };
+    expect(batch.names.sort()).toEqual(['neon', 'ชื่อลับมาก']);
+    const raw = await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).text();
+    const j = JSON.parse(raw) as { presence: Record<string, { named: number; unnamed: number }> };
+    expect(j.presence).toEqual({ like: { named: 2, unnamed: 1 }, chat: { named: 1, unnamed: 0 } });
+    expect(raw).not.toContain('ชื่อลับมาก');
+    expect(raw).not.toContain('neon');
+    // a second batch only when somebody new is seen
+    const before = msgs.filter((m) => (m as { cmd?: string }).cmd === 'present').length;
+    await new Promise((r) => setTimeout(r, 200));
+    expect(msgs.filter((m) => (m as { cmd?: string }).cmd === 'present').length).toBe(before);
+  });
+
+  describe('who becomes a customer (orderOn)', () => {
+    const types = (msgs: unknown[]) => (msgs.flat() as { type?: string; displayName?: string }[]).filter((e) => e.type === 'join').map((e) => e.displayName);
+    const send = (bridge: { ingestTikFinity(m: unknown): number }) => {
+      bridge.ingestTikFinity({ event: 'join', data: { nickname: 'คนเข้า1', msgId: 'a1' } });
+      bridge.ingestTikFinity({ event: 'like', data: { nickname: 'คนกดใจ', likeCount: 3, msgId: 'b1' } });
+      bridge.ingestTikFinity({ event: 'join', data: { nickname: 'คนเข้า2', msgId: 'a2' } });
+    };
+    it('auto: joins order until a like with a name arrives, then only likes do', async () => {
+      const { bridge, port, url } = await boot({ orderOn: 'auto' });
+      const { msgs } = await connect(port);
+      bridge.ingestTikFinity({ event: 'join', data: { nickname: 'ก่อนไลก์', msgId: 'a0' } }); // no named like seen yet: joins order
+      send(bridge); // join (still before the first named like: orders), like (named: from here on only likers order), join (ignored)
+      await until(() => types(msgs).length >= 3);
+      await new Promise((r) => setTimeout(r, 60));
+      expect(types(msgs)).toEqual(['ก่อนไลก์', 'คนเข้า1', 'คนกดใจ']);
+      bridge.ingestTikFinity({ event: 'join', data: { nickname: 'คนเข้าทีหลัง', msgId: 'a9' } });
+      await new Promise((r) => setTimeout(r, 60));
+      expect(types(msgs)).toEqual(['ก่อนไลก์', 'คนเข้า1', 'คนกดใจ']); // later joins no longer make customers
+      const j = (await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json()) as { orderBy: string };
+      expect(j.orderBy).toContain('ทำอะไรสักอย่าง');
+      expect(j.orderBy).not.toContain('เข้าไลฟ์');
+    });
+    it('auto: a source whose likes carry no names still makes customers from joins', async () => {
+      const { bridge, port, url } = await boot({ orderOn: 'auto' });
+      const { msgs } = await connect(port);
+      bridge.ingestTikFinity({ event: 'like', data: { likeCount: 5 } });
+      bridge.ingestTikFinity({ event: 'join', data: { nickname: 'คนเข้า', msgId: 'a1' } });
+      await until(() => types(msgs).length >= 1);
+      expect(types(msgs)).toEqual(['คนเข้า']);
+      expect(((await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json()) as { orderBy: string }).orderBy).toContain('เข้าไลฟ์');
+    });
+    it('default: only viewers who DO something (a like, a follow, a share, a comment ... with a name) are on screen; people who merely join are not; /monitor says so', async () => {
+      const { bridge, port, url } = await boot();
+      const { msgs } = await connect(port);
+      bridge.ingestTikFinity({ event: 'join', data: { nickname: 'แค่เข้า', msgId: 'a1' } });
+      const mon = async () => ((await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json()) as { orderBy: string }).orderBy;
+      expect(await mon()).toContain('ยังไม่เห็นไลก์/ติดตาม/แชร์ที่มีชื่อ'); // a hint: if nothing carries a name nobody will appear
+      bridge.ingestTikFinity({ event: 'like', data: { likeCount: 2 } }); // a like without a name: only a heart
+      bridge.ingestTikFinity({ event: 'like', data: { nickname: 'คนกดใจ', likeCount: 1, msgId: 'b1' } });
+      bridge.ingestTikFinity({ event: 'join', data: { nickname: 'เข้าอีกคน', msgId: 'a2' } });
+      await until(() => types(msgs).length >= 1);
+      await new Promise((r) => setTimeout(r, 60));
+      expect(types(msgs)).toEqual(['คนกดใจ']);
+      expect(await mon()).not.toContain('ยังไม่เห็น');
+      expect(await mon()).not.toContain('เข้าไลฟ์');
+    });
+    it('default: a follow, a share, a comment and a subscription with a name each make a customer too (and still count for their own effect)', async () => {
+      const { bridge, port } = await boot();
+      const { msgs } = await connect(port);
+      bridge.ingestTikFinity({ event: 'follow', data: { nickname: 'ติดตาม', msgId: 'f1' } });
+      bridge.ingestTikFinity({ event: 'share', data: { nickname: 'แชร์', msgId: 's1' } });
+      bridge.ingestTikFinity({ event: 'chat', data: { nickname: 'คอมเมนต์', comment: 'สวัสดี', msgId: 'c1' } });
+      bridge.ingestTikFinity({ event: 'subscribe', data: { nickname: 'ซับ', msgId: 'u1' } });
+      bridge.ingestTikFinity({ event: 'follow', data: { msgId: 'f2' } }); // no name: only the follow
+      await until(() => types(msgs).length >= 4);
+      await new Promise((r) => setTimeout(r, 60));
+      expect(types(msgs)).toEqual(['ติดตาม', 'แชร์', 'คอมเมนต์', 'ซับ']);
+      const kinds = (msgs.flat() as { type?: string }[]).map((e) => e.type);
+      expect(kinds.filter((k) => k === 'follow')).toHaveLength(2); // the lucky cat still gets both follows
+      expect(kinds).toContain('share');
+      expect(kinds).toContain('orangeHeart');
+    });
+    it('like: only likers; join: only joins (likes still count as hearts); both: everybody', async () => {
+      for (const [mode, expected] of [['like', ['คนกดใจ']], ['join', ['คนเข้า1', 'คนเข้า2']], ['both', ['คนเข้า1', 'คนกดใจ', 'คนเข้า2']]] as const) {
+        const { bridge, port } = await boot({ orderOn: mode });
+        const { msgs } = await connect(port);
+        send(bridge);
+        await until(() => types(msgs).length >= expected.length);
+        await new Promise((r) => setTimeout(r, 60));
+        expect(types(msgs), mode).toEqual(expected);
+        expect((msgs.flat() as { type?: string }[]).some((e) => e.type === 'like'), mode).toBe(true); // the heart itself always counts
+      }
+    });
   });
 });
