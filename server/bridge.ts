@@ -28,9 +28,9 @@ export interface BridgeOptions {
   /** Where the gift page saves its settings (gift board + Auto/Manual). Omit for in-memory only. */
   giftFile?: string;
   /**
-   * Who becomes a customer who orders the free dessert: 'like' = a viewer who taps the heart (a like with a name), 'join' = a viewer who
-   * comes into the live, 'both', or 'auto' (default): likes once a like has arrived with a name, joins until then (so a source whose
-   * likes carry no names still works).
+   * Who becomes a customer who orders the free dessert and appears on screen: 'like' (default) = a viewer who taps the heart (a like
+   * with a name; whoever wants to be on screen taps the heart), 'join' = a viewer who comes into the live, 'both', or 'auto' = likes
+   * once a like has arrived with a name, joins until then (a safety net for a source whose likes carry no names).
    */
   orderOn?: 'auto' | 'like' | 'join' | 'both';
 }
@@ -208,7 +208,7 @@ export function createBridge(opts: BridgeOptions): Bridge {
 
   let lastViewersSentMs = 0;
   // who becomes a customer (see BridgeOptions.orderOn)
-  const orderMode = opts.orderOn ?? 'auto';
+  const orderMode = opts.orderOn ?? 'like';
   let likesHaveNames = false;
   const allowOrder = (via: string): boolean => {
     if (orderMode === 'both') return true;
@@ -220,7 +220,9 @@ export function createBridge(opts: BridgeOptions): Bridge {
     const likes = orderMode === 'like' || orderMode === 'both' || (orderMode === 'auto' && likesHaveNames);
     const joins = orderMode === 'join' || orderMode === 'both' || (orderMode === 'auto' && !likesHaveNames);
     const parts = [likes ? 'กดใจ (ไลก์ที่มีชื่อ)' : '', joins ? 'เข้าไลฟ์' : ''].filter(Boolean).join(' + ');
-    return orderMode === 'auto' && !likesHaveNames ? `${parts} (โหมดอัตโนมัติ: ยังไม่เห็นไลก์ที่มีชื่อ)` : parts;
+    if (orderMode === 'auto' && !likesHaveNames) return `${parts} (โหมดอัตโนมัติ: ยังไม่เห็นไลก์ที่มีชื่อ)`;
+    if (orderMode === 'like' && !likesHaveNames) return `${parts} (ยังไม่เห็นไลก์ที่มีชื่อ: ถ้า TikFinity ไม่ส่งชื่อมากับไลก์ จะไม่มีใครขึ้นจอ ให้ตั้ง ORDER_ON=auto)`;
+    return parts;
   };
   // names of viewers who just did something in the live: held for a second, passed to the game pages in one message, never kept
   let presenceBuf = new Set<string>();

@@ -82,9 +82,9 @@ A viewer who taps the heart (a **like with a name**) becomes a customer who orde
 
 | value | who |
 | --- | --- |
-| `auto` (default) | likes with a name once one has arrived; until then real joins, so a source whose likes carry no names still works |
-| `like` | only viewers who tap the heart |
+| `like` (default) | only viewers who tap the heart: whoever wants to be on screen taps the heart; people who merely join the live are not customers |
+| `auto` | likes with a name once one has arrived; until then real joins, so a source whose likes carry no names still works |
 | `join` | only viewers who come into the live (the old way) |
 | `both` | both |
 
-A like always counts as a heart (it speeds the cooking) whatever the mode. `/monitor` shows which way is in use. Whether TikFinity puts the viewer's name on its like messages is not confirmed against real data: `/monitor` shows "who is still here" counts (named / unnamed per kind) so you can see it.
+A like always counts as a heart (it speeds the cooking) whatever the mode. `/monitor` shows which way is in use and warns while no like with a name has been seen (if TikFinity sends no names with likes, nobody appears: use `ORDER_ON=auto`). Whether TikFinity puts the viewer's name on its like messages is not confirmed against real data: `/monitor` shows "who is still here" counts (named / unnamed per kind) so you can see it.
