@@ -15,6 +15,7 @@ import { genderForSeed, politeEnding } from './cafe/gender';
 import { DEFAULT_GIFT_BOARD, type GiftSlot } from './cafe/giftBoard';
 import { cleanName } from './tiktok/cleanName';
 import type { CafeQueue, Customer, CustomerKind } from './cafe/CafeQueue';
+import { pickBotPersona } from './cafe/botPersona';
 import { hidesCountdown } from './cafe/CafeQueue';
 import type { HeartMeter } from './cooking/HeartMeter';
 import type { VoteManager } from './vote/VoteManager';
@@ -90,6 +91,9 @@ export interface CustomerView {
   patience: number;
   /** false = a gifting viewer: no countdown bar. */
   timed?: boolean;
+  /** A filler customer's funny name and round profile picture (art name), shown like a viewer's. */
+  botName?: string;
+  botPic?: string;
   serving: boolean;
   /** The shaman banished this ghost: it fades away (the order in progress still finishes). */
   banished?: boolean;
@@ -687,7 +691,11 @@ export class Game {
     // Without gifts customers always have the everyday dessert; the rest are earned by gifts. (Falls back if it is somehow locked.)
     const preferred = this.config.cafe.defaultDessertId;
     const id = ids.includes(preferred) ? preferred : (ids[Math.floor((cafe.rng ?? Math.random)() * ids.length)] ?? ids[0]);
-    if (id) cafe.queue.enqueue({ viewer: false, dessertId: id });
+    // a filler walks in with a funny animal picture and a cheeky name (not one already in the café)
+    const taken = new Set<string>();
+    for (const c of cafe.queue.waiting()) if (c.persona) taken.add(c.persona.name);
+    if (cafe.queue.current?.persona) taken.add(cafe.queue.current.persona.name);
+    if (id) cafe.queue.enqueue({ viewer: false, dessertId: id, persona: pickBotPersona(cafe.rng ?? Math.random, taken) });
   }
 
   /** A viewer who gifted is remembered (in memory only) so they can come back to order while they are still around. */
@@ -1005,6 +1013,7 @@ export class Game {
         color: d?.palette[0] ?? '#f5f0e1',
         patience: serving || hidesCountdown(c) ? 1 : Math.min(1, Math.max(0, c.patienceMs / c.patienceMaxMs)),
         timed: !hidesCountdown(c),
+        ...(c.persona && !c.viewer ? { botName: c.persona.name, botPic: c.persona.pic } : {}),
         serving,
         ...(c.kind === 'phone' && this.ghostTamed ? { banished: true } : {}),
       };

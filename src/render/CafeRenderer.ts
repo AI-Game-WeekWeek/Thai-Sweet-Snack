@@ -1156,6 +1156,8 @@ export class CafeRenderer {
           drawn = false; // a broken image falls back to the generated avatar
         }
       }
+      // a filler customer wears its funny animal picture (a round crop, so a square box fills the circle)
+      if (!drawn && !c.viewer && c.botPic) drawn = drawArt(ctx, c.botPic, x, y, r * 2, r * 2);
       if (!drawn) this.drawGeneratedFace(ctx, spec.bg, spec.fg, spec.initial, x, y, r);
     } finally {
       ctx.restore();
@@ -1175,7 +1177,9 @@ export class CafeRenderer {
     // name (viewers), VIP label, and patience
     if (c.kind === 'vip') this.text(ctx, 'VIP', x, y + r * 2.45, Math.round(r * 0.6), '#ffe08a', INK);
     else if (c.viewer && c.name) this.text(ctx, clip(c.name, 12), x, y + r * 2.45, Math.round(r * 0.5), '#fff', INK);
-    if (!c.serving && c.timed !== false) this.drawPatience(ctx, x, y + r * 2.1 + (c.kind === 'vip' || (c.viewer && c.name) ? Math.round(r * 0.5) : 0) + 14, r * 2, c.patience);
+    else if (!c.viewer && c.botName) this.text(ctx, clip(c.botName, 14), x, y + r * 2.45, Math.round(r * 0.46), '#fff3dc', INK); // a filler's cheeky name, softer than a viewer's
+    const labelled = c.kind === 'vip' || (c.viewer && c.name) || (!c.viewer && c.botName);
+    if (!c.serving && c.timed !== false) this.drawPatience(ctx, x, y + r * 2.1 + (labelled ? Math.round(r * 0.5) : 0) + 14, r * 2, c.patience);
     if (!c.serving) {
       ctx.textAlign = 'center';
       this.text(ctx, clip(c.dessertNameTh, 11), x, y - r - 22 - (c.kind === 'vip' ? r * 0.6 : 0), Math.round(r * 0.36), '#fff3dc', INK);

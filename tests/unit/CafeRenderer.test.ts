@@ -305,4 +305,12 @@ describe('customers who gave up leave the picture at once', () => {
     draw({ serving: mkC(1, true), waiting: [mkC(3)] }); // 2 ran out of patience
     expect(r.actorCount).toBe(2);
   });
+
+  it('a filler customer shows its cheeky name under it (softer than a viewer name) and a viewer still shows theirs', () => {
+    const f = draw(view({ cafe: cafe({ waiting: [cust(2, { botName: 'แมวฮู้ดสายโหด', botPic: 'bot-2' }), cust(3, { viewer: true, name: 'น้ำฝน' })] }) }));
+    const t = f.texts.join(' | ');
+    expect(t).toContain('แมวฮู้ดสายโหด');
+    expect(t).toContain('น้ำฝน');
+    expect(() => draw(view({ cafe: cafe({ waiting: [cust(2, { botName: 'x'.repeat(300), botPic: 'no-such-picture' })] }) }))).not.toThrow(); // a missing picture falls back to the generated face
+  });
 });

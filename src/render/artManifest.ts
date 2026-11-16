@@ -1,3 +1,4 @@
+import { BOT_PICS as BOT_PIC_LIST } from '../cafe/botPersona';
 import type { ArtId } from '../dessert/types';
 
 /** How a picture moves while cooking (all amounts in station-world pixels or radians). */
@@ -46,6 +47,9 @@ export const GIFT_PICS: Record<string, string> = {
   tiktok: 'gift-tiktok',
   gg: 'gift-gg',
 };
+
+/** Round profile pictures of the filler customers (see src/cafe/botPersona.ts). */
+export { BOT_PICS } from '../cafe/botPersona';
 
 export const FX_PICS = { steam: ['fx-1', 'fx-2', 'fx-3'], bubbles: ['fx-4', 'fx-5'], sparkle: ['fx-6', 'fx-7'] } as const;
 
@@ -176,6 +180,7 @@ function allNames(): string[] {
   Object.values(SERVED_PICS).forEach((p) => p.forEach((n) => s.add(n)));
   Object.values(ICON_PICS).forEach((n) => s.add(n));
   Object.values(GIFT_PICS).forEach((n) => s.add(n));
+  BOT_PIC_LIST.forEach((n) => s.add(n));
   Object.values(CAFE_PICS).forEach((v) => (Array.isArray(v) ? v.forEach((n) => s.add(n)) : s.add(v as string)));
   return [...s];
 }

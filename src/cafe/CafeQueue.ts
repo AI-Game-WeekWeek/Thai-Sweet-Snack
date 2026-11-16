@@ -12,6 +12,8 @@ export interface Customer {
   /** Stable per customer, used for the generated face and colours. */
   seed: number;
   dessertId: string;
+  /** A filler customer's funny name and profile picture (display only: it is still an anonymous filler for every rule). */
+  persona?: { name: string; pic: string };
   /** Came in by joining the live (no gift yet): a gift from the same viewer changes this order instead of adding a customer. */
   joined?: boolean;
   patienceMs: number;
@@ -31,6 +33,7 @@ export interface NewCustomer {
   avatarUrl?: string | null;
   dessertId: string;
   joined?: boolean;
+  persona?: { name: string; pic: string };
   /** Fixes the look (outfit / ghost kind) of this customer. Default: derived from the id. */
   seed?: number;
   /** Joins even when the line is full (a ghost cuts in line). */
@@ -132,6 +135,7 @@ export class CafeQueue {
       seed: n.seed !== undefined && Number.isFinite(n.seed) ? n.seed : this.nextId,
       dessertId: n.dessertId,
       ...(n.joined ? { joined: true } : {}),
+      ...(n.persona ? { persona: { name: n.persona.name, pic: n.persona.pic } } : {}),
       patienceMs: patience,
       patienceMaxMs: patience,
       waitedMs: 0,

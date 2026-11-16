@@ -348,4 +348,16 @@ describe('CafeQueue', () => {
     expect(left).not.toContain('เข้า4');
     expect(left).toContain('เข้า5');
   });
+
+  it('a filler customer can carry a funny name and picture, which change nothing about how the line treats it', () => {
+    const q = mk(10, 10_000);
+    q.enqueue({ viewer: false, dessertId: 'a', persona: { name: 'แมวฮู้ดสายโหด', pic: 'bot-2' } });
+    q.enqueue({ viewer: true, name: 'ใจดี', dessertId: 'g' });
+    const bot = q.waiting().find((c) => !c.viewer)!; // (the gifting viewer cut in front of it)
+    expect(bot.persona).toEqual({ name: 'แมวฮู้ดสายโหด', pic: 'bot-2' });
+    expect(bot.name).toBeNull(); // still anonymous
+    expect(bot.viewer).toBe(false);
+    expect(q.displaceAnonymous()).toBe(true); // a filler is a filler: it is the one that makes way
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g']);
+  });
 });

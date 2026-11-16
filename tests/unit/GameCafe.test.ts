@@ -94,6 +94,26 @@ describe('Game in café mode', () => {
     expect(game.snapshot().cafe!.waiting.find((c) => c.viewer)?.dessertNameTh).toBe(nameOf('khanom-buang')); // not unlocked, still what the gift's row says
   });
 
+  it('filler customers walk in with a funny picture and a cheeky name (all different), shown in the view like a viewer would be; viewers never get one', () => {
+    const { game } = mk({ npcSpawnEveryMs: 100 });
+    game.start();
+    for (let i = 0; i < 400; i++) game.update(16);
+    const v = game.snapshot().cafe!;
+    const all = [...v.waiting, ...(v.serving ? [v.serving] : [])].filter((c) => !c.viewer && c.kind === 'normal');
+    expect(all.length).toBeGreaterThanOrEqual(3);
+    for (const c of all) {
+      expect(c.botName, 'name').toBeTruthy();
+      expect(c.botPic, 'picture').toMatch(/^bot-\d$/);
+      expect(c.name).toBeNull(); // still anonymous: no viewer name
+    }
+    expect(new Set(all.map((c) => c.botName)).size).toBe(all.length); // no two alike
+    gift(game, 5);
+    game.update(16);
+    const viewer = [...game.snapshot().cafe!.waiting].find((c) => c.viewer);
+    expect(viewer?.botName).toBeUndefined();
+    expect(viewer?.botPic).toBeUndefined();
+  });
+
   it('a duplicate gift event creates one customer', () => {
     const { game } = mk();
     game.start();
