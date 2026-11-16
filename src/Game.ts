@@ -34,7 +34,7 @@ export interface AudioLike {
   play(sound: SoundId, roundId: number): boolean;
   stopRound(roundId: number): number;
   /** Optional spoken line (browser voice). */
-  speak?(text: string, roundId: number, pitch?: number, rate?: number, gender?: 'male' | 'female', sampleKey?: string, priority?: boolean): boolean;
+  speak?(text: string, roundId: number, pitch?: number, rate?: number, gender?: 'male' | 'female', sampleKey?: string, priority?: boolean, queueOne?: boolean): boolean;
 }
 
 export interface GameFx {
@@ -897,11 +897,11 @@ export class Game {
     }
   }
 
-  /** "<name> ขอบคุณสำหรับของขวัญ" in the café voice; never cuts a line that is already being spoken. */
+  /** "<name> ขอบคุณสำหรับของขวัญ" in the café voice; waits behind a line that is being spoken (never cuts it, never stacks up). */
   private thankGift(rawName: string | undefined): void {
     const name = cleanName(rawName ?? '', this.config.cafe.maxNameLength);
     if (name === '') return;
-    this.fx?.audio.speak?.(`${name} ขอบคุณสำหรับของขวัญค่ะ`, this.soundRound(this.manager.snapshot().roundId), 1.25, 0.8, 'female');
+    this.fx?.audio.speak?.(`${name} ขอบคุณสำหรับของขวัญค่ะ`, this.soundRound(this.manager.snapshot().roundId), 1.25, 0.8, 'female', undefined, false, true); // waits its turn behind another line, never stacks
   }
 
   private enqueueGifts(gifts: readonly { coins: number; displayName?: string; avatarUrl?: string }[]): void {

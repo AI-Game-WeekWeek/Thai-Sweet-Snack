@@ -105,6 +105,24 @@ describe('speech never cuts a line', () => {
     } finally { g.speechSynthesis = old.s; g.SpeechSynthesisUtterance = old.u; }
   });
 
+  it('a thank-you waits behind the line being spoken (not dropped) but is skipped when another line is already waiting', () => {
+    const spoken: string[] = [];
+    let busy = true;
+    let waiting = false;
+    const g = globalThis as Record<string, unknown>;
+    const old = { s: g.speechSynthesis, u: g.SpeechSynthesisUtterance };
+    g.SpeechSynthesisUtterance = class { text: string; voice: unknown; lang = ''; rate = 1; pitch = 1; volume = 1; constructor(t: string) { this.text = t; } };
+    g.speechSynthesis = { getVoices: () => [{ name: 'Kanya', lang: 'th-TH' }], get speaking() { return busy; }, get pending() { return waiting; }, cancel() {}, speak(u: { text: string }) { spoken.push(u.text); } };
+    try {
+      const a = new AudioManager(cafeConfig);
+      expect(a.speak('เอา… ข้าวต้มมัด… ค่ะ', 1, 1.3, 0.7, 'female')).toBe(false); // an ordinary line is skipped while one is on
+      expect(a.speak('พี่ต้น ขอบคุณสำหรับของขวัญค่ะ', 1, 1.25, 0.8, 'female', undefined, false, true)).toBe(true); // a thank-you waits its turn
+      waiting = true; // now one line is already waiting
+      expect(a.speak('น้ำฝน ขอบคุณสำหรับของขวัญค่ะ', 1, 1.25, 0.8, 'female', undefined, false, true)).toBe(false); // no pile-up
+      expect(spoken).toEqual(['พี่ต้น ขอบคุณสำหรับของขวัญค่ะ']);
+    } finally { g.speechSynthesis = old.s; g.SpeechSynthesisUtterance = old.u; }
+  });
+
   it('thanks a gift sender by name: "<name> ขอบคุณสำหรับของขวัญค่ะ"', () => {
     const lines: string[] = [];
     const fx: GameFx = {

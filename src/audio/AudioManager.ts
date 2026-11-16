@@ -167,8 +167,9 @@ export class AudioManager {
     }
   }
 
-  /** A spoken line (the browser's Thai voice, if there is one). Silent when unsupported or muted; never throws. */
-  speak(text: string, roundId: number, pitch = 1.25, rate = 0.78, gender?: 'male' | 'female', sampleKey?: string, priority = false): boolean {
+  /** A spoken line (the browser's Thai voice, if there is one). Silent when unsupported or muted; never throws.
+   * priority: waits behind the current line instead of being skipped. queueOne: the same, but skipped when a line is already waiting. */
+  speak(text: string, roundId: number, pitch = 1.25, rate = 0.78, gender?: 'male' | 'female', sampleKey?: string, priority = false, queueOne = false): boolean {
     if (this.muted || typeof text !== 'string' || text.length === 0) return false;
     // a recorded voice file for this line beats the device's text-to-speech
     const rec = sampleKey ? this.samples.get(sampleKey) : undefined;
@@ -201,11 +202,9 @@ export class AudioManager {
       u.rate = Number.isFinite(rate) ? Math.min(2, Math.max(0.3, rate)) : 0.78; // unhurried, a little drawn out
       u.pitch = Number.isFinite(pitch) ? Math.min(2, Math.max(0.1, pitch)) : 1.25;
       u.volume = 1;
-      // never cut a line that is being spoken: a normal line is skipped while another is on, a priority line (ghost, shaman) waits its turn
-      if (!priority && (synth.speaking || synth.pending)) return false;
-      if ((synth as { pending?: boolean }).pending && (synth as { speaking?: boolean }).speaking && priority) {
-        /* queue behind the current line */
-      }
+      // never cut a line that is being spoken: a normal line is skipped while another is on, a priority line (ghost, shaman) waits its turn,
+      // and a queueOne line (a thank-you) waits its turn too but only if no other line is already waiting (so they never pile up)
+      if (!priority && (synth.speaking || synth.pending) && !(queueOne && !synth.pending)) return false;
       synth.speak(u);
       return true;
     } catch {
