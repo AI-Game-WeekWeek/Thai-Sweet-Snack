@@ -124,12 +124,14 @@ describe('control panel', () => {
     expect((await post({ cmd: 'ghost', arg: 2 }, auth)).status).toBe(202);
     expect((await post({ cmd: 'shaman' }, auth)).status).toBe(202);
     expect((await post({ cmd: 'autotap', arg: 3 }, auth)).status).toBe(202);
+    expect((await post({ cmd: 'clearqueue', arg: 1 }, auth)).status).toBe(202);
     expect((await post({ cmd: 'ghost', arg: 99 }, auth)).status).toBe(202); // a bad argument is dropped, the command still valid
-    await until(() => msgs.length >= 4);
+    await until(() => msgs.length >= 5);
     expect(msgs[0]).toEqual({ cmd: 'ghost', arg: 2 });
     expect(msgs[1]).toEqual({ cmd: 'shaman' });
     expect(msgs[2]).toEqual({ cmd: 'autotap', arg: 3 });
-    expect(msgs[3]).toEqual({ cmd: 'ghost' });
+    expect(msgs[3]).toEqual({ cmd: 'clearqueue', arg: 1 });
+    expect(msgs[4]).toEqual({ cmd: 'ghost' });
     expect((await fetch(`${url}/cmd`, { method: 'GET' })).status).toBe(405);
     expect((await fetch(`${url}/cmd`, { method: 'POST', headers: auth, body: 'x'.repeat(5000) })).status).toBe(413);
   });
@@ -166,5 +168,26 @@ describe('monitor counts', () => {
     const j = (await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json()) as { dropped: number; received: Record<string, number> };
     expect(j.received.join).toBe(1);
     expect(j.dropped).toBe(1); // only the mystery message
+  });
+
+  it('a roomUser message gives the viewer count: shown on /monitor, sent to game pages when it changes (and to a page that opens later)', async () => {
+    const { url, bridge, port } = await boot();
+    const first = await connect(port);
+    bridge.ingestTikFinity({ event: 'roomUser', data: { viewerCount: 4, topViewers: [{ nickname: 'พี่ต้น' }] } });
+    await until(() => first.msgs.some((m) => (m as { cmd?: string }).cmd === 'viewers'));
+    expect(first.msgs.filter((m) => (m as { cmd?: string }).cmd === 'viewers')).toEqual([{ cmd: 'viewers', count: 4 }]);
+    bridge.ingestTikFinity({ event: 'roomUser', data: { viewerCount: 4 } }); // same count: not sent again
+    bridge.ingestTikFinity({ event: 'roomUser', data: { viewerCount: 6 } });
+    await until(() => first.msgs.filter((m) => (m as { cmd?: string }).cmd === 'viewers').length >= 2);
+    expect(first.msgs.filter((m) => (m as { cmd?: string }).cmd === 'viewers')).toEqual([{ cmd: 'viewers', count: 4 }, { cmd: 'viewers', count: 6 }]);
+    const late = await connect(port);
+    await until(() => late.msgs.length > 0);
+    expect(late.msgs[0]).toEqual({ cmd: 'viewers', count: 6 }); // a page opened later learns the count at once
+    const j = (await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json()) as { viewers: number | null; roomUser: Record<string, string>; dropped: number };
+    expect(j.viewers).toBe(6);
+    expect(j.roomUser).toMatchObject({ viewerCount: '6' });
+    expect(j.dropped).toBe(0); // it is a status message, not a dropped one
+    bridge.ingestTikFinity({ event: 'roomUser', data: { mystery: 1 } }); // no known count field: the old count stays, nothing is guessed
+    expect((await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json() as { viewers: number | null }).viewers).toBe(6);
   });
 });

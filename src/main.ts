@@ -155,7 +155,7 @@ function applyGiftBoard(raw: unknown): void {
 applyGiftBoard((globalThis as { __GIFT_BOARD__?: unknown }).__GIFT_BOARD__);
 
 // Commands from the bridge's control panel (/panel): call a ghost kind, the shaman, squeeze now, finish the dessert.
-function isCommand(raw: unknown): raw is { cmd: string; arg?: number; board?: unknown } {
+function isCommand(raw: unknown): raw is { cmd: string; arg?: number; board?: unknown; count?: number } {
   return typeof raw === 'object' && raw !== null && typeof (raw as { cmd?: unknown }).cmd === 'string';
 }
 // Admin auto-tap (/panel): one heart tap (+10 %) every N seconds while a dessert cooks; 0 turns it off.
@@ -173,9 +173,11 @@ function setAutoTap(seconds: number): void {
     }
   }, seconds * 1000);
 }
-function runCommand(c: { cmd: string; arg?: number; board?: unknown }): void {
+function runCommand(c: { cmd: string; arg?: number; board?: unknown; count?: number }): void {
   try {
     if (c.cmd === 'autotap') setAutoTap(typeof c.arg === 'number' ? c.arg : 0);
+    else if (c.cmd === 'viewers') game.setViewerCount(typeof c.count === 'number' ? c.count : NaN);
+    else if (c.cmd === 'clearqueue') game.clearQueue(c.arg === 1 ? 'all' : 'joined');
     else if (c.cmd === 'giftboard') applyGiftBoard(c.board);
     else if (c.cmd === 'ghost') game.callGhostNow(typeof c.arg === 'number' ? c.arg : undefined);
     else if (c.cmd === 'shaman') game.callShaman(true);

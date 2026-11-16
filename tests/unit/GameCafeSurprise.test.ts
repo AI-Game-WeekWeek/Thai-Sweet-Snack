@@ -751,6 +751,65 @@ describe('viewers who join become named customers', () => {
   });
 });
 
+describe('clearing the line of people who left the live', () => {
+  const join = (g: Game, name: string) => g.ingestEvent({ id: `jv${++n}`, type: 'join', count: 1, tsMs: g.nowMs, displayName: name });
+  const real = (queue: CafeQueue) => queue.waiting().filter((c) => c.viewer && c.kind === 'normal').length;
+  // nobody is ever served here (cooking waits for taps that never come), so the line only changes through the rules under test
+  const setup = (joins = 12) => {
+    const t = mk({ phone: { firstMs: 1e12, everyMs: 1e12 } }, { npcSpawnEveryMs: 1e9, patienceMs: 1e9, visible: 5, idleCookRate: 0 }, { maxMs: { ...cafeConfig.maxMs, cooking: 6 * 3600_000 } });
+    t.game.start();
+    while (t.queue.displaceAnonymous());
+    for (let i = 0; i < joins; i++) { join(t.game, `คน${i}`); advance(t.game, 100); }
+    return t;
+  };
+  it('with a recent viewer count, viewers who waited over a minute beyond what the live can hold are cleared; the front four stay', () => {
+    const { game, queue } = setup();
+    const before = real(queue);
+    expect(before).toBeGreaterThanOrEqual(11);
+    const front = queue.waiting().slice(0, 4).map((c) => c.name);
+    game.setViewerCount(2); // only 2 people in the live: room for ceil(2 * 1.25) + 2 = 5
+    advance(game, 3000);
+    expect(real(queue)).toBe(before); // the joins are newer than a minute: the count lags behind them, so nobody is removed yet
+    advance(game, 60_000);
+    game.setViewerCount(2);
+    advance(game, 2000);
+    expect(real(queue)).toBeLessThanOrEqual(5); // down to what the live can hold
+    expect(real(queue)).toBeGreaterThanOrEqual(4);
+    expect(queue.waiting().slice(0, 4).map((c) => c.name)).toEqual(front); // the front four are never touched
+  });
+  it('without a count nothing is removed, and a nonsense count is ignored', () => {
+    const { game, queue } = setup();
+    advance(game, 70_000);
+    const before = real(queue);
+    for (const bad of [NaN, -1, Infinity, 1e12]) game.setViewerCount(bad);
+    advance(game, 3000);
+    expect(real(queue)).toBe(before);
+  });
+  it('an old reading (over 90 s) is not trusted', () => {
+    const { game, queue } = setup(0);
+    game.setViewerCount(1);
+    advance(game, 95_000); // the reading is now too old
+    for (let i = 0; i < 10; i++) { join(game, `ช้า${i}`); advance(game, 100); }
+    advance(game, 70_000); // they are all older than a minute, but there is nothing fresh to compare with
+    expect(real(queue)).toBeGreaterThanOrEqual(9);
+    game.setViewerCount(1); // a fresh reading: now they are cleared down to the limit
+    advance(game, 2000);
+    expect(real(queue)).toBeLessThanOrEqual(4);
+  });
+  it('clearQueue("joined") clears joined viewers and fillers but keeps a gifting viewer; clearQueue("all") clears everybody waiting', () => {
+    const { game, queue } = setup();
+    game.ingestEvent({ id: `gg${++n}`, type: 'gift', count: 1, giftCoins: 50, displayName: 'ใจดี', tsMs: game.nowMs });
+    advance(game, 100);
+    expect(queue.waiting().some((c) => c.name === 'ใจดี')).toBe(true);
+    const removed = game.clearQueue('joined');
+    expect(removed).toBeGreaterThanOrEqual(10);
+    expect(queue.waiting().map((c) => c.name)).toEqual(['ใจดี']);
+    expect(game.clearQueue('all')).toBe(1);
+    expect(queue.waiting()).toHaveLength(0);
+    expect(game.clearQueue('all')).toBe(0);
+  });
+});
+
 describe('a banished ghost cancels its order', () => {
   it('when the shaman banishes the ghost at the counter its dessert is cancelled (no reward) and the next customer steps up', () => {
     const ph = { firstMs: 1e12, everyMs: 1e12, jitter: 0, ringMs: 600, deadlineMs: 600_000, squeezeMs: 1e9 };

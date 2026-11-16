@@ -254,6 +254,10 @@ export class Game {
   private shamanFromQuota = false;
   private orderCancelled = false;
   private cancelPending = false;
+  /** How many people are in the live right now (from the event source), or null when unknown. */
+  private viewerCount: number | null = null;
+  private viewerCountAtMs = 0;
+  private viewerTrimMs = 0;
   private ghostTamed = false;
   private readonly voteView: VoteView = { open: false, candidates: [], tally: [], remainingMs: 0, winner: null };
 
@@ -730,6 +734,35 @@ export class Game {
     }
   }
 
+  /** The number of people in the live now (a source that does not know simply never calls this). Used to clear the line of people who left. */
+  setViewerCount(n: number): void {
+    if (typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 1e7) return;
+    this.viewerCount = Math.floor(n);
+    this.viewerCountAtMs = this.clockMs;
+  }
+
+  /** The control panel's "clear the line": 'joined' = viewers who only joined and the fillers, 'all' = everybody waiting (not the one being served). */
+  clearQueue(mode: 'joined' | 'all'): number {
+    const cafe = this.cafe;
+    if (!cafe) return 0;
+    const n = cafe.queue.clearWaiting(mode);
+    if (n > 0) this.toastText = `เคลียร์คิวแล้ว ${n} คน`;
+    return n;
+  }
+
+  /** More viewers in the line than people in the live: the extra ones left. A recent count is needed; joins newer than a minute are never removed. */
+  private trimToViewers(dt: number): void {
+    this.viewerTrimMs += dt;
+    if (this.viewerTrimMs < 1000) return;
+    this.viewerTrimMs = 0;
+    const cafe = this.cafe;
+    if (!cafe || this.viewerCount === null) return;
+    if (this.clockMs - this.viewerCountAtMs > 90_000) return; // an old reading is not trusted
+    const limit = Math.ceil(this.viewerCount * 1.25) + 2; // the count is approximate and lags behind: leave some room
+    const served = cafe.queue.current?.viewer && cafe.queue.current.kind === 'normal' ? 1 : 0;
+    cafe.queue.trimViewers(limit, 60_000, Math.max(0, this.config.cafe.visible - 1), served);
+  }
+
   private tickCafe(dt: number): void {
     const cafe = this.cafe;
     if (!cafe || !this.manager.running) return;
@@ -748,6 +781,7 @@ export class Game {
     }
     this.tickPhone(dt);
     this.tickRegulars(dt);
+    this.trimToViewers(dt);
     const c = this.config.cafe;
     // fewer than npcMinWaiting people in the café (the one being served counts, viewers included): bots come until npcFillTo are there
     const people = cafe.queue.waiting().length + (cafe.queue.current ? 1 : 0);

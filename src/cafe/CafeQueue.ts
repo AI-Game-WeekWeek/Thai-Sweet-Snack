@@ -16,6 +16,8 @@ export interface Customer {
   joined?: boolean;
   patienceMs: number;
   patienceMaxMs: number;
+  /** Total time spent waiting in the line (counts on screen or not): tells a fresh arrival from someone who has been there for ages. */
+  waitedMs: number;
   state: CustomerState;
 }
 
@@ -132,6 +134,7 @@ export class CafeQueue {
       ...(n.joined ? { joined: true } : {}),
       patienceMs: patience,
       patienceMaxMs: patience,
+      waitedMs: 0,
       state: 'WAITING',
     };
     this.insertByRank(customer);
@@ -168,6 +171,48 @@ export class CafeQueue {
   }
 
   /**
+   * More real viewers in the line than there are people in the live: the extra ones must have left. Removes the viewers who only
+   * joined and have waited longest, never the first `protectFront` places (about to be served), never anyone who has waited less
+   * than `minWaitedMs` (the viewer count lags behind joins), never gifting viewers, VIPs or phone orders. Returns how many went.
+   * `served` is 1 when the customer at the counter is a real viewer (they count too).
+   */
+  trimViewers(limit: number, minWaitedMs: number, protectFront: number, served = 0): number {
+    if (!Number.isFinite(limit)) return 0;
+    let real = served;
+    for (const c of this.list) if (c.viewer && c.kind === 'normal') real++;
+    let removed = 0;
+    while (real > Math.max(0, limit)) {
+      let at = -1;
+      for (let i = Math.max(0, protectFront); i < this.list.length; i++) {
+        const c = this.list[i] as Customer;
+        if (c.joined && c.kind === 'normal' && c.waitedMs >= minWaitedMs) {
+          at = i;
+          break;
+        }
+      }
+      if (at < 0) break;
+      this.list.splice(at, 1);
+      real--;
+      removed++;
+    }
+    return removed;
+  }
+
+  /**
+   * Clears the line by hand (the control panel). Mode 'joined': the viewers who only joined, and the fillers (gifting viewers and
+   * VIPs keep their place). Mode 'all': everybody waiting. The customer being served and a phone order are not touched.
+   */
+  clearWaiting(mode: 'joined' | 'all'): number {
+    const before = this.list.length;
+    this.list = this.list.filter((c) => {
+      if (c.kind === 'phone') return true;
+      if (mode === 'all') return false;
+      return !(c.joined || (!c.viewer && c.kind === 'normal'));
+    });
+    return before - this.list.length;
+  }
+
+  /**
    * Customers who ran out of patience this tick (removed from the queue). `slow` (0..1] slows the loss (lucky cat).
    * Only the first `active` customers in line (the ones on screen) lose patience: those further back have not "arrived" yet,
    * so they keep all of theirs until they move up.
@@ -180,6 +225,7 @@ export class CafeQueue {
     const stay: Customer[] = [];
     let place = 0;
     for (const c of this.list) {
+      c.waitedMs += dtMs;
       if (place++ >= limit) {
         stay.push(c); // not on screen yet: its patience does not run
         continue;
