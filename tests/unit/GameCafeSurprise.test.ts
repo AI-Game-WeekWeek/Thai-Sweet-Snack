@@ -840,28 +840,39 @@ describe('a banished ghost cancels its order', () => {
   });
 });
 
-describe('lucky cat speeds up the heart taps', () => {
-  it('after a follow each tap cooks twice as much for 5 seconds, then back to normal', () => {
-    const run = (withFollow: boolean) => {
-      const { game } = mk({}, { npcSpawnEveryMs: 1e9, idleCookRate: 0, tapPercent: 10 }, { maxMs: { ...cafeConfig.maxMs, cooking: 6 * 3600_000 } });
-      game.start();
-      runUntil(game, () => game.snapshot().state === 'COOKING', 400_000);
-      if (withFollow) follow(game);
-      advance(game, 100);
-      const before = game.snapshot().progress;
-      game.ingestEvent({ id: `tp${++n}`, type: 'like', count: 1, tsMs: game.nowMs });
-      advance(game, 100);
-      const first = game.snapshot().progress - before;
-      advance(game, 6000); // past the 5 s boost
-      const mid = game.snapshot().progress;
-      game.ingestEvent({ id: `tp${++n}`, type: 'like', count: 1, tsMs: game.nowMs });
-      advance(game, 100);
-      return { first, later: game.snapshot().progress - mid };
-    };
-    const a = run(false);
-    const b = run(true);
-    expect(b.first).toBeCloseTo(a.first * 2, 0);
-    expect(b.later).toBeCloseTo(a.later, 0);
+describe('lucky cat multiplies the heart taps by 400', () => {
+  const cooking = () => {
+    const { game } = mk({}, { npcSpawnEveryMs: 1e9, idleCookRate: 0, tapPercent: 10 }, { maxMs: { ...cafeConfig.maxMs, cooking: 6 * 3600_000 } });
+    game.start();
+    runUntil(game, () => game.snapshot().state === 'COOKING', 400_000);
+    return game;
+  };
+  const tap = (g: Game) => g.ingestEvent({ id: `tp${++n}`, type: 'like', count: 1, tsMs: g.nowMs });
+  it('a normal tap is +10 %; during the 5 s after a follow ONE tap counts 400 times (the dessert is done); after 5 s it is +10 % again', () => {
+    const plain = cooking();
+    const p0 = plain.snapshot().progress;
+    tap(plain);
+    advance(plain, 100);
+    expect(plain.snapshot().progress - p0).toBeGreaterThan(9);
+    expect(plain.snapshot().progress - p0).toBeLessThan(12);
+
+    const boosted = cooking();
+    follow(boosted);
+    advance(boosted, 100);
+    expect(boosted.snapshot().state).toBe('COOKING');
+    tap(boosted);
+    advance(boosted, 1000);
+    expect(boosted.snapshot().state).not.toBe('COOKING'); // one tap finished it
+
+    const late = cooking();
+    follow(late);
+    advance(late, 6000); // the 5 s are over
+    const l0 = late.snapshot().progress;
+    tap(late);
+    advance(late, 100);
+    expect(late.snapshot().state).toBe('COOKING');
+    expect(late.snapshot().progress - l0).toBeGreaterThan(9);
+    expect(late.snapshot().progress - l0).toBeLessThan(12);
   });
 });
 

@@ -1230,7 +1230,7 @@ export class Game {
         }
         if (this.config.cafe.tapPercent > 0 && fx.likeEvents && this.manager.snapshot().state === 'COOKING') {
           // each tap / key press = +tapPercent % on the bar (a ghost's dessert counts a fraction, so it is harder but never stuck)
-          const boost = this.tapBoostMs > 0 ? this.config.cafe.surprise.luckyCat.tapBoostMul : 1; // lucky cat: taps count double for a few seconds
+          const boost = this.tapBoostMs > 0 ? this.config.cafe.surprise.luckyCat.tapBoostMul : 1; // lucky cat: for a few seconds after a follow every tap counts tapBoostMul times (400: one tap finishes the dessert)
           const gm = this.config.cafe.surprise.phone.ghostTapMul;
           const mul = boost * (this.ghostCooking() && !this.ghostTamed ? (Number.isFinite(gm) ? gm : 1) : 1);
           this.cooking.addProgress(Math.min(100, fx.likeEvents * this.config.cafe.tapPercent * mul), m.roundId);
