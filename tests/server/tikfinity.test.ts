@@ -231,7 +231,7 @@ describe('monitor counts', () => {
       await new Promise((r) => setTimeout(r, 60));
       expect(types(msgs)).toEqual(['ก่อนไลก์', 'คนเข้า1', 'คนกดใจ']); // later joins no longer make customers
       const j = (await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json()) as { orderBy: string };
-      expect(j.orderBy).toContain('กดใจ');
+      expect(j.orderBy).toContain('ทำอะไรสักอย่าง');
       expect(j.orderBy).not.toContain('เข้าไลฟ์');
     });
     it('auto: a source whose likes carry no names still makes customers from joins', async () => {
@@ -243,12 +243,12 @@ describe('monitor counts', () => {
       expect(types(msgs)).toEqual(['คนเข้า']);
       expect(((await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json()) as { orderBy: string }).orderBy).toContain('เข้าไลฟ์');
     });
-    it('default: only the viewers who tap the heart (with a name) are on screen; people who merely join are not; /monitor says so', async () => {
+    it('default: only viewers who DO something (a like, a follow, a share, a comment ... with a name) are on screen; people who merely join are not; /monitor says so', async () => {
       const { bridge, port, url } = await boot();
       const { msgs } = await connect(port);
       bridge.ingestTikFinity({ event: 'join', data: { nickname: 'แค่เข้า', msgId: 'a1' } });
       const mon = async () => ((await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json()) as { orderBy: string }).orderBy;
-      expect(await mon()).toContain('ยังไม่เห็นไลก์ที่มีชื่อ'); // a hint: if likes never carry names nobody will appear
+      expect(await mon()).toContain('ยังไม่เห็นไลก์/ติดตาม/แชร์ที่มีชื่อ'); // a hint: if nothing carries a name nobody will appear
       bridge.ingestTikFinity({ event: 'like', data: { likeCount: 2 } }); // a like without a name: only a heart
       bridge.ingestTikFinity({ event: 'like', data: { nickname: 'คนกดใจ', likeCount: 1, msgId: 'b1' } });
       bridge.ingestTikFinity({ event: 'join', data: { nickname: 'เข้าอีกคน', msgId: 'a2' } });
@@ -257,6 +257,22 @@ describe('monitor counts', () => {
       expect(types(msgs)).toEqual(['คนกดใจ']);
       expect(await mon()).not.toContain('ยังไม่เห็น');
       expect(await mon()).not.toContain('เข้าไลฟ์');
+    });
+    it('default: a follow, a share, a comment and a subscription with a name each make a customer too (and still count for their own effect)', async () => {
+      const { bridge, port } = await boot();
+      const { msgs } = await connect(port);
+      bridge.ingestTikFinity({ event: 'follow', data: { nickname: 'ติดตาม', msgId: 'f1' } });
+      bridge.ingestTikFinity({ event: 'share', data: { nickname: 'แชร์', msgId: 's1' } });
+      bridge.ingestTikFinity({ event: 'chat', data: { nickname: 'คอมเมนต์', comment: 'สวัสดี', msgId: 'c1' } });
+      bridge.ingestTikFinity({ event: 'subscribe', data: { nickname: 'ซับ', msgId: 'u1' } });
+      bridge.ingestTikFinity({ event: 'follow', data: { msgId: 'f2' } }); // no name: only the follow
+      await until(() => types(msgs).length >= 4);
+      await new Promise((r) => setTimeout(r, 60));
+      expect(types(msgs)).toEqual(['ติดตาม', 'แชร์', 'คอมเมนต์', 'ซับ']);
+      const kinds = (msgs.flat() as { type?: string }[]).map((e) => e.type);
+      expect(kinds.filter((k) => k === 'follow')).toHaveLength(2); // the lucky cat still gets both follows
+      expect(kinds).toContain('share');
+      expect(kinds).toContain('orangeHeart');
     });
     it('like: only likers; join: only joins (likes still count as hearts); both: everybody', async () => {
       for (const [mode, expected] of [['like', ['คนกดใจ']], ['join', ['คนเข้า1', 'คนเข้า2']], ['both', ['คนเข้า1', 'คนกดใจ', 'คนเข้า2']]] as const) {

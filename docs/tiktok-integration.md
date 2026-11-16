@@ -26,8 +26,10 @@ small local bridge. Any source you are entitled to use only has to POST events i
   kept **only on gift and rose events**, shown while that customer is on screen, never saved. The bridge relays them, so use a
   provider you trust with viewer names. Pictures are not loaded unless you allow their host in `cafe.avatar.hosts`.
 - **Follow** `{"id":"f1","type":"follow","tsMs":...}` switches the lucky cat on; **orange heart / fan club** `{"id":"o1","type":"orangeHeart","tsMs":...}`
-  (one event for both) sends a VIP customer and a tip rain. Both are counted in every game state; **any name or picture sent on
-  them is discarded** (nothing about followers or fans is shown, relayed to the game or saved). Whether a provider sends these events is not verified.
+  (one event for both) sends a VIP customer and a tip rain. Both are counted in every game state; **a name or picture sent on
+  these events themselves is discarded** by the game's validator. (With the bridge's default `ORDER_ON=action` the TikFinity bridge sends a
+  separate `join` event for a named follower, sharer ... so that viewer appears as a customer: see "Who becomes a customer" below.)
+  Whether a provider sends these events is not verified.
 - **Menu votes** (vote mode) use `{"id":"c1","type":"comment","text":"2","userId":"opaque-viewer-key","tsMs":...}`. Only comments that are exactly
   `1`, `2` or `3` (or `#1`..`#3`) count; ordinary chat is accepted and ignored (the bridge answers 202 with `ignored` > 0, so a provider never sees an error for
   chatter; 400 is only for requests where nothing is understood). The bridge reduces a comment to `{"type":"comment","vote":2,"userId":...}` and **drops the text**, so it never
@@ -74,17 +76,17 @@ TikTok gives no "viewer left" signal, so the game cannot know **who** left. It k
 
 By hand: the control panel (`/panel`) has "clear the line" buttons (viewers who joined and fillers, or everybody waiting; gifting viewers, the customer being served and a ghost are kept in the first mode).
 
-## Who becomes a customer: tapping the heart (or joining)
+## Who becomes a customer: whoever DOES something (or joins)
 
-A viewer who taps the heart (a **like with a name**) becomes a customer who orders the free dessert (ข้าวต้มมัด) right away, so the line is made of people who are plainly still here. The adapter turns such a like into the like itself plus a `join` event marked `via: "like"` (at most one per name every 30 s, name and picture kept like a join); the line's own rules then apply (same name once a minute, not while already waiting, behind everyone already waiting; only gifts cut in).
+A viewer who does something in the live with their name on it (**a like, a follow, a share, a comment, a subscription / orange heart, a gift, or any other message that carries a viewer name**) becomes a customer who orders the free dessert (ข้าวต้มมัด) and appears on screen: whoever wants to be on screen does something. A gift keeps its own dessert. People who merely join the live are not customers by default. The adapter turns such a message into its own event (a like still counts as a heart, a follow as the lucky cat ...) plus a `join` event marked `via: "action"` (name and picture kept; at most one per name every 30 s however many things they do); the line's own rules then apply (same name once a minute, not while already waiting, behind everyone already waiting; only gifts cut in). Note that a follower's or sharer's name is now shown on screen (before, names on follows and shares were always discarded).
 
 `ORDER_ON` (environment variable of `npm run live` / `start-live.bat`) chooses who becomes a customer:
 
 | value | who |
 | --- | --- |
-| `like` (default) | only viewers who tap the heart: whoever wants to be on screen taps the heart; people who merely join the live are not customers |
-| `auto` | likes with a name once one has arrived; until then real joins, so a source whose likes carry no names still works |
+| `action` (default; `like` means the same) | viewers who do something with their name on it: a like, a follow, a share, a comment, a subscription ...; people who merely join the live are not customers |
+| `auto` | actions with a name once one has arrived; until then real joins, so a source whose messages carry no names still works |
 | `join` | only viewers who come into the live (the old way) |
 | `both` | both |
 
-A like always counts as a heart (it speeds the cooking) whatever the mode. `/monitor` shows which way is in use and warns while no like with a name has been seen (if TikFinity sends no names with likes, nobody appears: use `ORDER_ON=auto`). Whether TikFinity puts the viewer's name on its like messages is not confirmed against real data: `/monitor` shows "who is still here" counts (named / unnamed per kind) so you can see it.
+A like always counts as a heart (it speeds the cooking) whatever the mode. `/monitor` shows which way is in use and warns while nothing with a name has been seen (if TikFinity sends no names, nobody appears: use `ORDER_ON=auto`). Whether TikFinity puts the viewer's name on its messages is not confirmed against real data: `/monitor` shows "who is still here" counts (named / unnamed per kind of message) so you can see it.

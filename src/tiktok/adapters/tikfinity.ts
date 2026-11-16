@@ -7,6 +7,10 @@
  */
 const MAX_LIKES = 1000;
 
+/** Messages that are not about a viewer (not an error, not a customer). */
+const STATUS_KINDS = new Set(['config', 'livestatuschange', 'roomuser', 'roomusers', 'roomuserseq', 'viewercount', 'ping', 'pong', 'streamend', 'liveend', 'liveended', 'roomstats']);
+const CONTROL = /[\u0000-\u001f\u007f]/g;
+
 /** Message names that show a viewer is still in the live, grouped by kind. */
 const PRESENCE_KINDS: Record<string, string> = {
   like: 'like', likes: 'like', tap: 'like',
@@ -30,6 +34,19 @@ const pick = (o: Obj, keys: readonly string[]): unknown => {
   return undefined;
 };
 
+/**
+ * The viewer behind a message: its kind (like, chat, share, follow, subscribe, gift, join, or any other kind's own name), their name
+ * and picture (null when the message has none). Null for status messages and messages with no kind.
+ */
+function actorOf(key: string, d: Obj): { kind: string; name: string | null; avatar: string | null } | null {
+  if (key === '' || STATUS_KINDS.has(key)) return null;
+  return {
+    kind: PRESENCE_KINDS[key] ?? key.slice(0, 20),
+    name: str(pick(d, ['nickname', 'displayName', 'uniqueId']), 60)?.replace(CONTROL, '').trim() || null,
+    avatar: str(pick(d, ['profilePictureUrl', 'avatarUrl', 'profilePicture']), 500) ?? null,
+  };
+}
+
 interface Streak {
   base: Obj;
   coins: number;
@@ -46,7 +63,7 @@ export interface AdapterOptions {
 export class TikFinityAdapter {
   private seq = 0;
   private readonly streaks = new Map<string, Streak>();
-  /** When each liking viewer last produced an order event (so tapping 50 times sends one). */
+  /** When each viewer last produced an order event (so tapping 50 times, or liking and following, sends one). */
   private readonly likers = new Map<string, number>();
   private readonly idleMs: number;
   private readonly now: () => number;
@@ -75,18 +92,16 @@ export class TikFinityAdapter {
   }
 
   /**
-   * Who just did something in the live (a like, a comment, a share, a follow, a gift, a join): proof that this viewer is still
-   * here. Returns the kind and the viewer's name (null when the message carries none), or null for anything else. Only the
-   * name is read, and the bridge passes it on in memory: it is never saved or shown.
+   * Who just did something in the live (a like, a comment, a share, a follow, a gift, a join, or anything else that has a kind):
+   * proof that this viewer is still here. Returns the kind and the viewer's name (null when the message carries none), or null for
+   * a status message. Only the name is read, and the bridge passes it on in memory: it is never saved.
    */
   static presence(message: unknown): { kind: string; name: string | null } | null {
     if (!isObj(message)) return null;
     const raw = pick(message, ['event', 'type', 'eventName', 'action']);
     const key = typeof raw === 'string' ? raw.toLowerCase().replace(/[^a-z]/g, '') : '';
-    const kind = PRESENCE_KINDS[key];
-    if (kind === undefined) return null;
-    const d: Obj = isObj(message.data) ? message.data : message;
-    return { kind, name: str(pick(d, ['nickname', 'displayName', 'uniqueId']), 60)?.replace(/[\u0000-\u001f\u007f]/g, '').trim() || null };
+    const a = actorOf(key, isObj(message.data) ? message.data : message);
+    return a ? { kind: a.kind, name: a.name } : null;
   }
 
   /** Status messages the game has no use for (not an error, so the monitor does not count them as dropped). */
@@ -95,7 +110,7 @@ export class TikFinityAdapter {
     const m = message as Record<string, unknown>;
     const raw = m.event ?? m.type ?? m.eventName ?? m.action;
     const name = typeof raw === 'string' ? raw.toLowerCase().replace(/[^a-z]/g, '') : '';
-    return ['config', 'livestatuschange', 'roomuser', 'ping', 'pong', 'streamend', 'roomstats'].includes(name);
+    return STATUS_KINDS.has(name);
   }
 
   /** One incoming message -> zero or more LiveEvents (raw objects; the bridge validates them again). Never throws. */
@@ -112,8 +127,20 @@ export class TikFinityAdapter {
     const nameRaw = pick(message, ['event', 'type', 'eventName', 'action']);
     const name = typeof nameRaw === 'string' ? nameRaw.toLowerCase().replace(/[^a-z]/g, '') : '';
     const d: Obj = isObj(message.data) ? message.data : message;
-    const out: Obj[] = [];
     const ts = this.now();
+    const base = this.baseEvents(name, d, ts);
+    // A viewer who DID something (a like, a follow, a share, a comment, a subscription, anything with their name on it) is plainly
+    // here: with a name that is also a customer who orders the free dessert and appears on screen. That is a 'join' event marked
+    // via: 'action' (the bridge decides whether actions or real joins make customers). A name sends at most one per 30 s.
+    const who = actorOf(name, d);
+    if (who && who.name && who.kind !== 'join' && who.kind !== 'gift' && this.likerDue(who.name, ts)) {
+      base.push({ id: this.id(d, 'actor'), type: 'join', via: 'action', displayName: who.name, ...(who.avatar ? { avatarUrl: who.avatar } : {}), tsMs: ts });
+    }
+    return base;
+  }
+
+  private baseEvents(name: string, d: Obj, ts: number): Obj[] {
+    const out: Obj[] = [];
     switch (name) {
       case 'gift':
       case 'giftevent':
@@ -123,13 +150,6 @@ export class TikFinityAdapter {
       case 'tap': {
         const c = Math.min(MAX_LIKES, Math.max(1, Math.floor(num(pick(d, ['likeCount', 'count', 'likes'])) ?? 1)));
         out.push({ id: this.id(d, 'like'), type: 'like', count: c, tsMs: ts });
-        // A viewer who taps the heart is plainly here. With a name that is also a customer who orders (a 'join' event marked
-        // via: 'like'; the bridge decides whether likes or real joins make customers). A name sends at most one per 30 s.
-        const liker = str(pick(d, ['nickname', 'displayName', 'uniqueId']), 60);
-        if (liker && this.likerDue(liker, ts)) {
-          const pic = str(pick(d, ['profilePictureUrl', 'avatarUrl', 'profilePicture']), 500);
-          out.push({ id: this.id(d, 'liker'), type: 'join', via: 'like', displayName: liker, ...(pic ? { avatarUrl: pic } : {}), tsMs: ts });
-        }
         return out;
       }
       case 'join':

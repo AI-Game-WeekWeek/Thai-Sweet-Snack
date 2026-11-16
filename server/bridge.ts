@@ -28,11 +28,12 @@ export interface BridgeOptions {
   /** Where the gift page saves its settings (gift board + Auto/Manual). Omit for in-memory only. */
   giftFile?: string;
   /**
-   * Who becomes a customer who orders the free dessert and appears on screen: 'like' (default) = a viewer who taps the heart (a like
-   * with a name; whoever wants to be on screen taps the heart), 'join' = a viewer who comes into the live, 'both', or 'auto' = likes
-   * once a like has arrived with a name, joins until then (a safety net for a source whose likes carry no names).
+   * Who becomes a customer who orders the free dessert and appears on screen: 'action' (default; 'like' is the same) = a viewer who DOES
+   * something with their name on it (a like, a follow, a share, a comment, a subscription ...: whoever wants to be on screen does
+   * something), 'join' = a viewer who comes into the live, 'both', or 'auto' = actions once one has arrived with a name, joins until
+   * then (a safety net for a source whose messages carry no names).
    */
-  orderOn?: 'auto' | 'like' | 'join' | 'both';
+  orderOn?: 'auto' | 'action' | 'like' | 'join' | 'both';
 }
 
 export interface Bridge {
@@ -208,20 +209,20 @@ export function createBridge(opts: BridgeOptions): Bridge {
 
   let lastViewersSentMs = 0;
   // who becomes a customer (see BridgeOptions.orderOn)
-  const orderMode = opts.orderOn ?? 'like';
-  let likesHaveNames = false;
+  const orderMode = opts.orderOn === 'like' || opts.orderOn === undefined ? 'action' : opts.orderOn;
+  let actionsHaveNames = false;
   const allowOrder = (via: string): boolean => {
     if (orderMode === 'both') return true;
-    if (orderMode === 'like') return via === 'like';
-    if (orderMode === 'join') return via !== 'like';
-    return via === 'like' ? true : !likesHaveNames; // auto
+    if (orderMode === 'action') return via !== 'join';
+    if (orderMode === 'join') return via === 'join';
+    return via === 'join' ? !actionsHaveNames : true; // auto
   };
   const orderBy = (): string => {
-    const likes = orderMode === 'like' || orderMode === 'both' || (orderMode === 'auto' && likesHaveNames);
-    const joins = orderMode === 'join' || orderMode === 'both' || (orderMode === 'auto' && !likesHaveNames);
-    const parts = [likes ? 'กดใจ (ไลก์ที่มีชื่อ)' : '', joins ? 'เข้าไลฟ์' : ''].filter(Boolean).join(' + ');
-    if (orderMode === 'auto' && !likesHaveNames) return `${parts} (โหมดอัตโนมัติ: ยังไม่เห็นไลก์ที่มีชื่อ)`;
-    if (orderMode === 'like' && !likesHaveNames) return `${parts} (ยังไม่เห็นไลก์ที่มีชื่อ: ถ้า TikFinity ไม่ส่งชื่อมากับไลก์ จะไม่มีใครขึ้นจอ ให้ตั้ง ORDER_ON=auto)`;
+    const acts = orderMode === 'action' || orderMode === 'both' || (orderMode === 'auto' && actionsHaveNames);
+    const joins = orderMode === 'join' || orderMode === 'both' || (orderMode === 'auto' && !actionsHaveNames);
+    const parts = [acts ? 'ทำอะไรสักอย่างในไลฟ์ (ไลก์/ติดตาม/แชร์/คอมเมนต์/ซับ ที่มีชื่อ + ส่งของขวัญ)' : '', joins ? 'เข้าไลฟ์' : ''].filter(Boolean).join(' + ');
+    if (orderMode === 'auto' && !actionsHaveNames) return `${parts} (โหมดอัตโนมัติ: ยังไม่เห็นข้อความที่มีชื่อ)`;
+    if (orderMode === 'action' && !actionsHaveNames) return `${parts} (ยังไม่เห็นไลก์/ติดตาม/แชร์ที่มีชื่อ: ถ้า TikFinity ไม่ส่งชื่อมา จะไม่มีใครขึ้นจอ ให้ตั้ง ORDER_ON=auto)`;
     return parts;
   };
   // names of viewers who just did something in the live: held for a second, passed to the game pages in one message, never kept
@@ -423,9 +424,9 @@ export function createBridge(opts: BridgeOptions): Bridge {
     stats.source = 'มีข้อมูลเข้า ' + new Date().toLocaleTimeString('th-TH');
     const who = TikFinityAdapter.presence(message);
     if (who) {
-      const row = (stats.presence[who.kind] ??= { named: 0, unnamed: 0 });
+      const row = Object.keys(stats.presence).length < 20 || who.kind in stats.presence ? (stats.presence[who.kind] ??= { named: 0, unnamed: 0 }) : { named: 0, unnamed: 0 };
       if (who.name) {
-        if (who.kind === 'like') likesHaveNames = true;
+        if (who.kind !== 'join' && who.kind !== 'gift') actionsHaveNames = true;
         row.named++;
         if (presenceBuf.size < 200) presenceBuf.add(who.name);
       } else row.unnamed++;
