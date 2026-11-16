@@ -234,32 +234,41 @@ describe('CafeQueue', () => {
     expect(q.waiting()).toHaveLength(0);
   });
 
-  it('a gifting viewer cuts the line ahead of viewers who only joined and ahead of anonymous customers, and a joined viewer who gifts moves up', () => {
-    const q = mk();
+  it('only a gift (or a phone order) cuts the line; viewers who only joined, returning regulars and fillers wait in the order they arrived', () => {
+    const q = mk(10);
     q.enqueue(npc('a'));
     q.enqueue({ ...viewer('เข้า1', 'j1'), joined: true });
     q.enqueue({ ...viewer('เข้า2', 'j2'), joined: true });
+    q.enqueue(npc('b'));
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['a', 'j1', 'j2', 'b']); // plain first come, first served
     q.enqueue(viewer('ใจดี', 'g1')); // gifted: cuts the line
-    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g1', 'j1', 'j2', 'a']);
-    expect(q.changeOrder('เข้า2', 'g2')).toBe(true); // joined viewer then gifts: moves up, behind the earlier gifter
-    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g1', 'g2', 'j1', 'a']);
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g1', 'a', 'j1', 'j2', 'b']);
+    q.enqueue({ viewer: false, kind: 'vip', dessertId: 'v' }); // the VIP reward comes right after the gifters
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g1', 'v', 'a', 'j1', 'j2', 'b']);
+    expect(q.changeOrder('เข้า2', 'g2')).toBe(true); // a joined viewer who then gifts moves up, behind the earlier gifter
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g1', 'g2', 'v', 'a', 'j1', 'b']);
+    q.enqueue({ viewer: false, kind: 'phone', dessertId: 'p', force: true });
+    expect(q.waiting()[0]?.dessertId).toBe('p'); // the ghost cuts in front of everyone
+    expect(q.countedWaiting()).toBe(6); // ... but does not count against the line size
   });
 
-  it('makeRoom removes a filler first, then the joined-only viewer who has waited longest, never a gifter or VIP', () => {
-    const q = mk(3, 10_000);
-    q.enqueue({ ...viewer('เก่า', 'j'), joined: true });
+  it('makeRoom drops a filler first, then the joined-only viewer who has waited longest OFF screen; never the front places, a gifter or a VIP', () => {
+    const q = mk(10, 10_000);
     q.enqueue(viewer('ใจดี', 'g'));
+    q.enqueue({ ...viewer('เก่า1', 'j1'), joined: true });
+    q.enqueue({ ...viewer('เก่า2', 'j2'), joined: true });
+    q.enqueue({ ...viewer('เก่า3', 'j3'), joined: true });
     q.enqueue(npc('a'));
-    expect(q.makeRoom()).toBe(true); // the filler
-    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g', 'j']);
-    q.enqueue({ ...viewer('ใหม่', 'j2'), joined: true });
-    q.tick(1000); // everyone waits a second ...
-    q.waiting().find((c) => c.name === 'ใหม่')!.patienceMs = 9_500; // ... the newcomer has waited less
-    expect(q.makeRoom()).toBe(true);
-    expect(q.waiting().map((c) => c.name)).toEqual(['ใจดี', 'ใหม่']); // the longest waiter went
-    expect(q.makeRoom()).toBe(true);
-    expect(q.makeRoom()).toBe(false); // only the gifter is left
-    expect(q.waiting().map((c) => c.name)).toEqual(['ใจดี']);
+    expect(q.makeRoom(2)).toBe(true); // the filler
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g', 'j1', 'j2', 'j3']);
+    expect(q.makeRoom(2)).toBe(true); // places 0 and 1 (g, j1) are protected: j2 is the oldest one off screen
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g', 'j1', 'j3']);
+    expect(q.makeRoom(2)).toBe(true);
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g', 'j1']);
+    expect(q.makeRoom(2)).toBe(false); // only protected places are left
+    expect(q.makeRoom(0)).toBe(true); // nothing protected: the joined viewer may go, but never the gifter
+    expect(q.waiting().map((c) => c.dessertId)).toEqual(['g']);
+    expect(q.makeRoom(0)).toBe(false);
   });
 
   it('only the customers on screen (the first `active` in line) lose patience; those further back keep all of theirs until they move up', () => {

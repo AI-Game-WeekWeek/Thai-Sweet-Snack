@@ -45,10 +45,11 @@ export interface CafeQueueOptions {
 export const hidesCountdown = (c: Customer): boolean => c.viewer && !c.joined && c.kind === 'normal';
 
 /**
- * Phone orders first (they have a deadline), then viewers who gifted (they cut the line: they paid), then viewers who only
- * joined the live, then the VIP, then anonymous filler customers.
+ * Only a gift (a viewer who paid) or a phone order cuts the line: phone orders first (they have a deadline), then viewers who
+ * gifted, then the VIP (an orange-heart reward). Everyone else (viewers who joined, returning regulars, filler customers) waits in
+ * the order they arrived: nobody jumps ahead of someone who was already waiting.
  */
-const rank = (c: Customer): number => (c.kind === 'phone' ? 0 : c.viewer && !c.joined ? 1 : c.viewer ? 2 : c.kind === 'vip' ? 3 : 4);
+const rank = (c: Customer): number => (c.kind === 'phone' ? 0 : c.viewer && !c.joined ? 1 : c.kind === 'vip' ? 2 : 3);
 
 /**
  * The café queue. Customers are WAITING → SERVING → PAID | LEFT. Only waiting customers lose patience; the one being
@@ -74,6 +75,13 @@ export class CafeQueue {
 
   waiting(): readonly Customer[] {
     return this.list;
+  }
+
+  /** How many count against maxWaiting: everyone waiting except a phone-order ghost (it cuts in and must never push a real viewer out). */
+  countedWaiting(): number {
+    let n = 0;
+    for (const c of this.list) if (c.kind !== 'phone') n++;
+    return n;
   }
 
   /** Priority rank, first-come first-served within a rank: a combo of gifts cannot jump the line. */
@@ -110,7 +118,7 @@ export class CafeQueue {
 
   /** Viewers queue right behind the customer being served (in order of arrival); anonymous customers join the back. */
   enqueue(n: NewCustomer): 'ok' | 'full' {
-    if (this.list.length >= this.opts.maxWaiting && !n.force) return 'full';
+    if (this.countedWaiting() >= this.opts.maxWaiting && !n.force) return 'full';
     const name = n.name ? cleanName(n.name, this.opts.maxNameLength) : '';
     const patience = n.patienceMs !== undefined && Number.isFinite(n.patienceMs) && n.patienceMs > 0 ? n.patienceMs : this.opts.patienceMs;
     const customer: Customer = {
@@ -143,19 +151,20 @@ export class CafeQueue {
   }
 
   /**
-   * Makes one place for a viewer when the line is full: a filler customer goes first; otherwise the viewer who only joined the live
-   * and has waited longest (most likely gone by now). Never touches gifting viewers, VIPs or phone orders.
+   * Makes one place when the line is full: a filler customer goes first; otherwise the viewer who only joined the live and has
+   * waited longest OFF SCREEN (the first `protectFront` places are about to be served, so they are never touched). Never touches
+   * gifting viewers, VIPs or phone orders. The newest viewer always gets in; the oldest (most likely gone) makes way.
    */
-  makeRoom(): boolean {
+  makeRoom(protectFront = 0): boolean {
     if (this.displaceAnonymous()) return true;
-    let at = -1;
-    for (let i = 0; i < this.list.length; i++) {
+    for (let i = Math.max(0, protectFront); i < this.list.length; i++) {
       const c = this.list[i] as Customer;
-      if (c.joined && c.kind === 'normal' && (at < 0 || c.patienceMs < (this.list[at] as Customer).patienceMs)) at = i;
+      if (c.joined && c.kind === 'normal') {
+        this.list.splice(i, 1);
+        return true;
+      }
     }
-    if (at < 0) return false;
-    this.list.splice(at, 1);
-    return true;
+    return false;
   }
 
   /**

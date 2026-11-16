@@ -717,7 +717,7 @@ export class Game {
         this.regulars.delete(name);
         continue;
       }
-      if (now - r.lastMs < c.regularEveryMs || inCafe.has(name) || cafe.queue.waiting().length >= c.maxWaiting) continue;
+      if (now - r.lastMs < c.regularEveryMs || inCafe.has(name) || cafe.queue.countedWaiting() >= c.maxWaiting) continue;
       // a gift is one order; the viewer then comes back as an everyday customer ordering the free dessert (a new gift changes that order)
       const ids = this.desserts.unlockedIds;
       const dessertId = ids.includes(c.defaultDessertId) ? c.defaultDessertId : (ids[0] ?? r.dessertId);
@@ -738,8 +738,10 @@ export class Game {
     this.tapBoostMs = Math.max(0, this.tapBoostMs - dt);
     this.vipCooldownMs = Math.max(0, this.vipCooldownMs - dt);
     // Lucky cat: waiting customers are more patient (the one being served never loses patience anyway).
-    // only the customers on screen (the first visible - 1 in line) lose patience; the ones further back wait without a clock
-    const left = cafe.queue.tick(dt, this.luckyCatMs > 0 ? sur.luckyCat.patienceSlowdown : 1, Math.max(0, this.config.cafe.visible - 1));
+    // only the customers on screen (the first visible - 1 in line) lose patience; the ones further back wait without a clock.
+    // While a ghost is being served (a long, hard dessert) nobody else's clock runs either: the line must not drain behind it.
+    const onScreen = cafe.queue.current?.kind === 'phone' ? 0 : Math.max(0, this.config.cafe.visible - 1);
+    const left = cafe.queue.tick(dt, this.luckyCatMs > 0 ? sur.luckyCat.patienceSlowdown : 1, onScreen);
     if (left.length > 0) {
       this.lostCustomers += left.length;
       for (let i = 0; i < left.length * 5; i++) this.fx?.particles?.spawn({ x: WORLD_W / 2 + (i % 5) * 30 - 60, y: 400, vx: (i % 5) * 20 - 40, vy: -80, lifeMs: 700, size: 6, color: 'rgba(120,120,120,0.7)', g: -0.2 });
@@ -792,15 +794,17 @@ export class Game {
   /** Room for a VIP or phone order: a free place, or an anonymous filler customer to replace (never a paying viewer). */
   private hasRoomForSpecial(): boolean {
     const q = this.cafe?.queue;
-    return !!q && (q.waiting().length < this.config.cafe.maxWaiting || q.waiting().some((c) => c.kind === 'normal' && !c.viewer));
+    return !!q && (q.countedWaiting() < this.config.cafe.maxWaiting || q.waiting().some((c) => c.kind === 'normal' && !c.viewer));
   }
 
   private enqueueSpecial(n: Parameters<CafeQueue['enqueue']>[0]): boolean {
     const q = this.cafe?.queue;
     if (!q) return false;
-    // a ghost cuts in line: it always gets in, even when the line is full of paying viewers
-    if (n.kind === 'phone') return q.enqueue({ ...n, force: true }) === 'ok';
-    if (q.waiting().length >= this.config.cafe.maxWaiting && !q.displaceAnonymous()) return false;
+    // a ghost and a VIP (an orange-heart reward, at most one waiting) always get in, even when the line is full of paying viewers:
+    // they are one extra place beyond the cap and never push a viewer out
+    if (n.kind === 'vip' && q.countedWaiting() >= this.config.cafe.maxWaiting) q.displaceAnonymous(); // a filler makes way if there is one
+    if (n.kind === 'phone' || n.kind === 'vip') return q.enqueue({ ...n, force: true }) === 'ok';
+    if (q.countedWaiting() >= this.config.cafe.maxWaiting && !q.displaceAnonymous()) return false;
     return q.enqueue(n) === 'ok';
   }
 
@@ -889,7 +893,11 @@ export class Game {
       if (last !== undefined && this.clockMs - last < 60_000) continue;
       const here = cafe.queue.waiting().some((x) => x.name === name) || cafe.queue.current?.name === name;
       if (here) continue;
-      if (cafe.queue.waiting().length >= c.maxWaiting && !cafe.queue.makeRoom()) continue; // a full line: the newest viewer still gets in
+      // a real viewer replaces a filler customer instead of piling up behind them; a full line makes room for the newest viewer
+      // by dropping the one who has waited longest off screen (never someone who is about to be served)
+      if (cafe.queue.countedWaiting() >= c.maxWaiting) {
+        if (!cafe.queue.makeRoom(Math.max(0, c.visible - 1))) continue;
+      } else cafe.queue.displaceAnonymous();
       this.recentJoins.delete(name);
       this.recentJoins.set(name, this.clockMs);
       while (this.recentJoins.size > 100) this.recentJoins.delete(this.recentJoins.keys().next().value as string);
@@ -919,7 +927,7 @@ export class Game {
       }
       const order = { viewer: true, patienceMs: this.config.cafe.giftWaitMs, name: anon ? null : (g.displayName ?? null), avatarUrl: anon ? null : (g.avatarUrl ?? null), dessertId };
       let r = cafe.queue.enqueue(order);
-      if (r === 'full' && cafe.queue.makeRoom()) r = cafe.queue.enqueue(order); // a gifting viewer always gets a place if anyone lower can make room
+      if (r === 'full' && cafe.queue.makeRoom(Math.max(0, this.config.cafe.visible - 1))) r = cafe.queue.enqueue(order); // a gifting viewer always gets a place if anyone lower can make room
       if (!anon) this.thankGift(g.displayName);
       if (r === 'full') this.rewards?.addCoins(this.config.cafe.overflowGiftCoins);
       else this.rememberRegular(anon ? '' : (g.displayName ?? ''), anon ? null : (g.avatarUrl ?? null), dessertId, true);

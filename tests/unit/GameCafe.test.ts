@@ -143,10 +143,11 @@ describe('Game in café mode', () => {
     const coins0 = rewards.profile.coins;
     for (let i = 0; i < 500; i++) gift(game, 5);
     for (let i = 0; i < 40; i++) game.update(16); // the per-tick cap spreads them over a few ticks
-    expect(queue.waiting().length).toBeLessThanOrEqual(12);
+    const cap = cafeConfig.cafe.maxWaiting;
+    expect(queue.waiting().length).toBeLessThanOrEqual(cap);
     const overflowPaid = (rewards.profile.coins - coins0) / cfgCoins();
-    // 500 gifts: at most 12 fit in the queue, all the rest paid the flat amount
-    expect(overflowPaid).toBeGreaterThanOrEqual(500 - 12 - 1);
+    // 500 gifts: at most `cap` fit in the queue, all the rest paid the flat amount
+    expect(overflowPaid).toBeGreaterThanOrEqual(500 - cap - 1);
     expect(overflowPaid).toBeLessThanOrEqual(500);
     runUntil(game, () => game.snapshot().roundsCompleted >= 2);
   });

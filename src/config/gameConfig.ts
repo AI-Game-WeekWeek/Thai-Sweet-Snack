@@ -128,7 +128,7 @@ export const defaultConfig: GameConfig = {
   save: { key: 'thai-dessert-asmr:save', backupKey: 'thai-dessert-asmr:save.corrupt' },
   progression: { autoUnlock: true },
   cafe: {
-    maxWaiting: 12,
+    maxWaiting: 20,
     visible: 5,
     patienceMs: 70_000,
     npcSpawnEveryMs: 700,

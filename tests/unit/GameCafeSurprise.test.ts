@@ -147,7 +147,7 @@ describe('café surprise events', () => {
       expect(vips()).toBeLessThanOrEqual(1);
     });
 
-    it('a VIP gets in even when the queue is full of anonymous customers, but never pushes out a viewer', () => {
+    it('a VIP gets in even when the queue is full (one place beyond the cap) and never pushes out a viewer', () => {
       const a = mk({}, { maxWaiting: 3, npcSpawnEveryMs: 1e9 });
       a.game.start();
       for (let i = 0; i < 5; i++) a.queue.enqueue({ viewer: false, dessertId: 'khao-tom-mat' });
@@ -162,8 +162,9 @@ describe('café surprise events', () => {
       for (let i = 0; i < 5; i++) b.queue.enqueue({ viewer: true, name: `v${i}`, dessertId: 'khao-tom-mat' });
       heart(b.game);
       b.game.update(16);
-      expect(b.queue.waiting().some((c) => c.kind === 'vip')).toBe(false);
-      expect(b.queue.waiting().every((c) => c.viewer)).toBe(true);
+      expect(b.queue.waiting().some((c) => c.kind === 'vip')).toBe(true); // the reward is not lost (it waits behind the gifters) ...
+      expect(b.queue.waiting().filter((c) => c.viewer)).toHaveLength(3); // ... and no viewer was pushed out for it
+      expect(b.queue.waiting()).toHaveLength(4);
     });
 
     it('a flood of orange hearts in one tick makes exactly one VIP and one tip rain', () => {
@@ -650,12 +651,12 @@ describe('viewers who join become named customers', () => {
     game.start();
     for (let i = 0; i < 200; i++) join(game, `คน${i}`);
     advance(game, 500);
-    expect(game.snapshot().cafe!.waitingTotal).toBeLessThanOrEqual(12);
+    expect(game.snapshot().cafe!.waitingTotal).toBeLessThanOrEqual(cafeConfig.cafe.maxWaiting);
   });
   it('viewers waiting further back than the screen shows do not lose patience: only the front of the line has a clock', () => {
     const { game } = mk({}, { npcSpawnEveryMs: 1e9, maxWaiting: 12, patienceMs: 3000, visible: 5 });
     game.start();
-    for (let i = 0; i < 10; i++) join(game, `คน${i}`);
+    for (let i = 0; i < 10; i++) { join(game, `คน${i}`); advance(game, 50); } // a few at a time: the game takes at most 5 joins per moment
     advance(game, 200);
     const total0 = game.snapshot().cafe!.waitingTotal;
     expect(total0).toBeGreaterThanOrEqual(9);
@@ -688,20 +689,65 @@ describe('viewers who join become named customers', () => {
     expect(last.patienceMs).toBe(frozen); // off screen: no more waiting time counted
     expect(first.patienceMs).toBeLessThan(first.patienceMaxMs - 8000); // the front keeps counting
   });
-  it('when the line is full of viewers the newest one who joins still gets a place (the one who waited longest steps out); gifters always get in', () => {
-    const { game } = mk({}, { npcSpawnEveryMs: 1e9, maxWaiting: 4, patienceMs: 1e9 });
+  it('when the line is full the newest viewer who joins still gets a place: the one who waited longest OFF screen makes way; gifters always get in', () => {
+    const { game, queue } = mk({}, { npcSpawnEveryMs: 1e9, maxWaiting: 7, patienceMs: 1e9, visible: 5 });
     game.start();
-    for (let i = 0; i < 6; i++) { join(game, `คน${i}`); advance(game, 100); }
+    while (queue.displaceAnonymous());
+    for (let i = 0; i < 9; i++) { join(game, `คน${i}`); advance(game, 100); }
     advance(game, 100);
-    const names = () => game.snapshot().cafe!.waiting.map((c) => c.name);
+    const names = () => queue.waiting().map((c) => c.name);
+    const before = names();
+    expect(before.length).toBeLessThanOrEqual(7);
     join(game, 'คนใหม่');
     advance(game, 100);
-    expect(names()).toContain('คนใหม่');
-    expect(game.snapshot().cafe!.waitingTotal).toBeLessThanOrEqual(4);
+    const after = names();
+    expect(after).toContain('คนใหม่'); // the newest got in
+    expect(after.length).toBeLessThanOrEqual(7);
+    expect(after.slice(0, 4)).toEqual(before.slice(0, 4)); // the four on screen were never touched
+    expect(after).not.toContain(before[4]); // the one who waited longest off screen made way
     game.ingestEvent({ id: `gg${++n}`, type: 'gift', count: 1, giftCoins: 50, displayName: 'ใจดี', tsMs: game.nowMs });
     advance(game, 100);
     expect(names()).toContain('ใจดี');
-    expect(game.snapshot().cafe!.waitingTotal).toBeLessThanOrEqual(4);
+    expect(names()[0]).toBe('ใจดี'); // and cuts to the front
+    expect(names().length).toBeLessThanOrEqual(7);
+  });
+  it('only gifts cut in: a viewer who joins (or a returning regular) waits behind everyone already waiting, never in front of them', () => {
+    const { game, queue } = mk({}, { npcSpawnEveryMs: 1e9, patienceMs: 1e9 });
+    game.start();
+    while (queue.displaceAnonymous());
+    queue.enqueue({ viewer: false, dessertId: 'khao-tom-mat' }); // a filler who was already waiting
+    queue.enqueue({ viewer: true, name: 'มาก่อน', dessertId: 'khao-tom-mat', joined: true });
+    join(game, 'มาทีหลัง');
+    advance(game, 100);
+    const order = queue.waiting().map((c) => c.name);
+    expect(order.indexOf('มาก่อน')).toBeLessThan(order.indexOf('มาทีหลัง'));
+    expect(order[order.length - 1]).toBe('มาทีหลัง');
+  });
+  it('a ghost does not count against the line size: it never pushes a real viewer out', () => {
+    const { game, queue } = mk({}, { npcSpawnEveryMs: 1e9, maxWaiting: 3, patienceMs: 1e9, visible: 2 });
+    game.start();
+    while (queue.displaceAnonymous());
+    for (let i = 0; i < 3; i++) queue.enqueue({ viewer: true, name: `คน${i}`, dessertId: 'khao-tom-mat', joined: true });
+    queue.enqueue({ viewer: false, kind: 'phone', dessertId: 'khao-tom-mat', force: true });
+    expect(queue.waiting()).toHaveLength(4);
+    expect(queue.countedWaiting()).toBe(3);
+    join(game, 'คนใหม่'); // the line (3 real) is full: this makes room off screen, it is not rejected because of the ghost
+    advance(game, 100);
+    expect(queue.waiting().map((c) => c.name)).toContain('คนใหม่');
+    expect(queue.waiting().filter((c) => c.kind === 'phone')).toHaveLength(1);
+  });
+  it('while a ghost is being served nobody else loses patience: the line does not drain behind it', () => {
+    const ph = { firstMs: 1e12, everyMs: 1e12, jitter: 0, ringMs: 600, deadlineMs: 600_000, giveUpMs: 1e9, squeezeMs: 1e9 };
+    const { game, queue } = mk({ phone: ph, vip: {} }, { npcSpawnEveryMs: 1e9, idleCookRate: 0, patienceMs: 3000, visible: 5 }, { maxMs: { ...cafeConfig.maxMs, cooking: 6 * 3600_000 } });
+    game.start();
+    for (let i = 0; i < 200_000 && !game.callGhostNow(); i++) game.update(16);
+    for (let i = 0; i < 600_000 && game.snapshot().cafe!.serving?.kind !== 'phone'; i++) { if (game.snapshot().state === 'COOKING') game.finishCookingNow(); game.update(16); }
+    expect(game.snapshot().cafe!.serving?.kind).toBe('phone');
+    for (let i = 0; i < 4; i++) queue.enqueue({ viewer: true, name: `รอ${i}`, dessertId: 'khao-tom-mat', joined: true, patienceMs: 3000 });
+    const waiting = queue.waiting().map((c) => c.name);
+    advance(game, 20_000); // far longer than their 3 s patience: the ghost is still being served
+    expect(game.snapshot().cafe!.serving?.kind).toBe('phone');
+    expect(queue.waiting().map((c) => c.name)).toEqual(waiting); // nobody left
   });
 });
 
