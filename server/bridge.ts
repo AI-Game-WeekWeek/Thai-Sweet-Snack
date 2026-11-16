@@ -27,6 +27,12 @@ export interface BridgeOptions {
   avatarHosts?: string[];
   /** Where the gift page saves its settings (gift board + Auto/Manual). Omit for in-memory only. */
   giftFile?: string;
+  /**
+   * Who becomes a customer who orders the free dessert: 'like' = a viewer who taps the heart (a like with a name), 'join' = a viewer who
+   * comes into the live, 'both', or 'auto' (default): likes once a like has arrived with a name, joins until then (so a source whose
+   * likes carry no names still works).
+   */
+  orderOn?: 'auto' | 'like' | 'join' | 'both';
 }
 
 export interface Bridge {
@@ -62,6 +68,8 @@ export interface MonitorStats {
   topViewers: string[];
   /** Per kind of message (like, chat, share ...): how many carried a viewer name (proof that viewer is still here) and how many did not. Counts only, never names. */
   presence: Record<string, { named: number; unnamed: number }>;
+  /** Who is turned into a customer right now (shown on /monitor). */
+  orderBy: string;
 }
 
 /** Commands the control panel may send (test / show actions, not viewer events). */
@@ -127,7 +135,7 @@ const MONITOR_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport"
 <h1>ตรวจสอบอีเวนต์จาก TikTok</h1><p id=s>กำลังโหลด…</p><h2>นับตามชนิด</h2><table id=c></table><h2>30 อีเวนต์ล่าสุด</h2><table id=l></table><h2>โฮสต์ของรูปโปรไฟล์ที่ส่งมา (ใช้ตั้ง AVATAR_HOSTS)</h2><table id=h></table><h2>ข้อความที่เข้ามา (ชื่อฟิลด์เท่านั้น ไม่มีค่า)</h2><table id=m></table><h2>ข้อความ roomUser ล่าสุด (จำนวนผู้ชม)</h2><table id=r></table><h2>ใครยังอยู่ในไลฟ์ (ดูจากไลก์/คอมเมนต์/แชร์ที่มีชื่อมา)</h2><p id=pp></p><table id=pt></table>
 <script>const q=new URLSearchParams(location.search).get('token')||'';
 async function tick(){try{const r=await fetch('/monitor.json?token='+encodeURIComponent(q));if(!r.ok)throw 0;const j=await r.json();
-document.getElementById('s').innerHTML='เกมต่ออยู่ <b class="'+(j.clients>0?'ok':'no')+'">'+j.clients+'</b> หน้า · แหล่งอีเวนต์: <b>'+j.source+'</b> · ทิ้งข้อมูลที่ไม่เข้าใจ '+j.dropped+' ครั้ง<br>ผู้ชมในไลฟ์ตอนนี้: '+(j.viewers===null?'<b class=no>ยังอ่านจำนวนไม่ได้</b> (ดูตารางล่างสุดว่า roomUser ส่งอะไรมา)':'<b class=ok>'+j.viewers+'</b> คน (เกมใช้เลขนี้เคลียร์คนที่ออกไปแล้วออกจากคิว)')+(j.topViewers&&j.topViewers.length?' · รายชื่อที่ส่งมา: '+j.topViewers.map(function(x){return x.replace(/[<>&]/g,'')}).join(', '):'');
+document.getElementById('s').innerHTML='เกมต่ออยู่ <b class="'+(j.clients>0?'ok':'no')+'">'+j.clients+'</b> หน้า · แหล่งอีเวนต์: <b>'+j.source+'</b> · ทิ้งข้อมูลที่ไม่เข้าใจ '+j.dropped+' ครั้ง<br>ใครได้เป็นลูกค้าที่สั่งอาหาร: <b>'+j.orderBy+'</b><br>ผู้ชมในไลฟ์ตอนนี้: '+(j.viewers===null?'<b class=no>ยังอ่านจำนวนไม่ได้</b> (ดูตารางล่างสุดว่า roomUser ส่งอะไรมา)':'<b class=ok>'+j.viewers+'</b> คน (เกมใช้เลขนี้เคลียร์คนที่ออกไปแล้วออกจากคิว)')+(j.topViewers&&j.topViewers.length?' · รายชื่อที่ส่งมา: '+j.topViewers.map(function(x){return x.replace(/[<>&]/g,'')}).join(', '):'');
 const kinds=['gift','rose','like','follow','share','orangeHeart','comment','join'];
 document.getElementById('c').innerHTML=kinds.map(k=>'<tr><td>'+k+'</td><td class="'+(j.received[k]?'ok':'no')+'">'+(j.received[k]||0)+'</td></tr>').join('');
 document.getElementById('l').innerHTML=j.lastEvents.slice().reverse().map(e=>'<tr><td>'+new Date(e.atMs).toLocaleTimeString()+'</td><td>'+e.type+'</td><td>'+(e.count||'')+'</td><td>'+(e.giftCoins??'')+'</td></tr>').join('');
@@ -156,7 +164,7 @@ export function createBridge(opts: BridgeOptions): Bridge {
   const windows = new Map<string, { start: number; count: number }>();
   const adapter = new TikFinityAdapter();
   const desk = new GiftDesk(DEFAULT_GIFT_BOARD.map((s) => s.coins), opts.giftFile ?? null);
-  const stats: MonitorStats = { startedMs: Date.now(), clients: 0, source: 'ยังไม่มีข้อมูลเข้า', received: {}, lastEvents: [], seenMessages: {}, avatarHosts: {}, dropped: 0, viewers: null, viewersAtMs: null, roomUser: {}, topViewers: [], presence: {} };
+  const stats: MonitorStats = { startedMs: Date.now(), clients: 0, source: 'ยังไม่มีข้อมูลเข้า', received: {}, lastEvents: [], seenMessages: {}, avatarHosts: {}, dropped: 0, viewers: null, viewersAtMs: null, roomUser: {}, topViewers: [], presence: {}, orderBy: '' };
   const staticRoot = opts.staticDir ? resolve(opts.staticDir) : null;
 
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
@@ -199,6 +207,21 @@ export function createBridge(opts: BridgeOptions): Bridge {
   };
 
   let lastViewersSentMs = 0;
+  // who becomes a customer (see BridgeOptions.orderOn)
+  const orderMode = opts.orderOn ?? 'auto';
+  let likesHaveNames = false;
+  const allowOrder = (via: string): boolean => {
+    if (orderMode === 'both') return true;
+    if (orderMode === 'like') return via === 'like';
+    if (orderMode === 'join') return via !== 'like';
+    return via === 'like' ? true : !likesHaveNames; // auto
+  };
+  const orderBy = (): string => {
+    const likes = orderMode === 'like' || orderMode === 'both' || (orderMode === 'auto' && likesHaveNames);
+    const joins = orderMode === 'join' || orderMode === 'both' || (orderMode === 'auto' && !likesHaveNames);
+    const parts = [likes ? 'กดใจ (ไลก์ที่มีชื่อ)' : '', joins ? 'เข้าไลฟ์' : ''].filter(Boolean).join(' + ');
+    return orderMode === 'auto' && !likesHaveNames ? `${parts} (โหมดอัตโนมัติ: ยังไม่เห็นไลก์ที่มีชื่อ)` : parts;
+  };
   // names of viewers who just did something in the live: held for a second, passed to the game pages in one message, never kept
   let presenceBuf = new Set<string>();
   const flushPresence = (): void => {
@@ -225,6 +248,7 @@ export function createBridge(opts: BridgeOptions): Bridge {
       const t = new URL(req.url ?? '/', 'http://localhost').searchParams.get('token') ?? '';
       if (!(safeEqual(t, opts.token) || bearerOk(req))) return send(res, 401, { error: 'unauthorized' });
       stats.clients = [...wss.clients].filter((c) => c.readyState === WebSocket.OPEN).length;
+      stats.orderBy = orderBy();
       if (path === '/monitor.json') return send(res, 200, stats);
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
       return void res.end(MONITOR_HTML);
@@ -399,6 +423,7 @@ export function createBridge(opts: BridgeOptions): Bridge {
     if (who) {
       const row = (stats.presence[who.kind] ??= { named: 0, unnamed: 0 });
       if (who.name) {
+        if (who.kind === 'like') likesHaveNames = true;
         row.named++;
         if (presenceBuf.size < 200) presenceBuf.add(who.name);
       } else row.unnamed++;
@@ -422,6 +447,7 @@ export function createBridge(opts: BridgeOptions): Bridge {
     const converted = adapter.convert(message);
     const valid: LiveEvent[] = [];
     for (let raw of converted) {
+      if (raw.type === 'join' && !allowOrder(String((raw as { via?: unknown }).via ?? 'join'))) continue; // not the way customers are made right now
       const meta = (raw as { meta?: GiftMeta }).meta;
       if (meta && (raw.type === 'gift' || raw.type === 'rose')) {
         // every gift goes through the gift page: logged, mapped to a menu slot, and sent now (Auto) or held for the Play button (Manual)
@@ -513,7 +539,7 @@ export function createBridge(opts: BridgeOptions): Bridge {
       return e ? broadcast(JSON.stringify([e])) : 0;
     },
     ingestTikFinity: ingest,
-    stats: () => ({ ...stats, clients: [...wss.clients].filter((c) => c.readyState === WebSocket.OPEN).length }),
+    stats: () => ({ ...stats, orderBy: orderBy(), clients: [...wss.clients].filter((c) => c.readyState === WebSocket.OPEN).length }),
     setSourceState(state: string) {
       stats.source = state;
     },

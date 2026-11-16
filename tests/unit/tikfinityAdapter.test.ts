@@ -17,12 +17,14 @@ describe('TikFinity adapter', () => {
       ...a.convert({ event: 'gift', data: { giftName: 'Rose', diamondCount: 1, repeatCount: 1, giftType: 2, nickname: 'พี่ต้น', profilePictureUrl: 'https://p/x.jpg' } }),
       ...a.convert({ event: 'gift', data: { giftName: 'Heart Me', diamondCount: 49, repeatCount: 1, nickname: 'มะลิ' } }),
     ];
-    expect(out.map((o) => o.type)).toEqual(['like', 'follow', 'share', 'orangeHeart', 'comment', 'rose', 'gift']);
+    // (a like with a name also makes an order event: the viewer who taps the heart is a customer; see the liker tests below)
+    expect(out.map((o) => o.type)).toEqual(['like', 'join', 'follow', 'share', 'orangeHeart', 'comment', 'rose', 'gift']);
     expect(valid(out).every((e) => e !== null)).toBe(true);
     expect(out[0]).toMatchObject({ count: 15 });
-    expect(out[5]).toMatchObject({ giftCoins: 1, displayName: 'พี่ต้น', avatarUrl: 'https://p/x.jpg' });
-    expect(out[6]).toMatchObject({ giftCoins: 49 });
-    expect(JSON.stringify(out[1])).not.toContain('secret'); // follows carry no name
+    expect(out[1]).toMatchObject({ via: 'like', displayName: 'x' });
+    expect(out[6]).toMatchObject({ giftCoins: 1, displayName: 'พี่ต้น', avatarUrl: 'https://p/x.jpg' });
+    expect(out[7]).toMatchObject({ giftCoins: 49 });
+    expect(JSON.stringify(out[2])).not.toContain('secret'); // follows carry no name
   });
 
   it('accepts other wrappers and names (type instead of event, flat objects, strings for numbers)', () => {
@@ -100,5 +102,33 @@ describe('presence (who is still here)', () => {
     expect(TikFinityAdapter.presence({ event: 'like', data: { nickname: 'a\u0000b\nc' } })?.name).toBe('abc');
     expect(TikFinityAdapter.presence({ event: 'like', data: { nickname: 'ก'.repeat(500) } })?.name?.length).toBe(60);
     expect(TikFinityAdapter.presence({ event: 'like', data: { nickname: 42 } })).toEqual({ kind: 'like', name: null });
+  });
+});
+
+describe('a viewer who taps the heart is a customer', () => {
+  it('a like with a name makes the like AND an order event (marked via: like, name and picture kept); a real join is marked via: join', () => {
+    const { a } = mk();
+    const out = a.convert({ event: 'like', data: { nickname: 'พี่ต้น', profilePictureUrl: 'https://p/x.jpg', likeCount: 4 } });
+    expect(out.map((o) => o.type)).toEqual(['like', 'join']);
+    expect(out[1]).toMatchObject({ via: 'like', displayName: 'พี่ต้น', avatarUrl: 'https://p/x.jpg' });
+    expect(valid(out).every((e) => e !== null)).toBe(true);
+    expect(parseLiveEvent(out[1]!, 1000)).toMatchObject({ type: 'join', displayName: 'พี่ต้น' });
+    expect(a.convert({ event: 'join', data: { nickname: 'ใหม่' } })[0]).toMatchObject({ type: 'join', via: 'join', displayName: 'ใหม่' });
+  });
+  it('a like without a name is only a like; the same name sends one order event per 30 s however many times they tap', () => {
+    const { a, tick } = mk();
+    expect(a.convert({ event: 'like', data: { likeCount: 3 } }).map((o) => o.type)).toEqual(['like']);
+    expect(a.convert({ event: 'like', data: { nickname: 'น้ำฝน' } }).map((o) => o.type)).toEqual(['like', 'join']);
+    for (let i = 0; i < 20; i++) expect(a.convert({ event: 'like', data: { nickname: 'น้ำฝน' } }).map((o) => o.type)).toEqual(['like']);
+    tick(29_000);
+    expect(a.convert({ event: 'like', data: { nickname: 'น้ำฝน' } }).map((o) => o.type)).toEqual(['like']);
+    tick(2_000);
+    expect(a.convert({ event: 'like', data: { nickname: 'น้ำฝน' } }).map((o) => o.type)).toEqual(['like', 'join']);
+    expect(a.convert({ event: 'like', data: { nickname: 'คนอื่น' } }).map((o) => o.type)).toEqual(['like', 'join']); // another name is not held back
+  });
+  it('the name list is bounded', () => {
+    const { a } = mk();
+    for (let i = 0; i < 2000; i++) a.convert({ event: 'like', data: { nickname: `n${i}` } });
+    expect(() => a.convert({ event: 'like', data: { nickname: 'n0' } })).not.toThrow();
   });
 });

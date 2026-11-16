@@ -27,7 +27,9 @@ if (token.length < 16) {
 
 // the TikTok picture host seen in /monitor is built in, so no setting is needed; AVATAR_HOSTS adds more
 const avatarHosts = ['p16-common-sign.tiktokcdn.com', ...(process.env.AVATAR_HOSTS ?? '').split(',')].map((h) => h.trim().toLowerCase()).filter((h) => /^[a-z0-9.-]{3,100}$/.test(h));
-const bridge = createBridge({ token, host, port, staticDir: 'dist', avatarHosts, giftFile: 'gift-map.json' });
+// who becomes a customer: ORDER_ON=auto (default) | like | join | both
+const orderOn = (['auto', 'like', 'join', 'both'] as const).find((m) => m === (process.env.ORDER_ON ?? '').toLowerCase()) ?? 'auto';
+const bridge = createBridge({ token, host, port, staticDir: 'dist', avatarHosts, giftFile: 'gift-map.json', orderOn });
 const { port: p } = await bridge.start();
 const base = `http://${host}:${p}`;
 const gameUrl = `${base}/live.html`; // no ?query: the token is built into the page, which connects back to the bridge it came from
@@ -45,6 +47,7 @@ console.log(`   ${base}/tikfinity?token=${token}\n`);
 const ws = process.env.TIKFINITY_WS ?? 'ws://localhost:21213';
 const client = process.argv.includes('--no-tikfinity') ? null : startTikFinityClient(bridge, ws, (m) => console.log('[tikfinity]', m));
 console.log(client ? `4) กำลังลองต่อ TikFinity ที่ ${ws} (ไม่ใช่พอร์ตที่ยืนยันแล้ว: เปลี่ยนด้วย TIKFINITY_WS หรือปิดด้วย --no-tikfinity)\n` : '4) ปิดการต่อ TikFinity อัตโนมัติ\n');
+console.log(`5) ใครได้เป็นลูกค้า: ${orderOn === 'auto' ? 'อัตโนมัติ: คนที่กดใจ (ไลก์ที่มีชื่อ) สั่งอาหารทันที ถ้า TikFinity ไม่ส่งชื่อมากับไลก์ จะใช้การเข้าไลฟ์แทน' : orderOn === 'like' ? 'คนที่กดใจ (ไลก์ที่มีชื่อ)' : orderOn === 'join' ? 'คนที่เข้าไลฟ์' : 'ทั้งคนที่กดใจและคนที่เข้าไลฟ์'} (เปลี่ยนด้วย ORDER_ON=auto|like|join|both)\n`);
 console.log('กด Ctrl+C เพื่อหยุด');
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   process.on(sig, () => {

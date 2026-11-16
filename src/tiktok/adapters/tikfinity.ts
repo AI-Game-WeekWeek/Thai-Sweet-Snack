@@ -46,6 +46,8 @@ export interface AdapterOptions {
 export class TikFinityAdapter {
   private seq = 0;
   private readonly streaks = new Map<string, Streak>();
+  /** When each liking viewer last produced an order event (so tapping 50 times sends one). */
+  private readonly likers = new Map<string, number>();
   private readonly idleMs: number;
   private readonly now: () => number;
 
@@ -56,6 +58,15 @@ export class TikFinityAdapter {
 
   get openStreaks(): number {
     return this.streaks.size;
+  }
+
+  private likerDue(name: string, ts: number): boolean {
+    const last = this.likers.get(name);
+    if (last !== undefined && ts - last < 30_000) return false;
+    this.likers.delete(name); // re-insert: the most recent last
+    this.likers.set(name, ts);
+    while (this.likers.size > 500) this.likers.delete(this.likers.keys().next().value as string);
+    return true;
   }
 
   private id(o: Obj, kind: string): string {
@@ -112,6 +123,13 @@ export class TikFinityAdapter {
       case 'tap': {
         const c = Math.min(MAX_LIKES, Math.max(1, Math.floor(num(pick(d, ['likeCount', 'count', 'likes'])) ?? 1)));
         out.push({ id: this.id(d, 'like'), type: 'like', count: c, tsMs: ts });
+        // A viewer who taps the heart is plainly here. With a name that is also a customer who orders (a 'join' event marked
+        // via: 'like'; the bridge decides whether likes or real joins make customers). A name sends at most one per 30 s.
+        const liker = str(pick(d, ['nickname', 'displayName', 'uniqueId']), 60);
+        if (liker && this.likerDue(liker, ts)) {
+          const pic = str(pick(d, ['profilePictureUrl', 'avatarUrl', 'profilePicture']), 500);
+          out.push({ id: this.id(d, 'liker'), type: 'join', via: 'like', displayName: liker, ...(pic ? { avatarUrl: pic } : {}), tsMs: ts });
+        }
         return out;
       }
       case 'join':
@@ -121,7 +139,7 @@ export class TikFinityAdapter {
         const nick = str(pick(d, ['nickname', 'displayName', 'uniqueId']), 60);
         const avatar = str(pick(d, ['profilePictureUrl', 'avatarUrl', 'profilePicture']), 500);
         if (!nick) return out; // a join with no name cannot become a named customer
-        out.push({ id: this.id(d, 'join'), type: 'join', displayName: nick, ...(avatar ? { avatarUrl: avatar } : {}), tsMs: ts });
+        out.push({ id: this.id(d, 'join'), type: 'join', via: 'join', displayName: nick, ...(avatar ? { avatarUrl: avatar } : {}), tsMs: ts });
         return out;
       }
       case 'follow':

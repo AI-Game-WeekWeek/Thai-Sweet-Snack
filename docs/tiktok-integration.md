@@ -73,3 +73,18 @@ TikTok gives no "viewer left" signal, so the game cannot know **who** left. It k
 - **Who is still active**: a like, comment, share, follow, gift or join that carries a viewer name proves that viewer is still here. The bridge passes the names (batched each second, in memory only) as `{"cmd":"present","names":[...]}`; the game remembers when each name was last seen and clears the quietest viewers first. `/monitor` shows only COUNTS per kind (with a name / without), never names, so you can see whether likes and comments carry names at all. Silent watchers look the same as people who left.
 
 By hand: the control panel (`/panel`) has "clear the line" buttons (viewers who joined and fillers, or everybody waiting; gifting viewers, the customer being served and a ghost are kept in the first mode).
+
+## Who becomes a customer: tapping the heart (or joining)
+
+A viewer who taps the heart (a **like with a name**) becomes a customer who orders the free dessert (ข้าวต้มมัด) right away, so the line is made of people who are plainly still here. The adapter turns such a like into the like itself plus a `join` event marked `via: "like"` (at most one per name every 30 s, name and picture kept like a join); the line's own rules then apply (same name once a minute, not while already waiting, behind everyone already waiting; only gifts cut in).
+
+`ORDER_ON` (environment variable of `npm run live` / `start-live.bat`) chooses who becomes a customer:
+
+| value | who |
+| --- | --- |
+| `auto` (default) | likes with a name once one has arrived; until then real joins, so a source whose likes carry no names still works |
+| `like` | only viewers who tap the heart |
+| `join` | only viewers who come into the live (the old way) |
+| `both` | both |
+
+A like always counts as a heart (it speeds the cooking) whatever the mode. `/monitor` shows which way is in use. Whether TikFinity puts the viewer's name on its like messages is not confirmed against real data: `/monitor` shows "who is still here" counts (named / unnamed per kind) so you can see it.

@@ -211,4 +211,48 @@ describe('monitor counts', () => {
     await new Promise((r) => setTimeout(r, 200));
     expect(msgs.filter((m) => (m as { cmd?: string }).cmd === 'present').length).toBe(before);
   });
+
+  describe('who becomes a customer (orderOn)', () => {
+    const types = (msgs: unknown[]) => (msgs.flat() as { type?: string; displayName?: string }[]).filter((e) => e.type === 'join').map((e) => e.displayName);
+    const send = (bridge: { ingestTikFinity(m: unknown): number }) => {
+      bridge.ingestTikFinity({ event: 'join', data: { nickname: 'คนเข้า1', msgId: 'a1' } });
+      bridge.ingestTikFinity({ event: 'like', data: { nickname: 'คนกดใจ', likeCount: 3, msgId: 'b1' } });
+      bridge.ingestTikFinity({ event: 'join', data: { nickname: 'คนเข้า2', msgId: 'a2' } });
+    };
+    it('auto (default): joins order until a like with a name arrives, then only likes do', async () => {
+      const { bridge, port, url } = await boot();
+      const { msgs } = await connect(port);
+      bridge.ingestTikFinity({ event: 'join', data: { nickname: 'ก่อนไลก์', msgId: 'a0' } }); // no named like seen yet: joins order
+      send(bridge); // join (still before the first named like: orders), like (named: from here on only likers order), join (ignored)
+      await until(() => types(msgs).length >= 3);
+      await new Promise((r) => setTimeout(r, 60));
+      expect(types(msgs)).toEqual(['ก่อนไลก์', 'คนเข้า1', 'คนกดใจ']);
+      bridge.ingestTikFinity({ event: 'join', data: { nickname: 'คนเข้าทีหลัง', msgId: 'a9' } });
+      await new Promise((r) => setTimeout(r, 60));
+      expect(types(msgs)).toEqual(['ก่อนไลก์', 'คนเข้า1', 'คนกดใจ']); // later joins no longer make customers
+      const j = (await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json()) as { orderBy: string };
+      expect(j.orderBy).toContain('กดใจ');
+      expect(j.orderBy).not.toContain('เข้าไลฟ์');
+    });
+    it('auto: a source whose likes carry no names still makes customers from joins', async () => {
+      const { bridge, port, url } = await boot();
+      const { msgs } = await connect(port);
+      bridge.ingestTikFinity({ event: 'like', data: { likeCount: 5 } });
+      bridge.ingestTikFinity({ event: 'join', data: { nickname: 'คนเข้า', msgId: 'a1' } });
+      await until(() => types(msgs).length >= 1);
+      expect(types(msgs)).toEqual(['คนเข้า']);
+      expect(((await (await fetch(`${url}/monitor.json?token=${TOKEN}`)).json()) as { orderBy: string }).orderBy).toContain('เข้าไลฟ์');
+    });
+    it('like: only likers; join: only joins (likes still count as hearts); both: everybody', async () => {
+      for (const [mode, expected] of [['like', ['คนกดใจ']], ['join', ['คนเข้า1', 'คนเข้า2']], ['both', ['คนเข้า1', 'คนกดใจ', 'คนเข้า2']]] as const) {
+        const { bridge, port } = await boot({ orderOn: mode });
+        const { msgs } = await connect(port);
+        send(bridge);
+        await until(() => types(msgs).length >= expected.length);
+        await new Promise((r) => setTimeout(r, 60));
+        expect(types(msgs), mode).toEqual(expected);
+        expect((msgs.flat() as { type?: string }[]).some((e) => e.type === 'like'), mode).toBe(true); // the heart itself always counts
+      }
+    });
+  });
 });
